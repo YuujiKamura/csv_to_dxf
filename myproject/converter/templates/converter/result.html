@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Result</title>
+</head>
+<body>
+    {% load custom_filters %}  <!-- カスタムフィルタをロードする -->
+
+    <h1>Result</h1>
+    <a href="{% url 'download_dxf' %}">Download DXF</a>
+    <h2>PDF Preview</h2>
+    <embed src="data:application/pdf;base64,{{ pdf_data|b64encode }}" type="application/pdf" width="100%" height="600px" />
+</body>
+</html>

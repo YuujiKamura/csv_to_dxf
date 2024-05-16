@@ -4,11 +4,20 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="3354a474-b5cc-4a1a-99b4-d9eec0b5cb88" name="Changes" comment="version1">
-      <change afterPath="$PROJECT_DIR$/myproject/converter/forms.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/myproject/converter/templates/converter/upload.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+    <list default="true" id="3354a474-b5cc-4a1a-99b4-d9eec0b5cb88" name="Changes" comment="version2 django">
+      <change afterPath="$PROJECT_DIR$/myproject/converter/convert_dxf_to_pdf.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/myproject/converter/templates/converter/result.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/myproject/converter/templates/converter/upload_success.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/myproject/converter/templatetags/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/myproject/converter/templatetags/custom_filters.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/myproject/converter/urls.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/myproject/converter/views/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/myproject/converter/views/download_dxf.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/myproject/converter/views/handle_upload.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/myproject/converter/views/show_pdf.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/myproject/converter/views/upload_file.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/myproject/converter/templates/converter/upload.html" beforeDir="false" afterPath="$PROJECT_DIR$/myproject/converter/templates/converter/upload.html" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -168,7 +177,15 @@
       <option name="project" value="LOCAL" />
       <updated>1715862076309</updated>
     </task>
-    <option name="localTasksCounter" value="2" />
+    <task id="LOCAL-00002" summary="version2 django">
+      <option name="closed" value="true" />
+      <created>1715865745684</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1715865745684</updated>
+    </task>
+    <option name="localTasksCounter" value="3" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -184,6 +201,7 @@
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="version1" />
-    <option name="LAST_COMMIT_MESSAGE" value="version1" />
+    <MESSAGE value="version2 django" />
+    <option name="LAST_COMMIT_MESSAGE" value="version2 django" />
   </component>
 </project>
