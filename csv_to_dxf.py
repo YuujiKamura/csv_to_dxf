@@ -1,6 +1,7 @@
 import ezdxf
 import pandas as pd
 from ezdxf.enums import TextEntityAlignment
+import pyperclip
 
 def load_data(csv_path):
     """CSVファイルからデータを読み込む"""
@@ -33,9 +34,9 @@ def draw_road_sections(msp, data):
         text.set_placement((x, max(wl, -wr) + 5), align=TextEntityAlignment.TOP_CENTER)
         # 外形線を描画
         if previous_left_point and previous_right_point:
-            if left_point > 0.0:
+            if left_point[1] > 0:
                 msp.add_line(previous_left_point, left_point)
-            if right_point > 0.0:
+            if right_point[1] < 0:
                 msp.add_line(previous_right_point, right_point)
 
         # センターラインを描画
@@ -73,6 +74,17 @@ def save_dxf_document(doc, dxf_path):
     """DXFドキュメントを保存する"""
     doc.saveas(dxf_path)
     print(f"DXF file has been saved as {dxf_path}")
+
+def validate_data(data):
+    if data.shape[1] != 4:
+        raise ValueError("データの列数が正しくありません。4列のデータが必要です。")
+
+    # 1列目が文字列、他の列が数値であることを確認
+    if not all(data.iloc[:, 0].apply(lambda x: isinstance(x, str))):
+        raise ValueError("1列目は全て文字列である必要があります。")
+
+    #if not all(data.iloc[:, 1:].apply(lambda x: isinstance(x, (int, float)))):
+     #   raise ValueError("2列目から4列目は全て数値である必要があります。")
 
 def main():
     csv_path = 'data.csv'
