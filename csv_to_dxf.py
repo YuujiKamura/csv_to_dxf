@@ -27,25 +27,33 @@ def draw_road_sections(msp, data):
         # 幅員の線を描画
         msp.add_line(left_point, center_point)
         msp.add_line(center_point, right_point)
-
-        # 測点ラベルを追加、-90度回転して上側に配置
-        text = msp.add_text(name, dxfattribs={'height': 1.0, 'rotation': -90})
-        text.dxf.insert = (x, max(wl, -wr) + 5)  # 高い方の上側に配置
-        text.set_placement((x, max(wl, -wr) + 5), align=TextEntityAlignment.TOP_CENTER)
-        # 外形線を描画
-        if previous_left_point and previous_right_point:
-            if left_point[1] > 0:
-                msp.add_line(previous_left_point, left_point)
-            if right_point[1] < 0:
-                msp.add_line(previous_right_point, right_point)
-
-        # センターラインを描画
-        if previous_center_point:
-            msp.add_line(previous_center_point, center_point)
+        draw_sokuten(msp, name, wl, wr, x)
+        draw_gaikeisen(left_point, msp, previous_left_point, previous_right_point, right_point)
+        draw_centerline(center_point, msp, previous_center_point)
 
         previous_left_point = left_point
         previous_right_point = right_point
         previous_center_point = center_point
+
+def draw_centerline(center_point, msp, previous_center_point):
+    # センターラインを描画
+    if previous_center_point:
+        msp.add_line(previous_center_point, center_point)
+
+
+def draw_gaikeisen(left_point, msp, previous_left_point, previous_right_point, right_point):
+    # 外形線を描画
+    if previous_left_point and previous_right_point:
+        if left_point[1] > 0:
+            msp.add_line(previous_left_point, left_point)
+        if right_point[1] < 0:
+            msp.add_line(previous_right_point, right_point)
+
+def draw_sokuten(msp, name, wl, wr, x):
+    # 測点ラベルを追加、-90度回転して上側に配置
+    text = msp.add_text(name, dxfattribs={'height': 1.0, 'rotation': -90})
+    text.dxf.insert = (x, max(wl, -wr) + 5)  # 高い方の上側に配置
+    text.set_placement((x, max(wl, -wr) + 5), align=TextEntityAlignment.TOP_CENTER)
 
 def add_dimension_text(msp, text, position, rotation=0):
     """寸法テキストを追加する"""
