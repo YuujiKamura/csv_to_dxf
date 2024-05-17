@@ -33,8 +33,10 @@ def draw_road_sections(msp, data):
         text.set_placement((x, max(wl, -wr) + 5), align=TextEntityAlignment.TOP_CENTER)
         # 外形線を描画
         if previous_left_point and previous_right_point:
-            msp.add_line(previous_left_point, left_point)
-            msp.add_line(previous_right_point, right_point)
+            if left_point > 0.0:
+                msp.add_line(previous_left_point, left_point)
+            if right_point > 0.0:
+                msp.add_line(previous_right_point, right_point)
 
         # センターラインを描画
         if previous_center_point:
