@@ -19,8 +19,8 @@ def draw_road_sections(msp, data):
 
     for index, row in data.iterrows():
         name, x, wl, wr = row['name'], row['x'], row['wl'], row['wr']
-        left_point = (x, -wl)
-        right_point = (x, wr)
+        left_point = (x, wl)
+        right_point = (x, -wr)
         center_point = (x, 0)
 
         # 幅員の線を描画
@@ -29,8 +29,8 @@ def draw_road_sections(msp, data):
 
         # 測点ラベルを追加、-90度回転して上側に配置
         text = msp.add_text(name, dxfattribs={'height': 1.0, 'rotation': -90})
-        text.dxf.insert = (x, max(-wl, wr) + 5)  # 高い方の上側に配置
-        text.set_placement((x, max(-wl, wr) + 5), align=TextEntityAlignment.TOP_CENTER)
+        text.dxf.insert = (x, max(wl, -wr) + 5)  # 高い方の上側に配置
+        text.set_placement((x, max(wl, -wr) + 5), align=TextEntityAlignment.TOP_CENTER)
         # 外形線を描画
         if previous_left_point and previous_right_point:
             msp.add_line(previous_left_point, left_point)
@@ -56,13 +56,16 @@ def draw_dimensions(msp, data):
     for index, row in data.iterrows():
         name, x, wl, wr = row['name'], row['x'], row['wl'], row['wr']
         # 左側の幅員寸法を描画
-        add_dimension_text(msp, f"{wl:.2f}", (x, -wl / 2), rotation=-90)
+        if wl > 0.0:
+            add_dimension_text(msp, f"{wl:.2f}", (x, wl / 2), rotation=-90)
         # 右側の幅員寸法を描画
-        add_dimension_text(msp, f"{wr:.2f}", (x, wr / 2), rotation=-90)
+        if wr > 0.0:
+            add_dimension_text(msp, f"{wr:.2f}", (x, -wr / 2), rotation=-90)
         # 延長寸法を描画
         if index > 0:
             prev_x = data.iloc[index - 1]['x']
-            add_dimension_text(msp, f"{x - prev_x:.2f}", ((x + prev_x) / 2, 0))
+            if x - prev_x > 0.0:
+                add_dimension_text(msp, f"{x - prev_x:.2f}", ((x + prev_x) / 2, 0))
 
 def save_dxf_document(doc, dxf_path):
     """DXFドキュメントを保存する"""
