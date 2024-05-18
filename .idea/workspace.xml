@@ -4,9 +4,12 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="3354a474-b5cc-4a1a-99b4-d9eec0b5cb88" name="Changes" comment="version1.22 draw sokuten refactor">
-      <change afterPath="$PROJECT_DIR$/dxf_draw_tenkaiz.py" afterDir="false" />
+    <list default="true" id="3354a474-b5cc-4a1a-99b4-d9eec0b5cb88" name="Changes" comment="version1.23 main process inline refactor">
+      <change afterPath="$PROJECT_DIR$/loader.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/csv_to_dxf.py" beforeDir="false" afterPath="$PROJECT_DIR$/csv_to_dxf.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/data.csv" beforeDir="false" afterPath="$PROJECT_DIR$/data.csv" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/dxf_draw_tenkaiz.py" beforeDir="false" afterPath="$PROJECT_DIR$/dxf_draw_tenkaiz.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -30,17 +33,18 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;Python.__init__.executor&quot;: &quot;Run&quot;,
-    &quot;Python.csv_to_dxf.executor&quot;: &quot;Run&quot;,
-    &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;temp-branch&quot;,
-    &quot;last_opened_file_path&quot;: &quot;C:/Users/yuuji/PycharmProjects/pythonProject/myproject&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;reference.settingsdialog.IDE.editor.colors&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Python.__init__.executor": "Run",
+    "Python.csv_to_dxf.executor": "Run",
+    "Python.dxf_draw_tenkaiz.executor": "Run",
+    "RunOnceActivity.OpenProjectViewOnStart": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "git-widget-placeholder": "temp-branch",
+    "last_opened_file_path": "C:/Users/yuuji/PycharmProjects/pythonProject/myproject",
+    "settings.editor.selected.configurable": "reference.settingsdialog.IDE.editor.colors"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
       <recent name="C:\Users\yuuji\PycharmProjects\pythonProject" />
@@ -126,7 +130,23 @@
       <option name="project" value="LOCAL" />
       <updated>1716001041164</updated>
     </task>
-    <option name="localTasksCounter" value="9" />
+    <task id="LOCAL-00009" summary="version1.23 extract dxf_draw_tenkaiz.py">
+      <option name="closed" value="true" />
+      <created>1716002904259</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1716002904259</updated>
+    </task>
+    <task id="LOCAL-00010" summary="version1.23 main process inline refactor">
+      <option name="closed" value="true" />
+      <created>1716005278566</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1716005278566</updated>
+    </task>
+    <option name="localTasksCounter" value="11" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -149,6 +169,8 @@
     <MESSAGE value="version1.2 core refactor" />
     <MESSAGE value="version1.21 nijyuudanmen refactor" />
     <MESSAGE value="version1.22 draw sokuten refactor" />
-    <option name="LAST_COMMIT_MESSAGE" value="version1.22 draw sokuten refactor" />
+    <MESSAGE value="version1.23 extract dxf_draw_tenkaiz.py" />
+    <MESSAGE value="version1.23 main process inline refactor" />
+    <option name="LAST_COMMIT_MESSAGE" value="version1.23 main process inline refactor" />
   </component>
 </project>
