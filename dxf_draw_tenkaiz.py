@@ -3,40 +3,35 @@ from ezdxf.enums import TextEntityAlignment
 def draw_road_sections(msp, data):
     """道路断面と測点ラベルを描画する"""
     prev_points = (None,None,None)
-
     for index, row in data.iterrows():
         name, x, wl, wr = row['name'], row['x'], row['wl'], row['wr']
-        left = (x, wl)
-        center = (x, 0)
-        right = (x, -wr)
+        points = ((x,wl),(x,0),(x,wr))
+        draw_matomete_lines( msp, points, prev_points )
+        draw_set_of_dimensions( data, index, msp, row )
+        prev_points = points
 
-        draw_matomete_lines(left, center, right, prev_points, msp)
-        draw_set_of_dimensions(data, index, msp, row)
+def draw_matomete_lines(msp, points, prev_points):
+    draw_hukuin_lines(msp, points)
+    draw_gaikeisen(msp, points, prev_points)
+    draw_centerline(msp, points, prev_points)
 
-        prev_points = ( left, center, right )
-
-def draw_matomete_lines(left_point, center_point, right_point, prev_points, msp):
-    draw_hukuin_lines(center_point, left_point, msp, right_point)
-    draw_gaikeisen(left_point, msp, prev_points[0], prev_points[2], right_point)
-    draw_centerline(center_point, msp, prev_points[1])
-
-def draw_hukuin_lines(center_point, left_point, msp, right_point):
+def draw_hukuin_lines(msp, points):
     # 幅員の線を描画
-    msp.add_line(left_point, center_point)
-    msp.add_line(center_point, right_point)
+    msp.add_line(points[0],points[1])
+    msp.add_line(points[1],points[2])
 
-def draw_centerline(center_point, msp, previous_center_point):
+def draw_centerline(msp,points,prev_points):
     # センターラインを描画
-    if previous_center_point:
-        msp.add_line(previous_center_point, center_point)
+    if points[1][0]-prev_points[1][0] > 0:
+        msp.add_line(points[1], prev_points[1])
 
-def draw_gaikeisen(left_point, msp, previous_left_point, previous_right_point, right_point):
+def draw_gaikeisen(msp, points, prev_points):
     # 外形線を描画
-    if previous_left_point and previous_right_point:
-        if left_point[1] > 0:
-            msp.add_line(previous_left_point, left_point)
-        if right_point[1] < 0:
-            msp.add_line(previous_right_point, right_point)
+    if prev_points[0] and prev_points[2]:
+        if points[0][1] > 0:
+            msp.add_line(prev_points[0], points[0])
+        if points[2][1] < 0:
+            msp.add_line(prev_points[2], points[2])
 
 def draw_set_of_dimensions(data, index, msp, row):
     name, added_distance, wl, wr = row['name'], row['x'], row['wl'], row['wr']
