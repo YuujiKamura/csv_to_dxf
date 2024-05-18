@@ -4,9 +4,8 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="3354a474-b5cc-4a1a-99b4-d9eec0b5cb88" name="Changes" comment="version1.1 core refactor">
+    <list default="true" id="3354a474-b5cc-4a1a-99b4-d9eec0b5cb88" name="Changes" comment="version1.2 core refactor">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/csv_to_dxf.py" beforeDir="false" afterPath="$PROJECT_DIR$/csv_to_dxf.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -94,7 +93,23 @@
       <option name="project" value="LOCAL" />
       <updated>1715943156197</updated>
     </task>
-    <option name="localTasksCounter" value="5" />
+    <task id="LOCAL-00005" summary="version1.1a core refactor">
+      <option name="closed" value="true" />
+      <created>1715995563026</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1715995563026</updated>
+    </task>
+    <task id="LOCAL-00006" summary="version1.2 core refactor">
+      <option name="closed" value="true" />
+      <created>1715997574495</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1715997574495</updated>
+    </task>
+    <option name="localTasksCounter" value="7" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -113,6 +128,8 @@
     <MESSAGE value="version1.1 core update 2" />
     <MESSAGE value="version1.1 core update 3" />
     <MESSAGE value="version1.1 core refactor" />
-    <option name="LAST_COMMIT_MESSAGE" value="version1.1 core refactor" />
+    <MESSAGE value="version1.1a core refactor" />
+    <MESSAGE value="version1.2 core refactor" />
+    <option name="LAST_COMMIT_MESSAGE" value="version1.2 core refactor" />
   </component>
 </project>

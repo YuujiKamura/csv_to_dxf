@@ -64,9 +64,9 @@ def draw_set_of_dimensions(data, index, msp, row):
     if x - prev_x < 1.0:
         alignment = BOTTOM_CENTER
     # 左側の幅員寸法を描画
-    draw_positive_dimension(msp, wl, (x, wl / 2), -90)
+    draw_positive_dimension(msp, wl, (x, wl / 2), -90, alignment)
     # 右側の幅員寸法を描画
-    draw_positive_dimension(msp, wr, (x, -wr / 2), -90)
+    draw_positive_dimension(msp, wr, (x, -wr / 2), -90, alignment)
 
 TOP_CENTER=TextEntityAlignment.TOP_CENTER
 BOTTOM_CENTER=TextEntityAlignment.BOTTOM_CENTER
