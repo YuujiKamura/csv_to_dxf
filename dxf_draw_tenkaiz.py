@@ -7,14 +7,14 @@ def draw_road_sections(msp, data):
 
     for index, row in data.iterrows():
         name, x, wl, wr = row['name'], row['x'], row['wl'], row['wr']
-        left_point = (x, wl)
-        right_point = (x, -wr)
-        center_point = (x, 0)
+        left = (x, wl)
+        center = (x, 0)
+        right = (x, -wr)
 
-        draw_matomete_lines(left_point, center_point, right_point, prev_points, msp)
+        draw_matomete_lines(left, center, right, prev_points, msp)
         draw_set_of_dimensions(data, index, msp, row)
 
-        prev_points = ( left_point, center_point, right_point )
+        prev_points = ( left, center, right )
 
 def draw_matomete_lines(left_point, center_point, right_point, prev_points, msp):
     draw_hukuin_lines(center_point, left_point, msp, right_point)
