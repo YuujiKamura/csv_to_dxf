@@ -23,7 +23,6 @@ def draw_road_sections(msp, data):
         center_point = (x, 0)
 
         draw_matomete_lines(left_point, center_point, right_point, prev_points, msp)
-        draw_sokuten(msp, name, wl, wr, x)
 
         prev_points = ( left_point, center_point, right_point )
 
@@ -59,7 +58,9 @@ def draw_set_of_dimensions(data, index, msp, row):
         prev_x = data.iloc[index - 1]['x']
     # 延長寸法を描画
     if x - prev_x > 0.0:
-        add_dimension_text(msp, f"{x - prev_x:.2f}", ((x + prev_x) / 2, 0))
+        add_text(msp, f"{x - prev_x:.2f}", ((x + prev_x) / 2, 0))
+    if x - prev_x > 1.0:
+        draw_sokuten(msp, name, wl, wr, x)
     alignment = TOP_CENTER
     if x - prev_x < 1.0:
         alignment = BOTTOM_CENTER
@@ -73,9 +74,9 @@ BOTTOM_CENTER=TextEntityAlignment.BOTTOM_CENTER
 
 def draw_positive_dimension(msp, value, position, rotation, alignment=TOP_CENTER):
     if value > 0.0:
-        add_dimension_text(msp, f"{value:.2f}", position, rotation, alignment )
+        add_text(msp, f"{value:.2f}", position, rotation, alignment)
 
-def add_dimension_text(msp, text, position, rotation=0, alignment=TOP_CENTER):
+def add_text(msp, text, position, rotation=0, alignment=TOP_CENTER):
     """寸法テキストを追加する"""
     dimension_text = msp.add_text(text, dxfattribs={'height': 1.0, 'rotation': rotation})
     dimension_text.dxf.insert = position
@@ -84,9 +85,7 @@ def add_dimension_text(msp, text, position, rotation=0, alignment=TOP_CENTER):
 
 def draw_sokuten(msp, name, wl, wr, x, alignment=TOP_CENTER):
     # 測点ラベルを追加、-90度回転して上側に配置
-    text = msp.add_text(name, dxfattribs={'height': 1.0, 'rotation': -90})
-    text.dxf.insert = (x, max(wl, -wr) + 5)  # 高い方の上側に配置
-    text.set_placement((x, max(wl, -wr) + 5), align=alignment)
+    add_text(msp, name, (x, max(wl, -wr) + 5), -90, alignment)
 
 def save_dxf_document(doc, dxf_path):
     """DXFドキュメントを保存する"""
