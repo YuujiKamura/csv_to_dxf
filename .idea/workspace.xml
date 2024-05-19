@@ -4,6 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
+<<<<<<< HEAD
     <list default="true" id="3354a474-b5cc-4a1a-99b4-d9eec0b5cb88" name="Changes" comment="version2 django">
       <change afterPath="$PROJECT_DIR$/myproject/converter/convert_dxf_to_pdf.py" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/myproject/converter/templates/converter/result.html" afterDir="false" />
@@ -18,6 +19,10 @@
       <change afterPath="$PROJECT_DIR$/myproject/converter/views/upload_file.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/myproject/converter/templates/converter/upload.html" beforeDir="false" afterPath="$PROJECT_DIR$/myproject/converter/templates/converter/upload.html" afterDir="false" />
+=======
+    <list default="true" id="3354a474-b5cc-4a1a-99b4-d9eec0b5cb88" name="Changes" comment="version1.26 drawer refactor">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+>>>>>>> temp-branch
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -25,11 +30,16 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="Git.Settings">
+    <option name="RECENT_BRANCH_BY_REPOSITORY">
+      <map>
+        <entry key="$PROJECT_DIR$" value="bd6bc5d1238a5b9ba85b3ee62dce2ac8f1e78d43" />
+      </map>
+    </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
-  <component name="ProjectColorInfo"><![CDATA[{
-  "associatedIndex": 4
-}]]></component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 4
+}</component>
   <component name="ProjectId" id="2gXt3xlzWhz3wLiUByKbkQDpStR" />
   <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
   <component name="ProjectViewState">
@@ -38,120 +48,21 @@
   </component>
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
+    "Python.__init__.executor": "Run",
     "Python.csv_to_dxf.executor": "Run",
+    "Python.dxf_draw_tenkaiz.executor": "Run",
     "RunOnceActivity.OpenProjectViewOnStart": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
-    "git-widget-placeholder": "master"
+    "git-widget-placeholder": "temp-branch",
+    "ignore.virus.scanning.warn.message": "true",
+    "last_opened_file_path": "C:/Users/yuuji/PycharmProjects/pythonProject/myproject",
+    "settings.editor.selected.configurable": "reference.settingsdialog.IDE.editor.colors"
   }
 }]]></component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
       <recent name="C:\Users\yuuji\PycharmProjects\pythonProject" />
     </key>
-  </component>
-  <component name="RunManager">
-    <configuration default="true" type="PythonConfigurationType" factoryName="Python">
-      <module name="pythonProject_csv_to_dxf" />
-      <option name="ENV_FILES" value="" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-      </envs>
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="" />
-      <option name="IS_MODULE_SDK" value="false" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="SCRIPT_NAME" value="" />
-      <option name="PARAMETERS" value="" />
-      <option name="SHOW_COMMAND_LINE" value="false" />
-      <option name="EMULATE_TERMINAL" value="false" />
-      <option name="MODULE_MODE" value="false" />
-      <option name="REDIRECT_INPUT" value="false" />
-      <option name="INPUT_FILE" value="" />
-      <method v="2" />
-    </configuration>
-    <configuration default="true" type="Tox" factoryName="Tox">
-      <module name="pythonProject_csv_to_dxf" />
-      <option name="ENV_FILES" value="" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="" />
-      <option name="IS_MODULE_SDK" value="false" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <method v="2" />
-    </configuration>
-    <configuration default="true" type="docs" factoryName="Docutils task">
-      <module name="pythonProject_csv_to_dxf" />
-      <option name="ENV_FILES" value="" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="" />
-      <option name="IS_MODULE_SDK" value="false" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="docutils_input_file" value="" />
-      <option name="docutils_output_file" value="" />
-      <option name="docutils_params" value="" />
-      <option name="docutils_task" value="" />
-      <option name="docutils_open_in_browser" value="false" />
-      <method v="2" />
-    </configuration>
-    <configuration default="true" type="docs" factoryName="Sphinx task">
-      <module name="pythonProject_csv_to_dxf" />
-      <option name="ENV_FILES" value="" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="" />
-      <option name="IS_MODULE_SDK" value="false" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="docutils_input_file" value="" />
-      <option name="docutils_output_file" value="" />
-      <option name="docutils_params" value="" />
-      <option name="docutils_task" value="" />
-      <option name="docutils_open_in_browser" value="false" />
-      <method v="2" />
-    </configuration>
-    <configuration default="true" type="tests" factoryName="Autodetect">
-      <module name="pythonProject_csv_to_dxf" />
-      <option name="ENV_FILES" value="" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="" />
-      <option name="IS_MODULE_SDK" value="false" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="_new_additionalArguments" value="&quot;&quot;" />
-      <option name="_new_target" value="&quot;&quot;" />
-      <option name="_new_targetType" value="&quot;PATH&quot;" />
-      <method v="2" />
-    </configuration>
-    <configuration default="true" type="tests" factoryName="Doctests">
-      <module name="pythonProject_csv_to_dxf" />
-      <option name="ENV_FILES" value="" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="" />
-      <option name="IS_MODULE_SDK" value="false" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="SCRIPT_NAME" value="" />
-      <option name="CLASS_NAME" value="" />
-      <option name="METHOD_NAME" value="" />
-      <option name="FOLDER_NAME" value="" />
-      <option name="TEST_TYPE" value="TEST_SCRIPT" />
-      <option name="PATTERN" value="" />
-      <option name="USE_PATTERN" value="false" />
-      <method v="2" />
-    </configuration>
   </component>
   <component name="SharedIndexes">
     <attachedChunks>
@@ -169,6 +80,7 @@
       <option name="presentableId" value="Default" />
       <updated>1715855555380</updated>
     </task>
+<<<<<<< HEAD
     <task id="LOCAL-00001" summary="version1">
       <option name="closed" value="true" />
       <created>1715862076309</created>
@@ -186,6 +98,105 @@
       <updated>1715865745684</updated>
     </task>
     <option name="localTasksCounter" value="3" />
+=======
+    <task id="LOCAL-00001" summary="version1.1 core update">
+      <option name="closed" value="true" />
+      <created>1715914489329</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1715914489329</updated>
+    </task>
+    <task id="LOCAL-00002" summary="version1.1 core update 2">
+      <option name="closed" value="true" />
+      <created>1715914786059</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1715914786059</updated>
+    </task>
+    <task id="LOCAL-00003" summary="version1.1 core update 3">
+      <option name="closed" value="true" />
+      <created>1715934693714</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1715934693714</updated>
+    </task>
+    <task id="LOCAL-00004" summary="version1.1 core refactor">
+      <option name="closed" value="true" />
+      <created>1715943156197</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1715943156197</updated>
+    </task>
+    <task id="LOCAL-00005" summary="version1.1a core refactor">
+      <option name="closed" value="true" />
+      <created>1715995563026</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1715995563026</updated>
+    </task>
+    <task id="LOCAL-00006" summary="version1.2 core refactor">
+      <option name="closed" value="true" />
+      <created>1715997574495</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1715997574495</updated>
+    </task>
+    <task id="LOCAL-00007" summary="version1.21 nijyuudanmen refactor">
+      <option name="closed" value="true" />
+      <created>1715998384039</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1715998384039</updated>
+    </task>
+    <task id="LOCAL-00008" summary="version1.22 draw sokuten refactor">
+      <option name="closed" value="true" />
+      <created>1716001041164</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1716001041164</updated>
+    </task>
+    <task id="LOCAL-00009" summary="version1.23 extract dxf_draw_tenkaiz.py">
+      <option name="closed" value="true" />
+      <created>1716002904259</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1716002904259</updated>
+    </task>
+    <task id="LOCAL-00010" summary="version1.23 main process inline refactor">
+      <option name="closed" value="true" />
+      <created>1716005278566</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1716005278566</updated>
+    </task>
+    <task id="LOCAL-00011" summary="version1.25 load from clipboard">
+      <option name="closed" value="true" />
+      <created>1716027853647</created>
+      <option name="number" value="00011" />
+      <option name="presentableId" value="LOCAL-00011" />
+      <option name="project" value="LOCAL" />
+      <updated>1716027853647</updated>
+    </task>
+    <task id="LOCAL-00012" summary="version1.26 drawer refactor">
+      <option name="closed" value="true" />
+      <created>1716033901480</created>
+      <option name="number" value="00012" />
+      <option name="presentableId" value="LOCAL-00012" />
+      <option name="project" value="LOCAL" />
+      <updated>1716033901480</updated>
+    </task>
+    <option name="localTasksCounter" value="13" />
+>>>>>>> temp-branch
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -193,7 +204,23 @@
       <map>
         <entry key="MAIN">
           <value>
+<<<<<<< HEAD
             <State />
+=======
+            <State>
+              <option name="FILTERS">
+                <map>
+                  <entry key="branch">
+                    <value>
+                      <list>
+                        <option value="temp-branch" />
+                      </list>
+                    </value>
+                  </entry>
+                </map>
+              </option>
+            </State>
+>>>>>>> temp-branch
           </value>
         </entry>
       </map>
@@ -202,6 +229,18 @@
   <component name="VcsManagerConfiguration">
     <MESSAGE value="version1" />
     <MESSAGE value="version2 django" />
-    <option name="LAST_COMMIT_MESSAGE" value="version2 django" />
+    <MESSAGE value="version1.1 core update" />
+    <MESSAGE value="version1.1 core update 2" />
+    <MESSAGE value="version1.1 core update 3" />
+    <MESSAGE value="version1.1 core refactor" />
+    <MESSAGE value="version1.1a core refactor" />
+    <MESSAGE value="version1.2 core refactor" />
+    <MESSAGE value="version1.21 nijyuudanmen refactor" />
+    <MESSAGE value="version1.22 draw sokuten refactor" />
+    <MESSAGE value="version1.23 extract dxf_draw_tenkaiz.py" />
+    <MESSAGE value="version1.23 main process inline refactor" />
+    <MESSAGE value="version1.25 load from clipboard" />
+    <MESSAGE value="version1.26 drawer refactor" />
+    <option name="LAST_COMMIT_MESSAGE" value="version1.26 drawer refactor" />
   </component>
 </project>
