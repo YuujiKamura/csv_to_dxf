@@ -58,6 +58,9 @@ def draw_line(msp, line):
 def draw_dim(msp, dim):
     add_text(msp, dim[0], dim[1], dim[2], dim[3] )
 
+TOP_CENTER=TextEntityAlignment.TOP_CENTER
+BOTTOM_CENTER=TextEntityAlignment.BOTTOM_CENTER
+
 def add_text(msp, text, position, rotation=0, alignment=TOP_CENTER):
     """寸法テキストを追加する"""
     dimension_text = msp.add_text(text, dxfattribs={'height': 1.0, 'rotation': rotation})
@@ -71,5 +74,3 @@ def align_by_distance(tankyori):
     else:
         return TOP_CENTER
 
-TOP_CENTER=TextEntityAlignment.TOP_CENTER
-BOTTOM_CENTER=TextEntityAlignment.BOTTOM_CENTER
