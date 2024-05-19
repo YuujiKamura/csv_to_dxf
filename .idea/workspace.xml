@@ -4,9 +4,8 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="3354a474-b5cc-4a1a-99b4-d9eec0b5cb88" name="Changes" comment="version1.25 load from clipboard">
+    <list default="true" id="3354a474-b5cc-4a1a-99b4-d9eec0b5cb88" name="Changes" comment="version1.26 drawer refactor">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/dxf_draw_tenkaiz.py" beforeDir="false" afterPath="$PROJECT_DIR$/dxf_draw_tenkaiz.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -152,7 +151,15 @@
       <option name="project" value="LOCAL" />
       <updated>1716027853647</updated>
     </task>
-    <option name="localTasksCounter" value="12" />
+    <task id="LOCAL-00012" summary="version1.26 drawer refactor">
+      <option name="closed" value="true" />
+      <created>1716033901480</created>
+      <option name="number" value="00012" />
+      <option name="presentableId" value="LOCAL-00012" />
+      <option name="project" value="LOCAL" />
+      <updated>1716033901480</updated>
+    </task>
+    <option name="localTasksCounter" value="13" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -160,7 +167,19 @@
       <map>
         <entry key="MAIN">
           <value>
-            <State />
+            <State>
+              <option name="FILTERS">
+                <map>
+                  <entry key="branch">
+                    <value>
+                      <list>
+                        <option value="temp-branch" />
+                      </list>
+                    </value>
+                  </entry>
+                </map>
+              </option>
+            </State>
           </value>
         </entry>
       </map>
@@ -178,6 +197,7 @@
     <MESSAGE value="version1.23 extract dxf_draw_tenkaiz.py" />
     <MESSAGE value="version1.23 main process inline refactor" />
     <MESSAGE value="version1.25 load from clipboard" />
-    <option name="LAST_COMMIT_MESSAGE" value="version1.25 load from clipboard" />
+    <MESSAGE value="version1.26 drawer refactor" />
+    <option name="LAST_COMMIT_MESSAGE" value="version1.26 drawer refactor" />
   </component>
 </project>
