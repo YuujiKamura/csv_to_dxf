@@ -7,7 +7,7 @@ def draw_road_sections(msp, data):
         name, x, wl, wr = row['name'], row['x'], row['wl'], row['wr']
         points = ((x,wl),(x,0),(x,wr))
         draw_matomete_lines( msp, points, prev_points )
-        draw_set_of_dimensions( data, index, msp, row )
+        draw_set_of_dimensions( msp, name, wl, wr, points, prev_points )
         prev_points = points
 
 def draw_matomete_lines(msp, points, prev_points):
@@ -33,13 +33,10 @@ def draw_gaikeisen(msp, points, prev_points):
         if points[2][1] < 0:
             msp.add_line(prev_points[2], points[2])
 
-def draw_set_of_dimensions(data, index, msp, row):
-    name, added_distance, wl, wr = row['name'], row['x'], row['wl'], row['wr']
-    prev_x = -1
-    if index > 0:
-        prev_x = data.iloc[index - 1]['x']
-    alignment = align_by_distance(added_distance,prev_x)
-
+def draw_set_of_dimensions( msp, name, wl, wr, points, prev_points ):
+    added_distance = points[1][0]
+    prev_x = prev_points[1][0]
+    alignment = align_by_distance(added_distance, prev_x)
     # 延長寸法を描画
     if added_distance - prev_x > 1.0:
         add_text(msp, f"{added_distance - prev_x:.2f}", ((added_distance + prev_x) / 2, 0))
