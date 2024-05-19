@@ -2,64 +2,61 @@ from ezdxf.enums import TextEntityAlignment
 
 def draw_road_sections(msp, data):
     """道路断面と測点ラベルを描画する"""
-    prev_points = (None,None,None)
+    prev_linelr = ((0,0),(0,0),(0,0))
     for index, row in data.iterrows():
         name, x, wl, wr = row['name'], row['x'], row['wl'], row['wr']
-        points = ((x,wl),(x,0),(x,wr))
-        draw_matomete_lines( msp, points, prev_points )
-        draw_set_of_dimensions( msp, name, wl, wr, points, prev_points )
-        prev_points = points
+        linelr = ( (x,wl),(x,0),(x,-wr) )
 
-def draw_matomete_lines(msp, points, prev_points):
-    draw_hukuin_lines(msp, points)
-    draw_gaikeisen(msp, points, prev_points)
-    draw_centerline(msp, points, prev_points)
+        line_conditions = coodinate_lines(row, prev_linelr)
+        dim_conditions = coodinate_dimensions(row, prev_linelr)
 
-def draw_hukuin_lines(msp, points):
-    # 幅員の線を描画
-    msp.add_line(points[0],points[1])
-    msp.add_line(points[1],points[2])
+        draw_with(msp, line_conditions, draw_line )
+        draw_with( msp, dim_conditions, draw_dim )
 
-def draw_centerline(msp,points,prev_points):
-    # センターラインを描画
-    if points[1][0]-prev_points[1][0] > 0:
-        msp.add_line(points[1], prev_points[1])
+        prev_linelr = linelr
 
-def draw_gaikeisen(msp, points, prev_points):
-    # 外形線を描画
-    if prev_points[0] and prev_points[2]:
-        if points[0][1] > 0:
-            msp.add_line(prev_points[0], points[0])
-        if points[2][1] < 0:
-            msp.add_line(prev_points[2], points[2])
+def coodinate_lines(row, prev_linelr):
+    name, x, wl, wr = row['name'], row['x'], row['wl'], row['wr']
+    linel = ((x, wl),  (x, 0))
+    liner = ((x, 0),   (x, -wr))
+    linec = ((x, 0),   prev_linelr[1])
+    linet = ((x, wl),  prev_linelr[0])
+    lineb = ((x, -wr), prev_linelr[2])
+    conditions = [
+        (True, linel),  # 幅員の線1を描画
+        (True, liner),  # 幅員の線2を描画
+        (linec[0][0] - linec[1][0] > 0, linec),  # センターラインを描画
+        (linet[0][1] > 0, linet),  # 外形線1を描画
+        (lineb[0][1] < 0, lineb)  # 外形線2を描画
+    ]
+    return conditions
 
-def draw_set_of_dimensions( msp, name, wl, wr, points, prev_points ):
-    added_distance = points[1][0]
+def coodinate_dimensions(row, prev_points):
+    name, x, wl, wr = row['name'], row['x'], row['wl'], row['wr']
     prev_x = prev_points[1][0]
-    alignment = align_by_distance(added_distance, prev_x)
-    # 延長寸法を描画
-    if added_distance - prev_x > 1.0:
-        add_text(msp, f"{added_distance - prev_x:.2f}", ((added_distance + prev_x) / 2, 0))
+    tankyori = x - prev_x
+    alignment = align_by_distance(tankyori)
+    dimc = ( '{:.2f}'.format(tankyori), ((x+prev_x)*0.5, 0), 0, alignment )
+    diml = ( f"{wl:.2f}", (x, wl * 0.5), -90, alignment )
+    dimr = ( f"{wr:.2f}", (x, -wr * 0.5), -90, alignment )
+    dims = ( name, (x, wl + 5), -90, alignment )
+    conditions = [
+        (tankyori > 0, dimc),  # 延長寸法を描画
+        (wl > 0.0, diml ),  # 左側の幅員寸法を描画
+        (wr > 0.0, dimr ),  # 右側の幅員寸法を描画
+        ( (x == 0 or x - prev_x > 0), dims ) #測点
+    ]
+    return conditions
 
-    draw_sokuten(msp, name, wl, wr, added_distance, prev_x, alignment)
+def draw_with(msp, conditions, drawmethod ):
+    for condition, entity in conditions:
+        if condition:
+            drawmethod(msp, entity)
+def draw_line(msp, line):
+    msp.add_line( line[0], line[1] )
 
-    # 左側の幅員寸法を描画
-    draw_positive_dimension(msp, wl, (added_distance, wl * 0.5 ), -90, alignment)
-    # 右側の幅員寸法を描画
-    draw_positive_dimension(msp, wr, (added_distance, -wr * 0.5 ), -90, alignment)
-
-def align_by_distance(x, prev_x):
-    if x - prev_x < 1:
-        return BOTTOM_CENTER
-    else:
-        return TOP_CENTER
-
-TOP_CENTER=TextEntityAlignment.TOP_CENTER
-BOTTOM_CENTER=TextEntityAlignment.BOTTOM_CENTER
-
-def draw_positive_dimension(msp, value, position, rotation, alignment=TOP_CENTER):
-    if value > 0.0:
-        add_text(msp, f"{value:.2f}", position, rotation, alignment)
+def draw_dim(msp, dim):
+    add_text(msp, dim[0], dim[1], dim[2], dim[3] )
 
 def add_text(msp, text, position, rotation=0, alignment=TOP_CENTER):
     """寸法テキストを追加する"""
@@ -68,7 +65,11 @@ def add_text(msp, text, position, rotation=0, alignment=TOP_CENTER):
     dimension_text.dxf.align_point = position
     dimension_text.set_placement(position, align=alignment)
 
-def draw_sokuten(msp, name, wl, wr, x, prev_x, alignment=TOP_CENTER):
-    if x - prev_x > 0:
-        # 測点ラベルを追加、-90度回転して上側に配置
-        add_text(msp, name, (x, max(wl, -wr) + 5), -90, alignment)
+def align_by_distance(tankyori):
+    if tankyori < 1:
+        return BOTTOM_CENTER
+    else:
+        return TOP_CENTER
+
+TOP_CENTER=TextEntityAlignment.TOP_CENTER
+BOTTOM_CENTER=TextEntityAlignment.BOTTOM_CENTER
