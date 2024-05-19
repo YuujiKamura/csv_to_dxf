@@ -7,21 +7,21 @@ def load_data_from_clipboard():
     global data
     try:
         data = pd.read_clipboard(header=None)
-        data.columns = ["name", "x", "wl", "wr"]
         validate_data(data)
+        data.columns = ["name", "x", "wl", "wr"]
         return data
     except ValueError as e:
         show_error_dialog(show_usage())
         print(f"入力エラー: {e}")
         print("クリップボードから読み込んだデータ:")
         print(data)
-        return
+        return data
     except Exception as e:
         show_error_dialog(show_usage())
         print(f"予期しないエラーが発生しました: {e}")
         print("クリップボードから読み込んだデータ:")
         print(data)
-        return
+        return data
 
 def load_data_from_csv():
     csv_path = 'data.csv'
@@ -40,15 +40,16 @@ def show_usage():
                "excelなどの表計算ソフトを使って４列構成の表を作成し、\n"
                "クリップボードにコピーした後に実行してください。\n\n"
                f"{sample_data_str}\n\n"
+               "ヘッダー行は入力不要です\n"
                "成功すると、同一ディレクトリにdxfファイルが作成されます。\n\n"
                )
     return message
 
 def validate_data(data):
     message = show_usage()
-    show_data_in_dialog(data, message)
 
     if data.shape[1] != 4:
+        show_data_in_dialog(data, message)
         raise ValueError(message)
 
     # 1列目が文字列、他の列が数値であることを確認

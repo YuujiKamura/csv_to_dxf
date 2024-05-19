@@ -11,7 +11,7 @@ def main():
     dxf_draw_tenkaiz.draw_road_sections( doc.modelspace(), data )
 
     doc.saveas(dxf_path)
-    message = f"\nDXF file has been saved as {dxf_path}"
+    message = f"\nDXF file has been saved as {dxf_path}\n"
     loader.show_data_in_dialog(data, message)
     print(message)
 
