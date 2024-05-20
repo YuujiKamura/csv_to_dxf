@@ -1,17 +1,17 @@
 from ezdxf.enums import TextEntityAlignment
 
-def draw_road_sections(msp, data):
+def draw_road_sections( modelspace, data ):
     """道路断面と測点ラベルを描画する"""
     prev_linelr = ((0,0),(0,0),(0,0))
     for index, row in data.iterrows():
         name, x, wl, wr = row['name'], row['x'], row['wl'], row['wr']
         linelr = ( (x,wl),(x,0),(x,-wr) )
 
-        line_conditions = coodinate_lines(row, prev_linelr)
-        dim_conditions = coodinate_dimensions(row, prev_linelr)
+        line_conditions = coodinate_lines( row, prev_linelr )
+        dim_conditions = coodinate_dimensions( row, prev_linelr )
 
-        draw_with(msp, line_conditions, draw_line )
-        draw_with( msp, dim_conditions, draw_dim )
+        draw_with( modelspace, line_conditions, draw_line )
+        draw_with( modelspace, dim_conditions, draw_dim )
 
         prev_linelr = linelr
 
