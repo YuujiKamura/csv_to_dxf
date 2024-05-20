@@ -4,24 +4,18 @@ from tkinter import messagebox, scrolledtext
 
 def load_data_from_clipboard():
     # クリップボードからデータを読み込む
-    global data
     try:
         data = pd.read_clipboard(header=None)
-        validate_data(data)
         data.columns = ["name", "x", "wl", "wr"]
         return data
-    except ValueError as e:
-        show_error_dialog(show_usage())
-        print(f"入力エラー: {e}")
-        print("クリップボードから読み込んだデータ:")
-        print(data)
-        return data
+    except pd.errors.ParserError as e:
+        show_error_dialog("クリップボードからデータを読み込めませんでした。データの形式を確認してください。")
+        print(f"パースエラー: {e}")
+        return None
     except Exception as e:
-        show_error_dialog(show_usage())
-        print(f"予期しないエラーが発生しました: {e}")
-        print("クリップボードから読み込んだデータ:")
-        print(data)
-        return data
+        show_error_dialog("クリップボードからデータを読み込む際に予期しないエラーが発生しました。")
+        print(f"予期しないエラー: {e}")
+        return None
 
 def load_data_from_csv():
     csv_path = 'data.csv'
@@ -47,15 +41,23 @@ def show_usage():
 
 def validate_data(data):
     message = show_usage()
+    conditions = [
+        (data.shape[1] != 4, "データは4列構成でなければなりません。"),
+        (not all(isinstance(x, str) for x in data.iloc[:, 0]), "1列目は文字列でなければなりません。"),
+    ]
 
-    if data.shape[1] != 4:
+    errors = [msg for condition, msg in conditions if condition]
+
+    if errors:
         show_data_in_dialog(data, message)
-        raise ValueError(message)
+        error_message = "\n".join(errors)
+        show_error_dialog(f"{message}\n{error_message}")
+        print(f"入力エラー:\n{error_message}")
+        print("クリップボードから読み込んだデータ:")
+        print(data)
+        return None
 
-    # 1列目が文字列、他の列が数値であることを確認
-    if not all(data.iloc[:, 1].apply(lambda x: isinstance(x, str))):
-        show_error_dialog(message)
-        raise ValueError(message)
+    return data
 
 def show_error_dialog(message):
     root = tk.Tk()
