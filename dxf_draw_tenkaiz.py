@@ -34,6 +34,8 @@ def coodinate_lines(row, prev_linelr):
 def coodinate_dimensions(row, prev_points):
     name, x, wl, wr = row['name'], row['x'], row['wl'], row['wr']
     prev_x = prev_points[1][0]
+    prev_wl = prev_points[0][1]
+    prev_wr = -prev_points[2][1]
     tankyori = x - prev_x
     alignment = align_by_distance(tankyori)
     dimc = ( '{:.2f}'.format(tankyori), ((x+prev_x)*0.5, 0), 0, alignment )
@@ -42,8 +44,8 @@ def coodinate_dimensions(row, prev_points):
     dims = ( name, (x, wl + 5), -90, alignment )
     conditions = [
         (tankyori > 0, dimc),  # 延長寸法を描画
-        (wl > 0.0, diml ),  # 左側の幅員寸法を描画
-        (wr > 0.0, dimr ),  # 右側の幅員寸法を描画
+        (wl > 0.0 and (x != prev_x or wl != prev_wl), diml ),  # 左側の幅員寸法を描画
+        (wr > 0.0 and (x != prev_x or wr != prev_wr), dimr ),  # 右側の幅員寸法を描画
         ( (x == 0 or x - prev_x > 0), dims ) #測点
     ]
     return conditions
