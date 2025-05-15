@@ -1,0 +1,47 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+*.egg-info/
+dist/
+*.exe
+*.dll
+
+# Nuitka build files
+*.dist/
+*.build/
+*.onefile-build/
+*.dist.zip
+
+# IDE settings
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Environment
+venv/
+.env
+.venv
+env/
+
+# Testing
+.coverage
+htmlcov/
+test_output/
+
+# OS specific
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# SpecStory history
+.specstory/ 
+# SpecStory explanation file
+.specstory/.what-is-this.md

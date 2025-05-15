@@ -1,0 +1,48 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+*.egg-info/
+
+# IDE settings
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Environment
+venv/
+.env
+.venv
+env/
+
+# Testing
+.coverage
+htmlcov/
+test_output/
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# SpecStory history
+.specstory/ 
+# SpecStory explanation file
+.specstory/.what-is-this.md
+
+# テスト用ファイル
+test_qt.py
+test_qt.spec
+test/
+tests/
+
+# 代替実装
+*_fixed.py
+*_patched.py
+qt6_*.py

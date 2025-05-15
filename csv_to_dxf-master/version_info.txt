@@ -1,0 +1,30 @@
+# UTF-8で保存
+VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers=(1, 0, 0, 0),
+    prodvers=(1, 0, 0, 0),
+    mask=0x3f,
+    flags=0x0,
+    OS=0x4,
+    fileType=0x1,
+    subtype=0x0,
+    date=(0, 0)
+    ),
+  kids=[
+    StringFileInfo([
+      StringTable(
+        '040904B0',
+        [
+          StringStruct('CompanyName', 'Yuuji Softworks'),
+          StringStruct('FileDescription', 'CSV to DXF Converter'),
+          StringStruct('FileVersion', '1.0.0'),
+          StringStruct('InternalName', 'csv_to_dxf'),
+          StringStruct('LegalCopyright', '© 2025 Yuuji'),
+          StringStruct('OriginalFilename', 'csv_to_dxf.exe'),
+          StringStruct('ProductName', 'CSV-DXF Utility'),
+          StringStruct('ProductVersion', '1.0.0')
+        ])
+      ]),
+    VarFileInfo([VarStruct('Translation', [1033, 1200])])
+  ]
+) 

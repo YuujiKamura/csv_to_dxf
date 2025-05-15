@@ -1,0 +1,18 @@
+{
+  "last_directory": "G:\\マイドライブ\\cursor\\csvtodxf\\csv_to_dxf-master\\tests",
+  "auto_convert": true,
+  "normalize_station_names": true,
+  "special_sections": {
+    "区間6": {
+      "swap_sides": true
+    }
+  },
+  "output_directory": "",
+  "recent_files": [
+    "G:\\マイドライブ\\cursor\\csvtodxf\\csv_to_dxf-master\\tests\\おやま.csv",
+    "G:\\マイドライブ\\〇東区市道（2工区）舗装補修工事（水防等含）（単価契約）\\８現場の資料\\小山工区\\作成中・非使用\\おやま.csv",
+    "G:\\マイドライブ\\〇東区市道（2工区）舗装補修工事（水防等含）（単価契約）\\８現場の資料\\小山工区\\おやま.csv"
+  ],
+  "max_recent_files": 5,
+  "default_dxf_version": "R2010"
+}
