@@ -121,3 +121,52 @@ def complete_station_names(df: pd.DataFrame, **kw):
 
 def preserve_and_complete_station_names(df: pd.DataFrame, **kw):
     return fill_station_names(df, **kw)
+
+
+# ----------------------------------------------------------------------------
+# Legacy API wrappers and utilities
+# ----------------------------------------------------------------------------
+
+def generate_station_names(df: pd.DataFrame,
+                           *,
+                           name_column: str = 'name',
+                           distance_column: str = 'x',
+                           keep_existing: bool = True) -> pd.DataFrame:
+    """Legacy helper that delegates to :func:`fill_station_names`.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Input dataframe containing distance information.
+    name_column : str, default 'name'
+        Column used for station names.
+    distance_column : str, default 'x'
+        Column used for distances.
+    keep_existing : bool, default True
+        Whether to preserve already valid station names.
+
+    Returns
+    -------
+    pandas.DataFrame
+        DataFrame with station names filled in ``name_column``.
+    """
+
+    return fill_station_names(
+        df,
+        name_col=name_column,
+        dist_col=distance_column,
+        keep_existing=keep_existing,
+    )
+
+
+def round_to_precision(value, precision) -> pd.Series | float:
+    """Round numeric values using ``Decimal`` for predictable results."""
+
+    q = Decimal(str(precision))
+
+    def _round_val(v):
+        return float(Decimal(str(v)).quantize(q, ROUND_HALF_UP))
+
+    if isinstance(value, pd.Series):
+        return value.apply(_round_val)
+    return _round_val(value)
