@@ -38,6 +38,20 @@ class CSVProcessor:
         self.csv_path: Optional[Path] = Path(csv_path).expanduser().resolve() if csv_path else None
         self.section_cache: Dict[str, pd.DataFrame] = {}
         self.current_section: Optional[str] = None
+        self._csv_data: Optional[pd.DataFrame] = None
+
+    # ───────────────────────────────
+    # properties
+    # ───────────────────────────────
+    @property
+    def file_path(self) -> Optional[Path]:
+        """Read-only alias for csv_path"""
+        return self.csv_path
+
+    @property
+    def csv_data(self) -> Optional[pd.DataFrame]:
+        """Last extracted or processed DataFrame"""
+        return self._csv_data
 
     # ───────────────────────────────
     # CSV パスをセット
@@ -64,6 +78,23 @@ class CSVProcessor:
         sections = get_available_sections(self.csv_path)
         print(f"[LOG] get_available_sections: sections={sections}")
         return sections
+
+    # ───────────────────────────────
+    # 生データを抽出
+    # ───────────────────────────────
+    def extract_section_data(self, section_name: str) -> Optional[pd.DataFrame]:
+        print(f"[LOG] extract_section_data: section_name={section_name}")
+        if not self.csv_path:
+            print("[LOG] extract_section_data: no csv_path")
+            return None
+        df = extract_section_data(self.csv_path, section_name)
+        if df is None or df.empty:
+            print(f"[LOG] extract_section_data: no data found")
+            self._csv_data = None
+            return None
+        self._csv_data = df
+        print(f"[LOG] extract_section_data: df shape={df.shape}")
+        return df
 
     # ───────────────────────────────
     # 区間データを DataFrame 化
@@ -141,6 +172,7 @@ class CSVProcessor:
         # 最終的な結果をキャッシュ
         self.section_cache[cache_key] = df
         self.current_section = section_name
+        self._csv_data = df
         print(f"[LOG] process_section_data: cached {cache_key}, df shape={df.shape}")
         return df
 
@@ -161,6 +193,18 @@ class CSVProcessor:
     # ───────────────────────────────
     # CSV / DXF 保存
     # ───────────────────────────────
+    def save_processed_data(self, df: pd.DataFrame, output_path: str | Path) -> bool:
+        """Save provided DataFrame to CSV"""
+        print(f"[LOG] save_processed_data: output_path={output_path}")
+        try:
+            out_path = Path(output_path).expanduser().resolve()
+            export_csv(df, out_path)
+            print(f"[LOG] save_processed_data: saved to {out_path}")
+            return True
+        except Exception as e:  # pragma: no cover
+            print(f"[ERROR] save_processed_data failed: {e}")
+            return False
+
     def save_csv(self, section_name: str, out_dir: str | Path) -> bool:
         print(f"[LOG] save_csv: section_name={section_name}, out_dir={out_dir}")
         df = self.get_section(section_name)
