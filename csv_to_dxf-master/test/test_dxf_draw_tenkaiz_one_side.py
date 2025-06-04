@@ -94,7 +94,7 @@ class TestDxfDrawTenkaizOneSide(unittest.TestCase):
         doc_right.saveas(self.test_dxf_path_right)
         self.assertTrue(os.path.exists(self.test_dxf_path_right))
     
-    def test_coodinate_dimensions_left_only(self):
+    def test_coordinate_dimensions_left_only(self):
         # 左側幅員のみの行データ
         row = pd.Series({
             'name': 'No.1',
@@ -105,7 +105,7 @@ class TestDxfDrawTenkaizOneSide(unittest.TestCase):
         prev_points = ((0.0, 3.45), (0.0, 0), (0.0, 0.0))  # 前のポイント（右側幅員0）
         
         # 寸法座標計算をテスト
-        result = dxf_draw_tenkaiz.coodinate_dimensions(row, prev_points)
+        result = dxf_draw_tenkaiz.coordinate_dimensions(row, prev_points)
         
         # 結果をチェック
         # 左側幅員の寸法が含まれていることを確認
@@ -116,7 +116,7 @@ class TestDxfDrawTenkaizOneSide(unittest.TestCase):
         right_width_dimensions = [dim for cond, dim in result if cond and dim[0] == "0.00"]
         self.assertEqual(len(right_width_dimensions), 0)
     
-    def test_coodinate_dimensions_right_only(self):
+    def test_coordinate_dimensions_right_only(self):
         # 右側幅員のみの行データ
         row = pd.Series({
             'name': 'No.1',
@@ -127,7 +127,7 @@ class TestDxfDrawTenkaizOneSide(unittest.TestCase):
         prev_points = ((0.0, 0.0), (0.0, 0), (0.0, -3.55))  # 前のポイント（左側幅員0）
         
         # 寸法座標計算をテスト
-        result = dxf_draw_tenkaiz.coodinate_dimensions(row, prev_points)
+        result = dxf_draw_tenkaiz.coordinate_dimensions(row, prev_points)
         
         # 結果をチェック
         # 左側幅員の寸法が含まれていないことを確認（wl=0.0のため）

@@ -44,7 +44,7 @@ class TestDxfDrawTenkaiz(unittest.TestCase):
         self.assertGreater(len(lines), 0)
         self.assertGreater(len(texts), 0)
     
-    def test_coodinate_lines(self):
+    def test_coordinate_lines(self):
         # 行データ - DataFrameのSeriesオブジェクトとして作成
         row = pd.Series({
             'name': 'No.1',
@@ -55,7 +55,7 @@ class TestDxfDrawTenkaiz(unittest.TestCase):
         prev_linelr = ((0.0, 3.45), (0.0, 0), (0.0, -3.55))  # No.0のデータから計算される座標
         
         # 座標計算をテスト
-        result = dxf_draw_tenkaiz.coodinate_lines(row, prev_linelr)
+        result = dxf_draw_tenkaiz.coordinate_lines(row, prev_linelr)
         
         # 結果は5つの条件と座標のタプルのリストであることを確認
         self.assertEqual(len(result), 5)
@@ -68,7 +68,7 @@ class TestDxfDrawTenkaiz(unittest.TestCase):
             for point in points:
                 self.assertEqual(len(point), 2)
     
-    def test_coodinate_dimensions(self):
+    def test_coordinate_dimensions(self):
         # 行データ - DataFrameのSeriesオブジェクトとして作成
         row = pd.Series({
             'name': 'No.1',
@@ -79,7 +79,7 @@ class TestDxfDrawTenkaiz(unittest.TestCase):
         prev_points = ((0.0, 3.45), (0.0, 0), (0.0, -3.55))  # No.0のデータから計算される座標
         
         # 寸法座標計算をテスト
-        result = dxf_draw_tenkaiz.coodinate_dimensions(row, prev_points)
+        result = dxf_draw_tenkaiz.coordinate_dimensions(row, prev_points)
         
         # 結果は4つの条件と寸法情報のタプルのリストであることを確認
         self.assertEqual(len(result), 4)

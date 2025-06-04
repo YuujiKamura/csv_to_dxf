@@ -67,8 +67,8 @@ def draw_road_sections(modelspace, data, scale=1000.0, text_height=350.0):
         
         linelr = ((x_scaled, wl_scaled), (x_scaled, 0), (x_scaled, -wr_scaled))
 
-        line_conditions = coodinate_lines(row, prev_linelr, scale)
-        dim_conditions, underline_conditions = coodinate_dimensions(row, prev_linelr, scale, text_height)
+        line_conditions = coordinate_lines(row, prev_linelr, scale)
+        dim_conditions, underline_conditions = coordinate_dimensions(row, prev_linelr, scale, text_height)
 
         draw_with(modelspace, line_conditions, draw_line)
         draw_with(modelspace, dim_conditions, draw_dim)
@@ -76,7 +76,7 @@ def draw_road_sections(modelspace, data, scale=1000.0, text_height=350.0):
 
         prev_linelr = linelr
 
-def coodinate_lines(row, prev_linelr, scale=1000.0):
+def coordinate_lines(row, prev_linelr, scale=1000.0):
     """線の描画条件を計算する
     
     Args:
@@ -104,7 +104,7 @@ def coodinate_lines(row, prev_linelr, scale=1000.0):
     ]
     return conditions
 
-def coodinate_dimensions(row, prev_points, scale=1000.0, text_height=350.0):
+def coordinate_dimensions(row, prev_points, scale=1000.0, text_height=350.0):
     """寸法の描画条件を計算する
     
     Args:

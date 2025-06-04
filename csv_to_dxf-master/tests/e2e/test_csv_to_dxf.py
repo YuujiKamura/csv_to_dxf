@@ -252,13 +252,13 @@ def manual_convert_csv_to_dxf(csv_file, output_dxf, scale=1000.0, text_height=35
         return False
 
 
-# coodinate_dimensions関数のインターフェースを確認する関数
-def inspect_coodinate_dimensions():
-    """coodinate_dimensions関数のインターフェースを検査"""
-    print("\ncoodinate_dimensions関数の詳細:")
-    sig = inspect.signature(dxf_draw_tenkaiz.coodinate_dimensions)
+# coordinate_dimensions関数のインターフェースを確認する関数
+def inspect_coordinate_dimensions():
+    """coordinate_dimensions関数のインターフェースを検査"""
+    print("\ncoordinate_dimensions関数の詳細:")
+    sig = inspect.signature(dxf_draw_tenkaiz.coordinate_dimensions)
     print(f"関数シグネチャ: {sig}")
-    print(f"ドキュメント: {dxf_draw_tenkaiz.coodinate_dimensions.__doc__}")
+    print(f"ドキュメント: {dxf_draw_tenkaiz.coordinate_dimensions.__doc__}")
     
     # 関数の引数名とデフォルト値を表示
     for param_name, param in sig.parameters.items():
@@ -378,7 +378,7 @@ if __name__ == "__main__":
     # デバッグモードの場合、モジュール内の関数を確認
     if debug:
         inspect_module_functions()
-        inspect_coodinate_dimensions()
+        inspect_coordinate_dimensions()
     
     dxf_file_path = None  # 生成されたDXFファイルのパスを格納
     

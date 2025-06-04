@@ -110,17 +110,17 @@ class TestDistanceHandling(unittest.TestCase):
         print(f"追加延長ファイルが生成されました: {self.test_tsuikaenkyo_file}")
         print("\n※注: dxf_draw_tenkaiz.pyではx座標に直接この値を使用するため、単延長の場合はレイアウトが異なります")
         
-        # dxf_draw_tenkaiz.pyのcoodinate_dimensions関数の処理を確認
+        # dxf_draw_tenkaiz.pyのcoordinate_dimensions関数の処理を確認
         print("\n=============== 距離計算の処理 ===============")
         row_tanenkyo = tanenkyo_data.iloc[1]  # No.1のデータ
         prev_points = ((0.0, 3.0), (0.0, 0.0), (0.0, -3.0))  # No.0の座標
         
         # 単延長の場合の寸法計算
-        result_tanenkyo = dxf_draw_tenkaiz.coodinate_dimensions(row_tanenkyo, prev_points)
+        result_tanenkyo = dxf_draw_tenkaiz.coordinate_dimensions(row_tanenkyo, prev_points)
         
         # 追加延長の場合の寸法計算
         row_tsuikaenkyo = tsuikaenkyo_data.iloc[1]  # No.1のデータ
-        result_tsuikaenkyo = dxf_draw_tenkaiz.coodinate_dimensions(row_tsuikaenkyo, prev_points)
+        result_tsuikaenkyo = dxf_draw_tenkaiz.coordinate_dimensions(row_tsuikaenkyo, prev_points)
         
         # 結果を表示
         print("\n== 単延長の場合の処理 ==")
