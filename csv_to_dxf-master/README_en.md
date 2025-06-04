@@ -162,17 +162,19 @@ This file can be opened with the following software:
 
 ## Running Tests
 
-To run the automated tests, use the following commands:
+The repository contains two sets of tests:
+
+- `test/` &ndash; unit tests that use Python's built in `unittest`
+- `tests/` &ndash; additional tests executed with `pytest`
+
+To run all available tests, execute the following commands:
 
 ```bash
-# Run all tests
+# Run the unittest based tests
 python -m unittest discover -s test
 
-# Run individual tests
-python -m unittest test.test_loader
-python -m unittest test.test_table_to_dxf
-python -m unittest test.test_dxf_draw_tenkaiz
-python -m unittest test.test_dxf_draw_tenkaiz_one_side  # Tests for one-sided width
+# Run the pytest based tests
+pytest tests
 ```
 
 ## Common Errors and Solutions

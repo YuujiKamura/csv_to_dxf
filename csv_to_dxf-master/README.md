@@ -30,11 +30,19 @@ CSVファイルから道路断面図のDXFファイルを生成するツール�
 
 ### 自動テスト
 
-テストスクリプトを使用して、CSVからDXFへの変換フローを自動テストできます。
+このリポジトリには二種類のテストが含まれています。
+
+- `test/` ディレクトリ: `unittest` を用いたユニットテスト
+- `tests/` ディレクトリ: `pytest` を用いた追加テスト
+
+すべてのテストを実行するには以下のコマンドを使用します。
 
 ```bash
-# テストを実行
-python tests/test_save_dxf.py
+# unittest ベースのテスト
+python -m unittest discover -s test
+
+# pytest ベースのテスト
+pytest tests
 ```
 
 テストは以下のフローをカバーしています：
