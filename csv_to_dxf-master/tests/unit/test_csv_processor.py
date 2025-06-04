@@ -44,13 +44,10 @@ class TestCSVProcessor(unittest.TestCase):
         self.assertTrue(result)
         self.assertEqual(str(self.processor.csv_path), self.test_csv)
         
-        # 存在しないファイルも読み込める (ただしPath作成のみ)
+        # 存在しないファイルを読み込むとFalseが返る
         non_existent = "non_existent_file.csv"
         result = self.processor.read_csv_file(non_existent)
-        self.assertTrue(result)  # Pathオブジェクトの作成は成功する
-        
-        # 実際にファイルがないことを確認
-        self.assertFalse(os.path.exists(non_existent))
+        self.assertFalse(result)
     
     def test_process_section_data(self):
         """区間データ処理のテスト"""

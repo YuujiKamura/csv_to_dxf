@@ -38,6 +38,25 @@ class CSVProcessor:
         self.csv_path: Optional[Path] = Path(csv_path).expanduser().resolve() if csv_path else None
         self.section_cache: Dict[str, pd.DataFrame] = {}
         self.current_section: Optional[str] = None
+        self._csv_data: Optional[pd.DataFrame] = None
+
+    # ------------------------------------------------------------------
+    # 新規API: file_path プロパティ (csv_path のエイリアス)
+    # ------------------------------------------------------------------
+    @property
+    def file_path(self) -> Optional[str]:
+        return str(self.csv_path) if self.csv_path else None
+
+    @file_path.setter
+    def file_path(self, value: str | Path | None) -> None:
+        self.csv_path = Path(value).expanduser().resolve() if value else None
+
+    # ------------------------------------------------------------------
+    # 新規API: csv_data プロパティ
+    # ------------------------------------------------------------------
+    @property
+    def csv_data(self) -> Optional[pd.DataFrame]:
+        return self._csv_data
 
     # ───────────────────────────────
     # CSV パスをセット
@@ -45,12 +64,18 @@ class CSVProcessor:
     def read_csv_file(self, file_path: str | Path) -> bool:
         print(f"[LOG] read_csv_file: file_path={file_path}")
         try:
-            self.csv_path = Path(file_path).expanduser().resolve()
+            path = Path(file_path).expanduser().resolve()
+            if not path.is_file():
+                print("[ERROR] CSV ファイルを開けませんでした: file not found")
+                return False
+            self.csv_path = path
+            self._csv_data = pd.read_csv(self.csv_path)
             print(f"[LOG] read_csv_file: self.csv_path set to {self.csv_path}")
             return True
         except Exception as e:  # pragma: no cover
             print(f"[ERROR] CSV ファイルを開けませんでした: {e}")
             self.csv_path = None
+            self._csv_data = None
             return False
 
     # ───────────────────────────────
@@ -64,6 +89,19 @@ class CSVProcessor:
         sections = get_available_sections(self.csv_path)
         print(f"[LOG] get_available_sections: sections={sections}")
         return sections
+
+    # ------------------------------------------------------------------
+    # 新規API: 区間データの直接抽出
+    # ------------------------------------------------------------------
+    def extract_section_data(self, section_name: str) -> Optional[pd.DataFrame]:
+        if not self.csv_path:
+            return None
+        try:
+            df = extract_section_data(self.csv_path, section_name)
+            return df
+        except Exception as e:  # pragma: no cover
+            print(f"[ERROR] extract_section_data failed: {e}")
+            return None
 
     # ───────────────────────────────
     # 区間データを DataFrame 化
@@ -98,7 +136,7 @@ class CSVProcessor:
             df = self.section_cache[section_name].copy()
         else:
             # 1) 抽出
-            raw = extract_section_data(self.csv_path, section_name)
+            raw = self.extract_section_data(section_name)
             print(f"[LOG] process_section_data: raw shape={getattr(raw, 'shape', None)}")
             if raw is None or raw.empty:
                 print(f"[LOG] process_section_data: raw is None or empty")
@@ -175,6 +213,18 @@ class CSVProcessor:
             return True
         except Exception as e:  # pragma: no cover
             print(f"[ERROR] CSV 保存に失敗: {e}")
+            return False
+
+    # ------------------------------------------------------------------
+    # 新規API: 処理済みDataFrameを直接保存
+    # ------------------------------------------------------------------
+    def save_processed_data(self, df: pd.DataFrame, file_path: str | Path) -> bool:
+        try:
+            out = Path(file_path).expanduser().resolve()
+            export_csv(df, out)
+            return True
+        except Exception as e:  # pragma: no cover
+            print(f"[ERROR] save_processed_data failed: {e}")
             return False
 
     def save_dxf(self, section_name: str, out_dir: str | Path, out_name: str = None) -> bool:
