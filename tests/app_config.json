@@ -1,0 +1,22 @@
+{
+  "last_directory": "C:\\Users\\yuuji\\AppData\\Local\\Temp",
+  "auto_convert": true,
+  "normalize_station_names": true,
+  "special_sections": {
+    "区間6": {
+      "swap_sides": true
+    }
+  },
+  "output_directory": "",
+  "recent_files": [
+    "C:\\Users\\yuuji\\Sanyuu2Kouku\\cursor_tools\\dxfviewer_git\\csv_to_dxf\\data\\区間1.csv",
+    "C:\\Users\\yuuji\\Sanyuu2Kouku\\cursor_tools\\dxfviewer_git\\csv_to_dxf\\data\\区間6.csv",
+    "C:\\Users\\yuuji\\AppData\\Local\\Temp\\tmpuexw1v_a.csv",
+    "C:\\Users\\yuuji\\AppData\\Local\\Temp\\tmpq_tfcd5g.csv",
+    "C:\\Users\\yuuji\\AppData\\Local\\Temp\\tmp7hafs1ym.csv",
+    "C:\\Users\\yuuji\\AppData\\Local\\Temp\\tmplu8ndy1_.csv",
+    "C:\\Users\\yuuji\\AppData\\Local\\Temp\\tmpw13q_fnp.csv"
+  ],
+  "max_recent_files": 5,
+  "default_dxf_version": "R2010"
+}

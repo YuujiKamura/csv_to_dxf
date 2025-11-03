@@ -1,0 +1,21 @@
+{
+  "last_directory": "C:/Users/yuuji/Sanyuu2Kouku/cursor_tools/dxfviewer_git/csv_to_dxf/data",
+  "auto_convert": true,
+  "normalize_station_names": true,
+  "special_sections": {
+    "区間6": {
+      "swap_sides": true
+    }
+  },
+  "output_directory": "",
+  "recent_files": [
+    "C:/Users/yuuji/Sanyuu2Kouku/cursor_tools/dxfviewer_git/csv_to_dxf/data/面積計算書、塩塚小野線側溝改修工事 - シート1.csv",
+    "C:/Users/yuuji/Sanyuu2Kouku/cursor_tools/dxfviewer_git/csv_to_dxf/data/区間1.csv",
+    "C:/Users/yuuji/Sanyuu2Kouku/cursor_tools/dxfviewer_git/csv_to_dxf/data/区間3.csv",
+    "C:\\Users\\yuuji\\Sanyuu2Kouku\\cursor_tools\\dxfviewer_git\\csv_to_dxf\\data\\区間1.csv",
+    "C:\\Users\\yuuji\\Sanyuu2Kouku\\cursor_tools\\dxfviewer_git\\csv_to_dxf\\data\\区間6.csv",
+    "C:/Users/yuuji/Sanyuu2Kouku/cursor_tools/dxfviewer_git/csv_to_dxf/data/区間5.csv"
+  ],
+  "max_recent_files": 5,
+  "default_dxf_version": "R2010"
+}
