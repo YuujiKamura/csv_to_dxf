@@ -45,3 +45,10 @@ desktop.ini
 .specstory/ 
 # SpecStory explanation file
 .specstory/.what-is-this.md
+
+# Data files
+*.dxf
+*.csv
+*.json
+# Keep specific config files if needed, but generally ignore data jsons
+!app_config.json
