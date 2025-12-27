@@ -188,6 +188,7 @@
         <h1>DXF Viewer</h1>
         <div class="toolbar">
             <button id="btnOpen">Open DXF</button>
+            <button id="btnSample">Load Sample</button>
             <button id="btnZoomIn">Zoom +</button>
             <button id="btnZoomOut">Zoom -</button>
             <button id="btnFit">Fit</button>
@@ -297,6 +298,18 @@
                 if (file) loadFile(file);
             });
 
+            // Sample file
+            document.getElementById('btnSample').addEventListener('click', async () => {
+                setStatus('Loading sample...');
+                try {
+                    const response = await fetch('./sample.dxf');
+                    const text = await response.text();
+                    loadDxfContent(text, 'sample.dxf');
+                } catch (err) {
+                    setStatus('Error loading sample: ' + err);
+                }
+            });
+
             // Drag and drop
             const container = document.getElementById('canvasContainer');
 
@@ -383,13 +396,21 @@
 
         async function loadFile(file) {
             setStatus(`Loading ${file.name}...`);
-
             try {
                 const text = await file.text();
+                loadDxfContent(text, file.name);
+            } catch (err) {
+                setStatus(`Error: ${err}`);
+                console.error(err);
+            }
+        }
+
+        function loadDxfContent(text, filename) {
+            try {
                 const summary = viewer.load_dxf(text);
 
                 document.getElementById('dropZone').classList.add('hidden');
-                document.getElementById('infoFile').textContent = file.name;
+                document.getElementById('infoFile').textContent = filename;
 
                 // Parse summary to update info
                 const match = summary.match(/(\d+) lines, (\d+) circles, (\d+) arcs, (\d+) polylines, (\d+) texts/);
