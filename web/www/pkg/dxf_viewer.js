@@ -147,6 +147,21 @@ export class DxfViewer {
         wasm.__wbg_dxfviewer_free(ptr, 0);
     }
     /**
+     * Get current theme mode
+     * @returns {boolean}
+     */
+    is_dark_mode() {
+        const ret = wasm.dxfviewer_is_dark_mode(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * Toggle between dark and light mode
+     * @param {boolean} dark
+     */
+    set_dark_mode(dark) {
+        wasm.dxfviewer_set_dark_mode(this.__wbg_ptr, dark);
+    }
+    /**
      * Get result as JSON
      * @returns {string}
      */
