@@ -292,6 +292,15 @@ impl DxfViewer {
         self.offset_y = self.canvas_height / 2.0 + center_y * self.scale;
     }
 
+    /// Fit drawing to canvas (public API)
+    #[wasm_bindgen]
+    pub fn fit(&mut self) {
+        if let Some(data) = &self.render_data {
+            let data_clone = data.clone();
+            self.fit_to_canvas(&data_clone);
+        }
+    }
+
     /// Set canvas size
     #[wasm_bindgen]
     pub fn set_canvas_size(&mut self, width: f64, height: f64) {

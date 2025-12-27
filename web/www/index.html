@@ -345,12 +345,9 @@
 
             document.getElementById('btnFit').addEventListener('click', () => {
                 if (viewer) {
-                    // Reload to fit
-                    const json = viewer.get_result_json();
-                    if (json !== 'null') {
-                        viewer.set_canvas_size(canvas.width, canvas.height);
-                        render();
-                    }
+                    viewer.set_canvas_size(canvas.width, canvas.height);
+                    viewer.fit();
+                    render();
                 }
             });
 

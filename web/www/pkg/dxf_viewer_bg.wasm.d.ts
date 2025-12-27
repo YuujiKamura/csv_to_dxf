@@ -2,6 +2,7 @@
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
 export const __wbg_dxfviewer_free: (a: number, b: number) => void;
+export const dxfviewer_fit: (a: number) => void;
 export const dxfviewer_get_result_json: (a: number) => [number, number, number, number];
 export const dxfviewer_is_dark_mode: (a: number) => number;
 export const dxfviewer_load_dxf: (a: number, b: number, c: number) => [number, number, number, number];
