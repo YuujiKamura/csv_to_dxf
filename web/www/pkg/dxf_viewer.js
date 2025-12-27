@@ -6,6 +6,11 @@ function addToExternrefTable0(obj) {
     return idx;
 }
 
+function getArrayU8FromWasm0(ptr, len) {
+    ptr = ptr >>> 0;
+    return getUint8ArrayMemory0().subarray(ptr / 1, ptr / 1 + len);
+}
+
 function getStringFromWasm0(ptr, len) {
     ptr = ptr >>> 0;
     return decodeText(ptr, len);
@@ -105,6 +110,29 @@ const DxfViewerFinalization = (typeof FinalizationRegistry === 'undefined')
     : new FinalizationRegistry(ptr => wasm.__wbg_dxfviewer_free(ptr >>> 0, 1));
 
 /**
+ * Chroma subsampling format
+ * @enum {0 | 1 | 2 | 3}
+ */
+export const ChromaSampling = Object.freeze({
+    /**
+     * Both vertically and horizontally subsampled.
+     */
+    Cs420: 0, "0": "Cs420",
+    /**
+     * Horizontally subsampled.
+     */
+    Cs422: 1, "1": "Cs422",
+    /**
+     * Not subsampled.
+     */
+    Cs444: 2, "2": "Cs444",
+    /**
+     * Monochrome.
+     */
+    Cs400: 3, "3": "Cs400",
+});
+
+/**
  * DXF Viewer state
  */
 export class DxfViewer {
@@ -119,7 +147,7 @@ export class DxfViewer {
         wasm.__wbg_dxfviewer_free(ptr, 0);
     }
     /**
-     * Get parse result as JSON
+     * Get result as JSON
      * @returns {string}
      */
     get_result_json() {
@@ -185,7 +213,7 @@ export class DxfViewer {
         }
     }
     /**
-     * Load and parse DXF content
+     * Load and parse DXF content using the dxf crate
      * @param {string} content
      * @returns {string}
      */
@@ -265,11 +293,34 @@ function __wbg_get_imports() {
     imports.wbg.__wbg_fillText_56566d8049e84e17 = function() { return handleError(function (arg0, arg1, arg2, arg3, arg4) {
         arg0.fillText(getStringFromWasm0(arg1, arg2), arg3, arg4);
     }, arguments) };
+    imports.wbg.__wbg_getRandomValues_9b655bdd369112f2 = function() { return handleError(function (arg0, arg1) {
+        globalThis.crypto.getRandomValues(getArrayU8FromWasm0(arg0, arg1));
+    }, arguments) };
+    imports.wbg.__wbg_getTime_ad1e9878a735af08 = function(arg0) {
+        const ret = arg0.getTime();
+        return ret;
+    };
+    imports.wbg.__wbg_getTimezoneOffset_45389e26d6f46823 = function(arg0) {
+        const ret = arg0.getTimezoneOffset();
+        return ret;
+    };
     imports.wbg.__wbg_lineTo_4b884d8cebfc8c54 = function(arg0, arg1, arg2) {
         arg0.lineTo(arg1, arg2);
     };
     imports.wbg.__wbg_moveTo_36127921f1ca46a5 = function(arg0, arg1, arg2) {
         arg0.moveTo(arg1, arg2);
+    };
+    imports.wbg.__wbg_new_0_23cedd11d9b40c9d = function() {
+        const ret = new Date();
+        return ret;
+    };
+    imports.wbg.__wbg_new_b2db8aa2650f793a = function(arg0) {
+        const ret = new Date(arg0);
+        return ret;
+    };
+    imports.wbg.__wbg_new_with_year_month_day_hr_min_sec_b77701fa8c756a9f = function(arg0, arg1, arg2, arg3, arg4, arg5) {
+        const ret = new Date(arg0 >>> 0, arg1, arg2, arg3, arg4, arg5);
+        return ret;
     };
     imports.wbg.__wbg_restore_6486cb1a7aa3af7b = function(arg0) {
         arg0.restore();
@@ -301,6 +352,11 @@ function __wbg_get_imports() {
     imports.wbg.__wbindgen_cast_2241b6af4c4b2941 = function(arg0, arg1) {
         // Cast intrinsic for `Ref(String) -> Externref`.
         const ret = getStringFromWasm0(arg0, arg1);
+        return ret;
+    };
+    imports.wbg.__wbindgen_cast_d6cd19b81560fd6e = function(arg0) {
+        // Cast intrinsic for `F64 -> Externref`.
+        const ret = arg0;
         return ret;
     };
     imports.wbg.__wbindgen_init_externref_table = function() {
