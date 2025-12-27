@@ -257,10 +257,11 @@ impl DxfViewer {
         }
 
         // Draw texts
-        let font_size = (12.0 * self.scale).max(8.0).min(24.0);
-        ctx.set_font(&format!("{}px sans-serif", font_size as i32));
-
         for text in &result.texts {
+            // Use DXF text height scaled to view coordinates
+            // Minimum 4px for readability when zoomed out
+            let font_size = (text.height * self.scale).max(4.0);
+            ctx.set_font(&format!("{}px sans-serif", font_size as i32));
             ctx.set_fill_style(&self.color_to_css(text.color));
             let (x, y) = self.model_to_view(text.x, text.y);
 
