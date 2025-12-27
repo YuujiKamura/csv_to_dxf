@@ -192,6 +192,7 @@
             <button id="btnZoomIn">Zoom +</button>
             <button id="btnZoomOut">Zoom -</button>
             <button id="btnFit">Fit</button>
+            <button id="btnTheme">Light Mode</button>
         </div>
     </header>
 
@@ -351,6 +352,15 @@
                         render();
                     }
                 }
+            });
+
+            // Theme toggle
+            document.getElementById('btnTheme').addEventListener('click', () => {
+                const btn = document.getElementById('btnTheme');
+                const isDark = viewer.is_dark_mode();
+                viewer.set_dark_mode(!isDark);
+                btn.textContent = isDark ? 'Dark Mode' : 'Light Mode';
+                render();
             });
 
             // Mouse events for pan

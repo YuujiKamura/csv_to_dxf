@@ -27,6 +27,14 @@ export class DxfViewer {
   free(): void;
   [Symbol.dispose](): void;
   /**
+   * Get current theme mode
+   */
+  is_dark_mode(): boolean;
+  /**
+   * Toggle between dark and light mode
+   */
+  set_dark_mode(dark: boolean): void;
+  /**
    * Get result as JSON
    */
   get_result_json(): string;
@@ -62,11 +70,13 @@ export interface InitOutput {
   readonly memory: WebAssembly.Memory;
   readonly __wbg_dxfviewer_free: (a: number, b: number) => void;
   readonly dxfviewer_get_result_json: (a: number) => [number, number, number, number];
+  readonly dxfviewer_is_dark_mode: (a: number) => number;
   readonly dxfviewer_load_dxf: (a: number, b: number, c: number) => [number, number, number, number];
   readonly dxfviewer_new: () => number;
   readonly dxfviewer_pan: (a: number, b: number, c: number) => void;
   readonly dxfviewer_render: (a: number, b: any) => [number, number];
   readonly dxfviewer_set_canvas_size: (a: number, b: number, c: number) => void;
+  readonly dxfviewer_set_dark_mode: (a: number, b: number) => void;
   readonly dxfviewer_zoom: (a: number, b: number, c: number, d: number) => void;
   readonly __wbindgen_exn_store: (a: number) => void;
   readonly __externref_table_alloc: () => number;
