@@ -1,11 +1,33 @@
 /* tslint:disable */
 /* eslint-disable */
 
+/**
+ * Chroma subsampling format
+ */
+export enum ChromaSampling {
+  /**
+   * Both vertically and horizontally subsampled.
+   */
+  Cs420 = 0,
+  /**
+   * Horizontally subsampled.
+   */
+  Cs422 = 1,
+  /**
+   * Not subsampled.
+   */
+  Cs444 = 2,
+  /**
+   * Monochrome.
+   */
+  Cs400 = 3,
+}
+
 export class DxfViewer {
   free(): void;
   [Symbol.dispose](): void;
   /**
-   * Get parse result as JSON
+   * Get result as JSON
    */
   get_result_json(): string;
   /**
@@ -29,7 +51,7 @@ export class DxfViewer {
    */
   render(ctx: CanvasRenderingContext2D): void;
   /**
-   * Load and parse DXF content
+   * Load and parse DXF content using the dxf crate
    */
   load_dxf(content: string): string;
 }

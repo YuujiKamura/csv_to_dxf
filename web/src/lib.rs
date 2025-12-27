@@ -1,19 +1,67 @@
 //! DXF Viewer - WebAssembly Module
 //!
 //! A DXF file viewer that runs in the browser using WebAssembly.
-
-mod dxf_parser;
+//! Uses the `dxf` crate for parsing.
 
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
 use std::f64::consts::PI;
+use std::io::Cursor;
 
-pub use dxf_parser::*;
+/// Entity data extracted from DXF for rendering
+#[derive(Clone, Default)]
+struct RenderData {
+    lines: Vec<LineData>,
+    circles: Vec<CircleData>,
+    arcs: Vec<ArcData>,
+    polylines: Vec<PolylineData>,
+    texts: Vec<TextData>,
+    bounds: (f64, f64, f64, f64),
+}
+
+#[derive(Clone)]
+struct LineData {
+    x1: f64, y1: f64,
+    x2: f64, y2: f64,
+    color: i16,
+}
+
+#[derive(Clone)]
+struct CircleData {
+    center_x: f64, center_y: f64,
+    radius: f64,
+    color: i16,
+}
+
+#[derive(Clone)]
+struct ArcData {
+    center_x: f64, center_y: f64,
+    radius: f64,
+    start_angle: f64,
+    end_angle: f64,
+    color: i16,
+}
+
+#[derive(Clone)]
+struct PolylineData {
+    vertices: Vec<(f64, f64)>,
+    is_closed: bool,
+    color: i16,
+}
+
+#[derive(Clone)]
+struct TextData {
+    x: f64, y: f64,
+    height: f64,
+    text: String,
+    rotation: f64,
+    color: i16,
+}
 
 /// DXF Viewer state
 #[wasm_bindgen]
 pub struct DxfViewer {
-    parse_result: Option<DxfParseResult>,
+    render_data: Option<RenderData>,
     scale: f64,
     offset_x: f64,
     offset_y: f64,
@@ -27,7 +75,7 @@ impl DxfViewer {
     #[wasm_bindgen(constructor)]
     pub fn new() -> Self {
         Self {
-            parse_result: None,
+            render_data: None,
             scale: 1.0,
             offset_x: 0.0,
             offset_y: 0.0,
@@ -36,41 +84,181 @@ impl DxfViewer {
         }
     }
 
-    /// Load and parse DXF content
+    /// Load and parse DXF content using the dxf crate
     #[wasm_bindgen]
     pub fn load_dxf(&mut self, content: &str) -> Result<String, JsValue> {
-        let parser = DxfParser::new();
-        let result = parser.parse(content);
+        let mut cursor = Cursor::new(content.as_bytes());
+
+        let drawing = dxf::Drawing::load(&mut cursor)
+            .map_err(|e| JsValue::from_str(&format!("Parse error: {}", e)))?;
+
+        let render_data = self.extract_render_data(&drawing);
 
         let summary = format!(
             "Loaded: {} lines, {} circles, {} arcs, {} polylines, {} texts",
-            result.lines.len(),
-            result.circles.len(),
-            result.arcs.len(),
-            result.polylines.len(),
-            result.texts.len()
+            render_data.lines.len(),
+            render_data.circles.len(),
+            render_data.arcs.len(),
+            render_data.polylines.len(),
+            render_data.texts.len()
         );
 
-        // Auto-fit to canvas
-        self.fit_to_canvas(&result);
+        self.fit_to_canvas(&render_data);
+        self.render_data = Some(render_data);
 
-        self.parse_result = Some(result);
         Ok(summary)
     }
 
-    /// Get parse result as JSON
+    /// Extract render data from DXF drawing
+    fn extract_render_data(&self, drawing: &dxf::Drawing) -> RenderData {
+        let mut data = RenderData::default();
+        let mut min_x = f64::MAX;
+        let mut min_y = f64::MAX;
+        let mut max_x = f64::MIN;
+        let mut max_y = f64::MIN;
+
+        for entity in drawing.entities() {
+            let color = entity.common.color.index().unwrap_or(7) as i16;
+
+            match &entity.specific {
+                dxf::entities::EntityType::Line(line) => {
+                    let x1 = line.p1.x;
+                    let y1 = line.p1.y;
+                    let x2 = line.p2.x;
+                    let y2 = line.p2.y;
+
+                    min_x = min_x.min(x1).min(x2);
+                    min_y = min_y.min(y1).min(y2);
+                    max_x = max_x.max(x1).max(x2);
+                    max_y = max_y.max(y1).max(y2);
+
+                    data.lines.push(LineData {
+                        x1, y1, x2, y2, color,
+                    });
+                }
+                dxf::entities::EntityType::Circle(circle) => {
+                    let cx = circle.center.x;
+                    let cy = circle.center.y;
+                    let r = circle.radius;
+
+                    min_x = min_x.min(cx - r);
+                    min_y = min_y.min(cy - r);
+                    max_x = max_x.max(cx + r);
+                    max_y = max_y.max(cy + r);
+
+                    data.circles.push(CircleData {
+                        center_x: cx,
+                        center_y: cy,
+                        radius: r,
+                        color,
+                    });
+                }
+                dxf::entities::EntityType::Arc(arc) => {
+                    let cx = arc.center.x;
+                    let cy = arc.center.y;
+                    let r = arc.radius;
+
+                    min_x = min_x.min(cx - r);
+                    min_y = min_y.min(cy - r);
+                    max_x = max_x.max(cx + r);
+                    max_y = max_y.max(cy + r);
+
+                    data.arcs.push(ArcData {
+                        center_x: cx,
+                        center_y: cy,
+                        radius: r,
+                        start_angle: arc.start_angle,
+                        end_angle: arc.end_angle,
+                        color,
+                    });
+                }
+                dxf::entities::EntityType::LwPolyline(poly) => {
+                    let vertices: Vec<(f64, f64)> = poly.vertices.iter()
+                        .map(|v| (v.x, v.y))
+                        .collect();
+
+                    for (x, y) in &vertices {
+                        min_x = min_x.min(*x);
+                        min_y = min_y.min(*y);
+                        max_x = max_x.max(*x);
+                        max_y = max_y.max(*y);
+                    }
+
+                    data.polylines.push(PolylineData {
+                        vertices,
+                        is_closed: poly.flags & 1 != 0,
+                        color,
+                    });
+                }
+                dxf::entities::EntityType::Text(text) => {
+                    let x = text.location.x;
+                    let y = text.location.y;
+
+                    min_x = min_x.min(x);
+                    min_y = min_y.min(y);
+                    max_x = max_x.max(x);
+                    max_y = max_y.max(y);
+
+                    data.texts.push(TextData {
+                        x, y,
+                        height: text.text_height,
+                        text: text.value.clone(),
+                        rotation: text.rotation,
+                        color,
+                    });
+                }
+                dxf::entities::EntityType::MText(mtext) => {
+                    let x = mtext.insertion_point.x;
+                    let y = mtext.insertion_point.y;
+
+                    min_x = min_x.min(x);
+                    min_y = min_y.min(y);
+                    max_x = max_x.max(x);
+                    max_y = max_y.max(y);
+
+                    data.texts.push(TextData {
+                        x, y,
+                        height: mtext.initial_text_height,
+                        text: mtext.text.clone(),
+                        rotation: mtext.rotation_angle,
+                        color,
+                    });
+                }
+                _ => {}
+            }
+        }
+
+        if min_x == f64::MAX {
+            data.bounds = (0.0, 0.0, 100.0, 100.0);
+        } else {
+            data.bounds = (min_x, min_y, max_x, max_y);
+        }
+
+        data
+    }
+
+    /// Get result as JSON
     #[wasm_bindgen]
     pub fn get_result_json(&self) -> Result<String, JsValue> {
-        match &self.parse_result {
-            Some(result) => serde_json::to_string(result)
-                .map_err(|e| JsValue::from_str(&e.to_string())),
+        match &self.render_data {
+            Some(data) => {
+                let json = format!(
+                    r#"{{"lines":{},"circles":{},"arcs":{},"polylines":{},"texts":{}}}"#,
+                    data.lines.len(),
+                    data.circles.len(),
+                    data.arcs.len(),
+                    data.polylines.len(),
+                    data.texts.len()
+                );
+                Ok(json)
+            }
             None => Ok("null".to_string()),
         }
     }
 
     /// Calculate scale and offset to fit content in canvas
-    fn fit_to_canvas(&mut self, result: &DxfParseResult) {
-        let (min_x, min_y, max_x, max_y) = self.calculate_bounds(result);
+    fn fit_to_canvas(&mut self, data: &RenderData) {
+        let (min_x, min_y, max_x, max_y) = data.bounds;
 
         if max_x <= min_x || max_y <= min_y {
             return;
@@ -79,80 +267,15 @@ impl DxfViewer {
         let content_width = max_x - min_x;
         let content_height = max_y - min_y;
 
-        // Add 10% padding
         let scale_x = self.canvas_width * 0.9 / content_width;
         let scale_y = self.canvas_height * 0.9 / content_height;
         self.scale = scale_x.min(scale_y);
 
-        // Center the content
         let center_x = (min_x + max_x) / 2.0;
         let center_y = (min_y + max_y) / 2.0;
 
         self.offset_x = self.canvas_width / 2.0 - center_x * self.scale;
-        self.offset_y = self.canvas_height / 2.0 + center_y * self.scale; // Y is flipped
-    }
-
-    fn calculate_bounds(&self, result: &DxfParseResult) -> (f64, f64, f64, f64) {
-        let mut min_x = f64::MAX;
-        let mut min_y = f64::MAX;
-        let mut max_x = f64::MIN;
-        let mut max_y = f64::MIN;
-
-        // Check header extents first
-        if let Some(header) = &result.header {
-            if header.ext_min != (0.0, 0.0, 0.0) || header.ext_max != (0.0, 0.0, 0.0) {
-                return (
-                    header.ext_min.0,
-                    header.ext_min.1,
-                    header.ext_max.0,
-                    header.ext_max.1,
-                );
-            }
-        }
-
-        // Calculate from entities
-        for line in &result.lines {
-            min_x = min_x.min(line.x1).min(line.x2);
-            min_y = min_y.min(line.y1).min(line.y2);
-            max_x = max_x.max(line.x1).max(line.x2);
-            max_y = max_y.max(line.y1).max(line.y2);
-        }
-
-        for circle in &result.circles {
-            min_x = min_x.min(circle.center_x - circle.radius);
-            min_y = min_y.min(circle.center_y - circle.radius);
-            max_x = max_x.max(circle.center_x + circle.radius);
-            max_y = max_y.max(circle.center_y + circle.radius);
-        }
-
-        for arc in &result.arcs {
-            min_x = min_x.min(arc.center_x - arc.radius);
-            min_y = min_y.min(arc.center_y - arc.radius);
-            max_x = max_x.max(arc.center_x + arc.radius);
-            max_y = max_y.max(arc.center_y + arc.radius);
-        }
-
-        for poly in &result.polylines {
-            for (x, y) in &poly.vertices {
-                min_x = min_x.min(*x);
-                min_y = min_y.min(*y);
-                max_x = max_x.max(*x);
-                max_y = max_y.max(*y);
-            }
-        }
-
-        for text in &result.texts {
-            min_x = min_x.min(text.x);
-            min_y = min_y.min(text.y);
-            max_x = max_x.max(text.x);
-            max_y = max_y.max(text.y);
-        }
-
-        if min_x == f64::MAX {
-            (0.0, 0.0, 100.0, 100.0)
-        } else {
-            (min_x, min_y, max_x, max_y)
-        }
+        self.offset_y = self.canvas_height / 2.0 + center_y * self.scale;
     }
 
     /// Set canvas size
@@ -160,9 +283,9 @@ impl DxfViewer {
     pub fn set_canvas_size(&mut self, width: f64, height: f64) {
         self.canvas_width = width;
         self.canvas_height = height;
-        if let Some(result) = &self.parse_result {
-            let result_clone = result.clone();
-            self.fit_to_canvas(&result_clone);
+        if let Some(data) = &self.render_data {
+            let data_clone = data.clone();
+            self.fit_to_canvas(&data_clone);
         }
     }
 
@@ -179,7 +302,6 @@ impl DxfViewer {
         let old_scale = self.scale;
         self.scale *= factor;
 
-        // Zoom towards the center point
         self.offset_x = center_x - (center_x - self.offset_x) * (self.scale / old_scale);
         self.offset_y = center_y - (center_y - self.offset_y) * (self.scale / old_scale);
     }
@@ -187,8 +309,8 @@ impl DxfViewer {
     /// Render to canvas
     #[wasm_bindgen]
     pub fn render(&self, ctx: &CanvasRenderingContext2d) -> Result<(), JsValue> {
-        let result = match &self.parse_result {
-            Some(r) => r,
+        let data = match &self.render_data {
+            Some(d) => d,
             None => return Ok(()),
         };
 
@@ -199,7 +321,7 @@ impl DxfViewer {
         ctx.set_line_width(1.0);
 
         // Draw lines
-        for line in &result.lines {
+        for line in &data.lines {
             ctx.set_stroke_style(&self.color_to_css(line.color));
             ctx.begin_path();
             let (x1, y1) = self.model_to_view(line.x1, line.y1);
@@ -210,7 +332,7 @@ impl DxfViewer {
         }
 
         // Draw circles
-        for circle in &result.circles {
+        for circle in &data.circles {
             ctx.set_stroke_style(&self.color_to_css(circle.color));
             ctx.begin_path();
             let (cx, cy) = self.model_to_view(circle.center_x, circle.center_y);
@@ -220,13 +342,11 @@ impl DxfViewer {
         }
 
         // Draw arcs
-        for arc in &result.arcs {
+        for arc in &data.arcs {
             ctx.set_stroke_style(&self.color_to_css(arc.color));
             ctx.begin_path();
             let (cx, cy) = self.model_to_view(arc.center_x, arc.center_y);
             let r = arc.radius * self.scale;
-            // DXF uses degrees, counter-clockwise; Canvas uses radians
-            // Y is flipped, so we need to flip the angles
             let start = -arc.end_angle * PI / 180.0;
             let end = -arc.start_angle * PI / 180.0;
             ctx.arc(cx, cy, r, start, end)?;
@@ -234,7 +354,7 @@ impl DxfViewer {
         }
 
         // Draw polylines
-        for poly in &result.polylines {
+        for poly in &data.polylines {
             if poly.vertices.is_empty() {
                 continue;
             }
@@ -257,9 +377,7 @@ impl DxfViewer {
         }
 
         // Draw texts
-        for text in &result.texts {
-            // Use DXF text height scaled to view coordinates
-            // Minimum 4px for readability when zoomed out
+        for text in &data.texts {
             let font_size = (text.height * self.scale).max(4.0);
             ctx.set_font(&format!("{}px sans-serif", font_size as i32));
             ctx.set_fill_style(&self.color_to_css(text.color));
@@ -278,12 +396,12 @@ impl DxfViewer {
     /// Convert model coordinates to view coordinates
     fn model_to_view(&self, x: f64, y: f64) -> (f64, f64) {
         let vx = x * self.scale + self.offset_x;
-        let vy = -y * self.scale + self.offset_y; // Flip Y axis
+        let vy = -y * self.scale + self.offset_y;
         (vx, vy)
     }
 
     /// Convert DXF color index to CSS color
-    fn color_to_css(&self, color: i32) -> JsValue {
+    fn color_to_css(&self, color: i16) -> JsValue {
         let css = match color {
             1 => "#ff0000",   // Red
             2 => "#ffff00",   // Yellow
