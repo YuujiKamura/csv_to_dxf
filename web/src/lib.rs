@@ -56,6 +56,8 @@ struct TextData {
     text: String,
     rotation: f64,
     color: i16,
+    h_align: i16,  // 0=Left, 1=Center, 2=Right
+    v_align: i16,  // 0=Baseline, 1=Bottom, 2=Middle, 3=Top
 }
 
 /// DXF Viewer state
@@ -205,13 +207,20 @@ impl DxfViewer {
                     });
                 }
                 dxf::entities::EntityType::Text(text) => {
-                    let x = text.location.x;
-                    let y = text.location.y;
+                    // Use second alignment point if available, otherwise location
+                    let (x, y) = if text.second_alignment_point.x != 0.0 || text.second_alignment_point.y != 0.0 {
+                        (text.second_alignment_point.x, text.second_alignment_point.y)
+                    } else {
+                        (text.location.x, text.location.y)
+                    };
 
                     min_x = min_x.min(x);
                     min_y = min_y.min(y);
                     max_x = max_x.max(x);
                     max_y = max_y.max(y);
+
+                    let h_align = text.horizontal_text_justification as i16;
+                    let v_align = text.vertical_text_justification as i16;
 
                     data.texts.push(TextData {
                         x, y,
@@ -219,6 +228,8 @@ impl DxfViewer {
                         text: text.value.clone(),
                         rotation: text.rotation,
                         color,
+                        h_align,
+                        v_align,
                     });
                 }
                 dxf::entities::EntityType::MText(mtext) => {
@@ -230,12 +241,20 @@ impl DxfViewer {
                     max_x = max_x.max(x);
                     max_y = max_y.max(y);
 
+                    // MText attachment point: 1-3=top, 4-6=middle, 7-9=bottom
+                    // 1,4,7=left, 2,5,8=center, 3,6,9=right
+                    let ap = mtext.attachment_point as i16;
+                    let h_align = (ap - 1) % 3;  // 0=left, 1=center, 2=right
+                    let v_align = 3 - ((ap - 1) / 3);  // 3=top, 2=middle, 1=bottom
+
                     data.texts.push(TextData {
                         x, y,
                         height: mtext.initial_text_height,
                         text: mtext.text.clone(),
                         rotation: mtext.rotation_angle,
                         color,
+                        h_align,
+                        v_align,
                     });
                 }
                 _ => {}
@@ -405,6 +424,24 @@ impl DxfViewer {
             let font_size = (text.height * self.scale).max(4.0);
             ctx.set_font(&format!("{}px sans-serif", font_size as i32));
             ctx.set_fill_style(&self.color_to_css(text.color));
+
+            // Set text alignment
+            let h_align_str = match text.h_align {
+                1 => "center",
+                2 => "right",
+                _ => "left",
+            };
+            ctx.set_text_align(h_align_str);
+
+            // Set text baseline (DXF Y is inverted)
+            let v_align_str = match text.v_align {
+                1 => "bottom",
+                2 => "middle",
+                3 => "top",
+                _ => "alphabetic",  // baseline
+            };
+            ctx.set_text_baseline(v_align_str);
+
             let (x, y) = self.model_to_view(text.x, text.y);
 
             ctx.save();
@@ -413,6 +450,10 @@ impl DxfViewer {
             ctx.fill_text(&text.text, 0.0, 0.0)?;
             ctx.restore();
         }
+
+        // Reset text alignment for next render
+        ctx.set_text_align("left");
+        ctx.set_text_baseline("alphabetic");
 
         Ok(())
     }
