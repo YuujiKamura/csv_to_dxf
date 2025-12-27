@@ -67,6 +67,7 @@ pub struct DxfViewer {
     offset_y: f64,
     canvas_width: f64,
     canvas_height: f64,
+    dark_mode: bool,
 }
 
 #[wasm_bindgen]
@@ -81,7 +82,20 @@ impl DxfViewer {
             offset_y: 0.0,
             canvas_width: 800.0,
             canvas_height: 600.0,
+            dark_mode: true,
         }
+    }
+
+    /// Toggle between dark and light mode
+    #[wasm_bindgen]
+    pub fn set_dark_mode(&mut self, dark: bool) {
+        self.dark_mode = dark;
+    }
+
+    /// Get current theme mode
+    #[wasm_bindgen]
+    pub fn is_dark_mode(&self) -> bool {
+        self.dark_mode
     }
 
     /// Load and parse DXF content using the dxf crate
@@ -315,7 +329,8 @@ impl DxfViewer {
         };
 
         // Clear canvas
-        ctx.set_fill_style(&JsValue::from_str("#1a1a2e"));
+        let bg_color = if self.dark_mode { "#1a1a2e" } else { "#ffffff" };
+        ctx.set_fill_style(&JsValue::from_str(bg_color));
         ctx.fill_rect(0.0, 0.0, self.canvas_width, self.canvas_height);
 
         ctx.set_line_width(1.0);
@@ -402,17 +417,33 @@ impl DxfViewer {
 
     /// Convert DXF color index to CSS color
     fn color_to_css(&self, color: i16) -> JsValue {
-        let css = match color {
-            1 => "#ff0000",   // Red
-            2 => "#ffff00",   // Yellow
-            3 => "#00ff00",   // Green
-            4 => "#00ffff",   // Cyan
-            5 => "#0000ff",   // Blue
-            6 => "#ff00ff",   // Magenta
-            7 | 0 => "#ffffff", // White (default)
-            8 => "#808080",   // Gray
-            9 => "#c0c0c0",   // Light gray
-            _ => "#ffffff",   // Default white
+        let css = if self.dark_mode {
+            match color {
+                1 => "#ff0000",   // Red
+                2 => "#ffff00",   // Yellow
+                3 => "#00ff00",   // Green
+                4 => "#00ffff",   // Cyan
+                5 => "#0000ff",   // Blue
+                6 => "#ff00ff",   // Magenta
+                7 | 0 => "#ffffff", // White (default)
+                8 => "#808080",   // Gray
+                9 => "#c0c0c0",   // Light gray
+                _ => "#ffffff",   // Default white
+            }
+        } else {
+            // Light mode: invert white to black, adjust colors for visibility
+            match color {
+                1 => "#cc0000",   // Red (darker)
+                2 => "#cc9900",   // Yellow (darker for visibility)
+                3 => "#008800",   // Green (darker)
+                4 => "#008888",   // Cyan (darker)
+                5 => "#0000cc",   // Blue (darker)
+                6 => "#cc00cc",   // Magenta (darker)
+                7 | 0 => "#000000", // Black (inverted from white)
+                8 => "#666666",   // Gray
+                9 => "#444444",   // Dark gray (inverted)
+                _ => "#000000",   // Default black
+            }
         };
         JsValue::from_str(css)
     }
