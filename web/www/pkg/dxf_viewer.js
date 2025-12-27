@@ -192,6 +192,12 @@ export class DxfViewer {
         wasm.dxfviewer_set_canvas_size(this.__wbg_ptr, width, height);
     }
     /**
+     * Fit drawing to canvas (public API)
+     */
+    fit() {
+        wasm.dxfviewer_fit(this.__wbg_ptr);
+    }
+    /**
      * Create a new DXF viewer
      */
     constructor() {

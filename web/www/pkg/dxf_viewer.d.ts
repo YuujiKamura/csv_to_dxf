@@ -43,6 +43,10 @@ export class DxfViewer {
    */
   set_canvas_size(width: number, height: number): void;
   /**
+   * Fit drawing to canvas (public API)
+   */
+  fit(): void;
+  /**
    * Create a new DXF viewer
    */
   constructor();
@@ -69,6 +73,7 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
   readonly __wbg_dxfviewer_free: (a: number, b: number) => void;
+  readonly dxfviewer_fit: (a: number) => void;
   readonly dxfviewer_get_result_json: (a: number) => [number, number, number, number];
   readonly dxfviewer_is_dark_mode: (a: number) => number;
   readonly dxfviewer_load_dxf: (a: number, b: number, c: number) => [number, number, number, number];
