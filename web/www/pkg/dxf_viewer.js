@@ -364,6 +364,12 @@ function __wbg_get_imports() {
     imports.wbg.__wbg_set_strokeStyle_857faae3a756ddf4 = function(arg0, arg1) {
         arg0.strokeStyle = arg1;
     };
+    imports.wbg.__wbg_set_textAlign_5d82eb01e9d2291e = function(arg0, arg1, arg2) {
+        arg0.textAlign = getStringFromWasm0(arg1, arg2);
+    };
+    imports.wbg.__wbg_set_textBaseline_9e8ed61033c5023d = function(arg0, arg1, arg2) {
+        arg0.textBaseline = getStringFromWasm0(arg1, arg2);
+    };
     imports.wbg.__wbg_stroke_a18b81eb49ff370e = function(arg0) {
         arg0.stroke();
     };
