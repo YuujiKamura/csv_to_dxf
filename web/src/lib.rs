@@ -82,7 +82,7 @@ impl DxfViewer {
             offset_y: 0.0,
             canvas_width: 800.0,
             canvas_height: 600.0,
-            dark_mode: true,
+            dark_mode: false,
         }
     }
 
