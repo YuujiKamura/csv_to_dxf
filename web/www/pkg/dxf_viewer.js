@@ -311,9 +311,6 @@ function __wbg_get_imports() {
     imports.wbg.__wbg_fillRect_84131220403e26a4 = function(arg0, arg1, arg2, arg3, arg4) {
         arg0.fillRect(arg1, arg2, arg3, arg4);
     };
-    imports.wbg.__wbg_fillText_56566d8049e84e17 = function() { return handleError(function (arg0, arg1, arg2, arg3, arg4) {
-        arg0.fillText(getStringFromWasm0(arg1, arg2), arg3, arg4);
-    }, arguments) };
     imports.wbg.__wbg_getRandomValues_9b655bdd369112f2 = function() { return handleError(function (arg0, arg1) {
         globalThis.crypto.getRandomValues(getArrayU8FromWasm0(arg0, arg1));
     }, arguments) };
@@ -343,20 +340,8 @@ function __wbg_get_imports() {
         const ret = new Date(arg0 >>> 0, arg1, arg2, arg3, arg4, arg5);
         return ret;
     };
-    imports.wbg.__wbg_restore_6486cb1a7aa3af7b = function(arg0) {
-        arg0.restore();
-    };
-    imports.wbg.__wbg_rotate_4185d7f8614ba2d5 = function() { return handleError(function (arg0, arg1) {
-        arg0.rotate(arg1);
-    }, arguments) };
-    imports.wbg.__wbg_save_b8767cfd2ee7f600 = function(arg0) {
-        arg0.save();
-    };
     imports.wbg.__wbg_set_fillStyle_ea371e123273908b = function(arg0, arg1) {
         arg0.fillStyle = arg1;
-    };
-    imports.wbg.__wbg_set_font_37c5ab71d0189314 = function(arg0, arg1, arg2) {
-        arg0.font = getStringFromWasm0(arg1, arg2);
     };
     imports.wbg.__wbg_set_lineWidth_feda4b79a15c660b = function(arg0, arg1) {
         arg0.lineWidth = arg1;
@@ -364,18 +349,9 @@ function __wbg_get_imports() {
     imports.wbg.__wbg_set_strokeStyle_857faae3a756ddf4 = function(arg0, arg1) {
         arg0.strokeStyle = arg1;
     };
-    imports.wbg.__wbg_set_textAlign_5d82eb01e9d2291e = function(arg0, arg1, arg2) {
-        arg0.textAlign = getStringFromWasm0(arg1, arg2);
-    };
-    imports.wbg.__wbg_set_textBaseline_9e8ed61033c5023d = function(arg0, arg1, arg2) {
-        arg0.textBaseline = getStringFromWasm0(arg1, arg2);
-    };
     imports.wbg.__wbg_stroke_a18b81eb49ff370e = function(arg0) {
         arg0.stroke();
     };
-    imports.wbg.__wbg_translate_5c51221dc69f0baa = function() { return handleError(function (arg0, arg1, arg2) {
-        arg0.translate(arg1, arg2);
-    }, arguments) };
     imports.wbg.__wbindgen_cast_2241b6af4c4b2941 = function(arg0, arg1) {
         // Cast intrinsic for `Ref(String) -> Externref`.
         const ret = getStringFromWasm0(arg0, arg1);

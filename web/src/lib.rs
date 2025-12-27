@@ -3,6 +3,8 @@
 //! A DXF file viewer that runs in the browser using WebAssembly.
 //! Uses the `dxf` crate for parsing.
 
+mod vector_font;
+
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
 use std::f64::consts::PI;
@@ -419,41 +421,78 @@ impl DxfViewer {
             ctx.stroke();
         }
 
-        // Draw texts
+        // Draw texts using vector font
         for text in &data.texts {
-            let font_size = (text.height * self.scale).max(4.0);
-            ctx.set_font(&format!("{}px sans-serif", font_size as i32));
-            ctx.set_fill_style(&self.color_to_css(text.color));
+            ctx.set_stroke_style(&self.color_to_css(text.color));
 
-            // Set text alignment
-            let h_align_str = match text.h_align {
-                1 => "center",
-                2 => "right",
-                _ => "left",
+            // Scale factor: DXF text height to glyph units
+            let glyph_scale = text.height / vector_font::CAP_HEIGHT;
+
+            // Calculate total text width for alignment
+            let total_width: f64 = text.text.chars()
+                .filter_map(|c| vector_font::get_glyph(c))
+                .map(|g| g.width * glyph_scale)
+                .sum();
+
+            // Calculate starting offset based on alignment
+            let h_offset = match text.h_align {
+                1 => -total_width / 2.0,  // center
+                2 => -total_width,         // right
+                _ => 0.0,                  // left
             };
-            ctx.set_text_align(h_align_str);
 
-            // Set text baseline (DXF Y is inverted)
-            let v_align_str = match text.v_align {
-                1 => "bottom",
-                2 => "middle",
-                3 => "top",
-                _ => "alphabetic",  // baseline
-            };
-            ctx.set_text_baseline(v_align_str);
+            let v_offset = match text.v_align {
+                1 => 0.0,                              // bottom
+                2 => vector_font::CAP_HEIGHT / 2.0,    // middle
+                3 => vector_font::CAP_HEIGHT,          // top
+                _ => 0.0,                              // baseline
+            } * glyph_scale;
 
-            let (x, y) = self.model_to_view(text.x, text.y);
+            let (base_x, base_y) = self.model_to_view(text.x, text.y);
+            let rot_rad = -text.rotation * PI / 180.0;
+            let cos_r = rot_rad.cos();
+            let sin_r = rot_rad.sin();
 
-            ctx.save();
-            ctx.translate(x, y)?;
-            ctx.rotate(-text.rotation * PI / 180.0)?;
-            ctx.fill_text(&text.text, 0.0, 0.0)?;
-            ctx.restore();
+            let mut cursor_x = h_offset;
+
+            for c in text.text.chars() {
+                if let Some(glyph) = vector_font::get_glyph(c) {
+                    // Draw each stroke of the glyph
+                    for stroke in glyph.strokes {
+                        if stroke.len() < 2 {
+                            continue;
+                        }
+
+                        ctx.begin_path();
+                        for (i, &(gx, gy)) in stroke.iter().enumerate() {
+                            // Transform glyph coordinates
+                            let lx = cursor_x + gx * glyph_scale;
+                            let ly = v_offset - gy * glyph_scale;  // flip Y
+
+                            // Apply rotation
+                            let rx = lx * cos_r - ly * sin_r;
+                            let ry = lx * sin_r + ly * cos_r;
+
+                            // Apply view scale and position
+                            let vx = base_x + rx * self.scale;
+                            let vy = base_y + ry * self.scale;
+
+                            if i == 0 {
+                                ctx.move_to(vx, vy);
+                            } else {
+                                ctx.line_to(vx, vy);
+                            }
+                        }
+                        ctx.stroke();
+                    }
+
+                    cursor_x += glyph.width * glyph_scale;
+                } else {
+                    // Unknown character, advance by average width
+                    cursor_x += 16.0 * glyph_scale;
+                }
+            }
         }
-
-        // Reset text alignment for next render
-        ctx.set_text_align("left");
-        ctx.set_text_baseline("alphabetic");
 
         Ok(())
     }
