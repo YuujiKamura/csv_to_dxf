@@ -37,10 +37,9 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            cross-section-ui/target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('cross-section-ui/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-tools-${{ hashFiles('cross-section-ui/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-
+            ${{ runner.os }}-cargo-tools-
 
       - name: Install trunk
         run: cargo install trunk --locked || true
