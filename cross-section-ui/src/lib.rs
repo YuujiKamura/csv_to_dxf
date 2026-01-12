@@ -930,20 +930,36 @@ fn render_dxf(painter: &Painter, drawing: &Drawing, view: &DxfViewState) {
 
                 // Galleyを取得
                 let galley = painter.layout_no_wrap(text.value.clone(), font, color);
-                let rect = galley.rect;
+                let text_width = galley.rect.width();
+                let text_height = galley.rect.height();
 
-                // アライメントに基づいて位置を調整
-                let align = match text.horizontal_text_justification {
-                    HorizontalTextJustification::Left => egui::Align2::LEFT_CENTER,
-                    HorizontalTextJustification::Center => egui::Align2::CENTER_CENTER,
-                    HorizontalTextJustification::Right => egui::Align2::RIGHT_CENTER,
-                    _ => egui::Align2::LEFT_CENTER,
+                // trianglelist方式のアライメント計算
+                // DXFのアライメント値に基づいて描画位置（左上）を計算
+                let align_h = text.horizontal_text_justification as i32;
+                let align_v = text.vertical_text_justification as i32;
+
+                // 水平アライメント（0=左、1=中央、2=右）
+                let x = match align_h {
+                    0 => base_pos.x,                        // 左揃え
+                    1 => base_pos.x - text_width / 2.0,     // 中央揃え
+                    2 => base_pos.x - text_width,           // 右揃え
+                    _ => base_pos.x,
                 };
-                let pos = align.anchor_size(base_pos, rect.size()).min;
+
+                // 垂直アライメント（0=ベースライン、1=下、2=中央、3=上）
+                // 画面座標系ではY軸が下向きなので調整
+                let y = match align_v {
+                    0 => base_pos.y - text_height,          // ベースライン
+                    1 => base_pos.y - text_height,          // 下揃え
+                    2 => base_pos.y - text_height / 2.0,    // 中央揃え
+                    3 => base_pos.y,                        // 上揃え
+                    _ => base_pos.y - text_height,
+                };
+
+                let pos = Pos2::new(x, y);
 
                 // TextShapeで回転を適用
                 // DXFは度数法（反時計回り）、eguiはラジアン（時計回り）
-                // 画面座標系ではY軸が反転しているため、符号を調整
                 let angle = -(text.rotation as f32).to_radians();
 
                 let text_shape = egui::epaint::TextShape {
