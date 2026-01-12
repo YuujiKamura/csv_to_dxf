@@ -801,8 +801,8 @@ pub fn generate_longitudinal_dxf_bytes(sections: &[CrossSectionData]) -> Vec<u8>
 }
 
 /// コンボビュー（縦断図＋全横断図）を生成
-/// 縦断図を上部に、全横断図グリッドを下部に配置
-pub fn generate_combo_drawing(sections: &[CrossSectionData], columns: usize) -> Drawing {
+/// 縦断図を上部に、全横断図グリッドを下部に配置（横断図は2行で横長配置）
+pub fn generate_combo_drawing(sections: &[CrossSectionData], _columns: usize) -> Drawing {
     if sections.is_empty() {
         return Drawing::new();
     }
@@ -812,8 +812,9 @@ pub fn generate_combo_drawing(sections: &[CrossSectionData], columns: usize) -> 
     let (_long_min_x, long_min_y, _long_max_x, long_max_y) = calc_dxf_bounds(&longitudinal);
     let _long_height = long_max_y - long_min_y;
 
-    // 全横断図を生成
-    let multi = generate_multi_drawing(sections, columns);
+    // 横断図は2行で横長配置（列数を自動計算）
+    let combo_columns = (sections.len() + 1) / 2;  // 2行に収まるように列数を計算
+    let multi = generate_multi_drawing(sections, combo_columns);
     let (_multi_min_x, multi_min_y, _multi_max_x, multi_max_y) = calc_dxf_bounds(&multi);
     let multi_height = multi_max_y - multi_min_y;
 
