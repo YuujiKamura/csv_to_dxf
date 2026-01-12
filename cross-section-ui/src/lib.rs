@@ -943,10 +943,18 @@ impl eframe::App for CrossSectionApp {
                 self.dxf_view_state.pan += response.drag_delta();
             }
 
+            // マウスホイールズーム
             let scroll = ui.input(|i| i.raw_scroll_delta.y);
             if scroll != 0.0 {
                 let zoom_factor = if scroll > 0.0 { 1.1 } else { 0.9 };
                 self.dxf_view_state.zoom *= zoom_factor;
+                self.dxf_view_state.zoom = self.dxf_view_state.zoom.clamp(0.01, 5.0);
+            }
+
+            // ピンチズーム（二本指）
+            let zoom_delta = ui.input(|i| i.zoom_delta());
+            if zoom_delta != 1.0 {
+                self.dxf_view_state.zoom *= zoom_delta;
                 self.dxf_view_state.zoom = self.dxf_view_state.zoom.clamp(0.01, 5.0);
             }
 
