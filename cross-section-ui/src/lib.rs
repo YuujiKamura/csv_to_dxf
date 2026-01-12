@@ -593,12 +593,10 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
     add_line(&mut drawing, label_width, 0.0, label_width, graph_height, 7, "TABLE");
     add_line(&mut drawing, label_width + graph_width, 0.0, label_width + graph_width, graph_height, 7, "TABLE");
 
-    // ===================
-    // 測点ラベル（グラフ上端）
-    // ===================
+    // 測点ラベル（グラフ内側上端）
     for (dist, _gh, _fh, name) in &points {
         let x = to_dxf_x(*dist);
-        add_text(&mut drawing, x, graph_height + text_height * 0.8, name,
+        add_text(&mut drawing, x, graph_height - text_height * 0.3, name,
             text_height * 0.8, 7, "TEXT", TextAlign::Center);
     }
 
