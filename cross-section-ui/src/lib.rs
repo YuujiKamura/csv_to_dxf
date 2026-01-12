@@ -490,8 +490,8 @@ fn is_plus_stake(name: &str) -> bool {
 /// 縦断図を生成（土木標準形式）
 pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
     // スケール設定（DXF単位）
-    let scale_x = 100.0;     // 横方向スケール（1m = 100単位）H=1:500
-    let scale_y = 500.0;     // 縦方向スケール（1m = 500単位）V=1:100
+    let scale_x = 100.0;     // 横方向スケール（1m = 100単位）
+    let scale_y = 200.0;     // 縦方向スケール（1m = 200単位）縦横比 2:1
     let text_height = 120.0; // 基本テキスト高さ
     let row_height = 350.0;  // データ表の行高さ（回転テキスト対応）
     let label_width = 500.0; // 左側のラベル幅
