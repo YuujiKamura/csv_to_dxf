@@ -432,11 +432,14 @@ pub fn generate_multi_dxf_bytes(sections: &[CrossSectionData], columns: usize) -
 // Longitudinal Profile (縦断図)
 // ============================================================================
 
-/// 測点名から路線距離を取得（"No.X" → X * 20m）
+/// 測点間隔のデフォルト値（メートル）
 /// 土木工事では測点間隔は通常20mが標準
+const DEFAULT_STATION_INTERVAL: f64 = 20.0;
+
+/// 測点名から路線距離を取得（"No.X" → X * DEFAULT_STATION_INTERVAL）
 fn parse_station_distance(name: &str) -> f64 {
     if name.starts_with("No.") {
-        name[3..].parse::<f64>().unwrap_or(0.0) * 20.0
+        name[3..].parse::<f64>().unwrap_or(0.0) * DEFAULT_STATION_INTERVAL
     } else {
         0.0
     }
