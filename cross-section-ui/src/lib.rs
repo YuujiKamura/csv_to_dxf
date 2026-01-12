@@ -702,11 +702,11 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
                 cell_text_height, 7, "TEXT", TextAlign::Center, VerticalAlign::Middle, 90.0);
         }
 
-        // 測点名: 0°回転、下寄せ（row_height * 0.75）
+        // 測点名: 90°回転、中央配置（row_height / 2.0）
         {
-            let y = table_top - 7.0 * row_height - row_height * 0.75;
+            let y = table_top - 7.0 * row_height - row_height / 2.0;
             add_text_rotated(&mut drawing, x, y, name,
-                cell_text_height, 7, "TEXT", TextAlign::Center, VerticalAlign::Bottom, 0.0);
+                cell_text_height, 7, "TEXT", TextAlign::Center, VerticalAlign::Middle, 90.0);
         }
 
         prev_dist = *dist;
