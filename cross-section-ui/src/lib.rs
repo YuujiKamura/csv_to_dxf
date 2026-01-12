@@ -1245,15 +1245,12 @@ fn parse_csv_sections(content: &str) -> Result<Vec<CsvSection>, String> {
         let cut = cutting_depth.unwrap_or(0.0);
         out.push(CsvSection {
             name: name.to_string(),
-            unit_distances: unit_distances.clone(),
-            elevations: elevations.clone(),
-            planned_heights: planned_heights.clone(),
+            unit_distances: std::mem::take(unit_distances),
+            elevations: std::mem::take(elevations),
+            planned_heights: std::mem::take(planned_heights),
             cutting_depth: cut,
             cl_index: *cl_index,
         });
-        unit_distances.clear();
-        elevations.clear();
-        planned_heights.clear();
         *cutting_depth = None;
         *cl_index = None;
     };
@@ -1774,50 +1771,34 @@ thread_local! {
 
 #[cfg(target_arch = "wasm32")]
 fn trigger_csv_dialog() {
-    let window = match web_sys::window() {
-        Some(window) => window,
-        None => return,
-    };
-    let document = match window.document() {
-        Some(document) => document,
-        None => return,
-    };
+    let Some(window) = web_sys::window() else { return; };
+    let Some(document) = window.document() else { return; };
 
-    let input = match document.create_element("input") {
-        Ok(input) => input,
-        Err(_) => return,
-    };
-    let input: HtmlInputElement = match input.dyn_into() {
-        Ok(input) => input,
-        Err(_) => return,
-    };
+    let Ok(input) = document.create_element("input") else { return; };
+    let Ok(input) = input.dyn_into::<HtmlInputElement>() else { return; };
     input.set_type("file");
     input.set_accept(".csv,text/csv");
 
-    let on_change = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
-        let target = match event.target() {
-            Some(target) => target,
-            None => return,
-        };
-        let input: HtmlInputElement = match target.dyn_into() {
-            Ok(input) => input,
-            Err(_) => return,
-        };
-        let files = match input.files() {
-            Some(files) => files,
-            None => return,
-        };
-        let file = match files.get(0) {
-            Some(file) => file,
-            None => return,
-        };
+    let on_change: std::rc::Rc<std::cell::RefCell<Option<Closure<dyn FnMut(Event)>>>> =
+        std::rc::Rc::new(std::cell::RefCell::new(None));
+    let on_load: std::rc::Rc<std::cell::RefCell<Option<Closure<dyn FnMut(Event)>>>> =
+        std::rc::Rc::new(std::cell::RefCell::new(None));
 
-        let reader = match FileReader::new() {
-            Ok(reader) => reader,
-            Err(_) => return,
-        };
+    let on_change_handle = on_change.clone();
+    let on_load_handle = on_load.clone();
+
+    *on_change.borrow_mut() = Some(Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+        let Some(target) = event.target() else { return; };
+        let Ok(input) = target.dyn_into::<HtmlInputElement>() else { return; };
+        let Some(files) = input.files() else { return; };
+        let Some(file) = files.get(0) else { return; };
+
+        let Ok(reader) = FileReader::new() else { return; };
         let reader_clone = reader.clone();
-        let on_load = Closure::<dyn FnMut(Event)>::new(move |_event: Event| {
+        let on_load_handle = on_load_handle.clone();
+        let on_change_handle = on_change_handle.clone();
+
+        *on_load_handle.borrow_mut() = Some(Closure::<dyn FnMut(Event)>::new(move |_event: Event| {
             let result = reader_clone.result();
             if let Some(result) = result {
                 if let Some(text) = result.as_string() {
@@ -1826,14 +1807,22 @@ fn trigger_csv_dialog() {
                     });
                 }
             }
-        });
-        reader.set_onload(Some(on_load.as_ref().unchecked_ref()));
-        on_load.forget();
-        let _ = reader.read_as_text(&file);
-    });
+            reader_clone.set_onload(None);
+            on_load_handle.borrow_mut().take();
+        }));
 
-    input.set_onchange(Some(on_change.as_ref().unchecked_ref()));
-    on_change.forget();
+        if let Some(handler) = on_load_handle.borrow().as_ref() {
+            reader.set_onload(Some(handler.as_ref().unchecked_ref()));
+        }
+
+        let _ = reader.read_as_text(&file);
+        input.set_onchange(None);
+        on_change_handle.borrow_mut().take();
+    }));
+
+    if let Some(handler) = on_change.borrow().as_ref() {
+        input.set_onchange(Some(handler.as_ref().unchecked_ref()));
+    }
     input.click();
 }
 
