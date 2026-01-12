@@ -1,0 +1,10 @@
+C:\Users\yuuji\Sanyuu2Kouku\cursor_tools\csv_to_dxf\cross-section-ui\target2\wasm32-unknown-unknown\release\deps\avif_serialize-c2980abc381399bf.d: F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\avif-serialize-0.8.6\src\lib.rs F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\avif-serialize-0.8.6\src\boxes.rs F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\avif-serialize-0.8.6\src\constants.rs F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\avif-serialize-0.8.6\src\writer.rs
+
+C:\Users\yuuji\Sanyuu2Kouku\cursor_tools\csv_to_dxf\cross-section-ui\target2\wasm32-unknown-unknown\release\deps\libavif_serialize-c2980abc381399bf.rlib: F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\avif-serialize-0.8.6\src\lib.rs F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\avif-serialize-0.8.6\src\boxes.rs F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\avif-serialize-0.8.6\src\constants.rs F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\avif-serialize-0.8.6\src\writer.rs
+
+C:\Users\yuuji\Sanyuu2Kouku\cursor_tools\csv_to_dxf\cross-section-ui\target2\wasm32-unknown-unknown\release\deps\libavif_serialize-c2980abc381399bf.rmeta: F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\avif-serialize-0.8.6\src\lib.rs F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\avif-serialize-0.8.6\src\boxes.rs F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\avif-serialize-0.8.6\src\constants.rs F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\avif-serialize-0.8.6\src\writer.rs
+
+F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\avif-serialize-0.8.6\src\lib.rs:
+F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\avif-serialize-0.8.6\src\boxes.rs:
+F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\avif-serialize-0.8.6\src\constants.rs:
+F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\avif-serialize-0.8.6\src\writer.rs:
