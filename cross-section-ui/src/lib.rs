@@ -268,6 +268,7 @@ pub fn generate_dxf_bytes(section: &CrossSectionData) -> Vec<u8> {
 // ============================================================================
 
 /// 複数横断図をグリッド配置したDrawingを生成
+/// 道路工事の配置ルール: 左下起点、列ごとに下から上へ、左から右へ
 pub fn generate_multi_drawing(sections: &[CrossSectionData], columns: usize) -> Drawing {
     let scale = 1000.0;
 
@@ -303,18 +304,21 @@ pub fn generate_multi_drawing(sections: &[CrossSectionData], columns: usize) -> 
     let cell_width = (max_width + 2.0) * scale;
     let cell_height = (max_height + 1.0) * scale;
 
+    // 道路工事の配置: 左下起点、列ごとに下から上
+    let rows_per_column = (sections.len() + columns - 1) / columns;  // ceil division
+
     for (idx, section) in sections.iter().enumerate() {
         if section.survey_data.len() < 2 { continue; }
-        let col = idx % columns;
-        let row = idx / columns;
+        let col = idx / rows_per_column;           // 列番号（左から右）
+        let row_in_col = idx % rows_per_column;    // 列内の行番号（下から上）
         let offset_x = col as f64 * cell_width;
-        let offset_y = -(row as f64) * cell_height;
+        let offset_y = row_in_col as f64 * cell_height;  // 正の方向（下から上）
         draw_section_at_offset(&mut drawing, section, offset_x, offset_y, scale);
 
         let frame_x1 = offset_x - 0.5 * scale;
         let frame_x2 = offset_x + (max_width + 1.5) * scale;
         let frame_y1 = offset_y - 0.5 * scale;
-        let frame_y2 = offset_y + max_height * scale;
+        let frame_y2 = offset_y + cell_height - 0.5 * scale;
         add_line(&mut drawing, frame_x1, frame_y1, frame_x2, frame_y1, 9, "FRAME");
         add_line(&mut drawing, frame_x2, frame_y1, frame_x2, frame_y2, 9, "FRAME");
         add_line(&mut drawing, frame_x2, frame_y2, frame_x1, frame_y2, 9, "FRAME");
