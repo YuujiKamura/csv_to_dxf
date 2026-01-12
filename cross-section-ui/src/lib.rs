@@ -933,34 +933,38 @@ fn render_dxf(painter: &Painter, drawing: &Drawing, view: &DxfViewState) {
                 let text_width = galley.rect.width();
                 let text_height = galley.rect.height();
 
-                // trianglelist方式のアライメント計算
-                // DXFのアライメント値に基づいて描画位置（左上）を計算
+                // DXFのアライメント値
                 let align_h = text.horizontal_text_justification as i32;
                 let align_v = text.vertical_text_justification as i32;
 
-                // 水平アライメント（0=左、1=中央、2=右）
-                let x = match align_h {
-                    0 => base_pos.x,                        // 左揃え
-                    1 => base_pos.x - text_width / 2.0,     // 中央揃え
-                    2 => base_pos.x - text_width,           // 右揃え
-                    _ => base_pos.x,
+                // アライメントに基づくオフセット計算（回転前の座標系で）
+                let offset_x = match align_h {
+                    0 => 0.0,                    // 左揃え
+                    1 => -text_width / 2.0,      // 中央揃え
+                    2 => -text_width,            // 右揃え
+                    _ => 0.0,
+                };
+                let offset_y = match align_v {
+                    0 => -text_height,           // ベースライン
+                    1 => -text_height,           // 下揃え
+                    2 => -text_height / 2.0,     // 中央揃え
+                    3 => 0.0,                    // 上揃え
+                    _ => -text_height,
                 };
 
-                // 垂直アライメント（0=ベースライン、1=下、2=中央、3=上）
-                // 画面座標系ではY軸が下向きなので調整
-                let y = match align_v {
-                    0 => base_pos.y - text_height,          // ベースライン
-                    1 => base_pos.y - text_height,          // 下揃え
-                    2 => base_pos.y - text_height / 2.0,    // 中央揃え
-                    3 => base_pos.y,                        // 上揃え
-                    _ => base_pos.y - text_height,
-                };
+                // 回転角度（DXFは度数法反時計回り、eguiはラジアン時計回り）
+                let angle_rad = -(text.rotation as f32).to_radians();
 
-                let pos = Pos2::new(x, y);
+                // オフセットを回転させる（回転後の描画位置を計算）
+                let cos_a = angle_rad.cos();
+                let sin_a = angle_rad.sin();
+                let rotated_offset_x = offset_x * cos_a - offset_y * sin_a;
+                let rotated_offset_y = offset_x * sin_a + offset_y * cos_a;
 
-                // TextShapeで回転を適用
-                // DXFは度数法（反時計回り）、eguiはラジアン（時計回り）
-                let angle = -(text.rotation as f32).to_radians();
+                let pos = Pos2::new(
+                    base_pos.x + rotated_offset_x,
+                    base_pos.y + rotated_offset_y
+                );
 
                 let text_shape = egui::epaint::TextShape {
                     pos,
@@ -969,7 +973,7 @@ fn render_dxf(painter: &Painter, drawing: &Drawing, view: &DxfViewState) {
                     fallback_color: color,
                     override_text_color: Some(color),
                     opacity_factor: 1.0,
-                    angle,
+                    angle: angle_rad,
                 };
                 painter.add(egui::Shape::Text(text_shape));
             }
