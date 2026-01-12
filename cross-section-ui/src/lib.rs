@@ -429,6 +429,130 @@ pub fn generate_multi_dxf_bytes(sections: &[CrossSectionData], columns: usize) -
 }
 
 // ============================================================================
+// Longitudinal Profile (縦断図)
+// ============================================================================
+
+/// 測点名から路線距離を取得（"No.X" → X * 10m）
+fn parse_station_distance(name: &str) -> f64 {
+    if name.starts_with("No.") {
+        name[3..].parse::<f64>().unwrap_or(0.0) * 10.0
+    } else {
+        0.0
+    }
+}
+
+/// 縦断図を生成
+pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
+    let scale_x = 100.0;   // 横方向スケール（1m = 100mm）
+    let scale_y = 1000.0;  // 縦方向スケール（1m = 1000mm）
+    let text_height = 150.0;
+
+    let mut drawing = Drawing::new();
+    drawing.header.version = dxf::enums::AcadVersion::R2010;
+
+    // レイヤー作成
+    for (name, color_idx) in [
+        ("GROUND", 7),    // 黒 - 現地盤高
+        ("PLAN", 1),      // 赤 - 計画高
+        ("GRID", 8),      // グレー - グリッド
+        ("TEXT", 7),      // 黒 - テキスト
+    ] {
+        let mut layer = dxf::tables::Layer::default();
+        layer.name = name.to_string();
+        layer.color = Color::from_index(color_idx);
+        drawing.add_layer(layer);
+    }
+
+    // データ収集（路線距離順にソート）
+    let mut points: Vec<(f64, f64, f64, String)> = sections.iter().map(|s| {
+        let cl = &s.survey_data[s.cl_index.min(s.survey_data.len() - 1)];
+        let dist = parse_station_distance(&s.survey_point_name);
+        (dist, cl.elevation, cl.planned_height, s.survey_point_name.clone())
+    }).collect();
+    points.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+
+    if points.is_empty() { return drawing; }
+
+    // 範囲計算
+    let min_dist = points.first().map(|p| p.0).unwrap_or(0.0);
+    let max_dist = points.last().map(|p| p.0).unwrap_or(100.0);
+    let min_elev = points.iter().map(|p| p.1.min(p.2)).fold(f64::MAX, f64::min);
+    let max_elev = points.iter().map(|p| p.1.max(p.2)).fold(f64::MIN, f64::max);
+
+    // DL（基準高）を最小標高の1m下に設定
+    let dl = (min_elev - 1.0).floor();
+    let graph_height = max_elev - dl + 1.0;
+
+    let to_dxf_x = |d: f64| (d - min_dist) * scale_x;
+    let to_dxf_y = |h: f64| (h - dl) * scale_y;
+
+    // グリッド描画
+    let grid_step_x = 20.0;  // 20m間隔
+    let grid_step_y = 1.0;   // 1m間隔
+
+    // 縦グリッド
+    let mut x = (min_dist / grid_step_x).floor() * grid_step_x;
+    while x <= max_dist {
+        if x >= min_dist {
+            add_line(&mut drawing, to_dxf_x(x), to_dxf_y(dl), to_dxf_x(x), to_dxf_y(dl + graph_height), 8, "GRID");
+        }
+        x += grid_step_x;
+    }
+
+    // 横グリッド
+    let mut y = dl;
+    while y <= dl + graph_height {
+        add_line(&mut drawing, to_dxf_x(min_dist), to_dxf_y(y), to_dxf_x(max_dist), to_dxf_y(y), 8, "GRID");
+        // 標高ラベル
+        add_text(&mut drawing, to_dxf_x(min_dist) - 200.0, to_dxf_y(y), &format!("{:.1}", y), text_height, 8, "TEXT", TextAlign::Right);
+        y += grid_step_y;
+    }
+
+    // 現地盤高線（黒）
+    for i in 0..points.len() - 1 {
+        add_line(&mut drawing,
+            to_dxf_x(points[i].0), to_dxf_y(points[i].1),
+            to_dxf_x(points[i + 1].0), to_dxf_y(points[i + 1].1),
+            7, "GROUND");
+    }
+
+    // 計画高線（赤）
+    for i in 0..points.len() - 1 {
+        add_line(&mut drawing,
+            to_dxf_x(points[i].0), to_dxf_y(points[i].2),
+            to_dxf_x(points[i + 1].0), to_dxf_y(points[i + 1].2),
+            1, "PLAN");
+    }
+
+    // 測点ラベルと数値
+    for (dist, gh, fh, name) in &points {
+        let x = to_dxf_x(*dist);
+        // 測点名（グラフ上部）
+        add_text(&mut drawing, x, to_dxf_y(dl + graph_height) + 300.0, name, text_height, 7, "TEXT", TextAlign::Center);
+        // GH/FH（グラフ下部）
+        add_text(&mut drawing, x, to_dxf_y(dl) - 200.0, &format!("{:.3}", gh), text_height * 0.8, 7, "TEXT", TextAlign::Center);
+        add_text(&mut drawing, x, to_dxf_y(dl) - 400.0, &format!("{:.3}", fh), text_height * 0.8, 1, "TEXT", TextAlign::Center);
+    }
+
+    // タイトル
+    add_text(&mut drawing, to_dxf_x((min_dist + max_dist) / 2.0), to_dxf_y(dl + graph_height) + 600.0,
+        "縦断図", text_height * 2.0, 7, "TEXT", TextAlign::Center);
+
+    // DLラベル
+    add_text(&mut drawing, to_dxf_x(min_dist) - 200.0, to_dxf_y(dl) - 100.0,
+        &format!("DL={:.1}", dl), text_height, 7, "TEXT", TextAlign::Right);
+
+    drawing
+}
+
+pub fn generate_longitudinal_dxf_bytes(sections: &[CrossSectionData]) -> Vec<u8> {
+    let drawing = generate_longitudinal_drawing(sections);
+    let mut output: Vec<u8> = Vec::new();
+    drawing.save(&mut output).expect("Failed to save DXF");
+    output
+}
+
+// ============================================================================
 // DXF Renderer
 // ============================================================================
 
@@ -721,12 +845,19 @@ impl CrossSectionData {
 // Application
 // ============================================================================
 
+#[derive(PartialEq, Clone, Copy)]
+enum ViewMode {
+    Single,      // 単一横断図
+    AllGrid,     // 全横断図グリッド
+    Longitudinal, // 縦断図
+}
+
 pub struct CrossSectionApp {
     sections: Vec<CrossSectionData>,
     selected_index: Option<usize>,
     dxf_drawing: Option<Drawing>,
     dxf_view_state: DxfViewState,
-    multi_view: bool,        // true: 全測点グリッド表示
+    view_mode: ViewMode,
     grid_columns: usize,     // グリッドの列数
 }
 
@@ -737,7 +868,7 @@ impl Default for CrossSectionApp {
             selected_index: None,
             dxf_drawing: None,
             dxf_view_state: DxfViewState::default(),
-            multi_view: false,
+            view_mode: ViewMode::Single,
             grid_columns: 3,
         }
     }
@@ -757,13 +888,21 @@ impl CrossSectionApp {
     }
 
     fn update_dxf_preview(&mut self) {
-        let drawing = if self.multi_view && !self.sections.is_empty() {
-            generate_multi_drawing(&self.sections, self.grid_columns)
-        } else if let Some(idx) = self.selected_index {
-            if let Some(section) = self.sections.get(idx) {
-                generate_drawing(section)
-            } else { return; }
-        } else { return; };
+        let drawing = match self.view_mode {
+            ViewMode::AllGrid if !self.sections.is_empty() => {
+                generate_multi_drawing(&self.sections, self.grid_columns)
+            }
+            ViewMode::Longitudinal if !self.sections.is_empty() => {
+                generate_longitudinal_drawing(&self.sections)
+            }
+            _ => {
+                if let Some(idx) = self.selected_index {
+                    if let Some(section) = self.sections.get(idx) {
+                        generate_drawing(section)
+                    } else { return; }
+                } else { return; }
+            }
+        };
 
         let (min_x, min_y, max_x, max_y) = calc_dxf_bounds(&drawing);
         self.dxf_view_state.fit_to_dxf(min_x, min_y, max_x, max_y);
@@ -810,24 +949,53 @@ impl eframe::App for CrossSectionApp {
                         self.load_samples();
                     }
 
-                    // All/Single切替
-                    let btn_text = if self.multi_view { "Single" } else { "All" };
-                    if ui.button(btn_text).clicked() {
-                        self.multi_view = !self.multi_view;
-                        self.update_dxf_preview();
-                    }
-
-                    if self.multi_view {
-                        if ui.button("DXF All").clicked() {
-                            let dxf_content = generate_multi_dxf_bytes(&self.sections, self.grid_columns);
-                            download_file("cross_sections_all.dxf", &dxf_content);
+                    // 表示モード切替ボタン
+                    let mode_text = match self.view_mode {
+                        ViewMode::Single => "単一",
+                        ViewMode::AllGrid => "全横断",
+                        ViewMode::Longitudinal => "縦断",
+                    };
+                    ui.menu_button(mode_text, |ui| {
+                        if ui.button("単一横断").clicked() {
+                            self.view_mode = ViewMode::Single;
+                            self.update_dxf_preview();
+                            ui.close_menu();
                         }
-                    } else if self.selected_index.is_some() && ui.button("DXF").clicked() {
-                        if let Some(idx) = self.selected_index {
-                            if let Some(section) = self.sections.get(idx) {
-                                let dxf_content = generate_dxf_bytes(section);
-                                let filename = format!("{}.dxf", section.survey_point_name);
-                                download_file(&filename, &dxf_content);
+                        if ui.button("全横断").clicked() {
+                            self.view_mode = ViewMode::AllGrid;
+                            self.update_dxf_preview();
+                            ui.close_menu();
+                        }
+                        if ui.button("縦断図").clicked() {
+                            self.view_mode = ViewMode::Longitudinal;
+                            self.update_dxf_preview();
+                            ui.close_menu();
+                        }
+                    });
+
+                    // DXFダウンロード
+                    match self.view_mode {
+                        ViewMode::AllGrid => {
+                            if ui.button("DXF").clicked() {
+                                let dxf_content = generate_multi_dxf_bytes(&self.sections, self.grid_columns);
+                                download_file("cross_sections_all.dxf", &dxf_content);
+                            }
+                        }
+                        ViewMode::Longitudinal => {
+                            if ui.button("DXF").clicked() {
+                                let dxf_content = generate_longitudinal_dxf_bytes(&self.sections);
+                                download_file("longitudinal.dxf", &dxf_content);
+                            }
+                        }
+                        ViewMode::Single => {
+                            if self.selected_index.is_some() && ui.button("DXF").clicked() {
+                                if let Some(idx) = self.selected_index {
+                                    if let Some(section) = self.sections.get(idx) {
+                                        let dxf_content = generate_dxf_bytes(section);
+                                        let filename = format!("{}.dxf", section.survey_point_name);
+                                        download_file(&filename, &dxf_content);
+                                    }
+                                }
                             }
                         }
                     }
@@ -845,12 +1013,24 @@ impl eframe::App for CrossSectionApp {
 
                 // 表示モード切替
                 ui.horizontal(|ui| {
-                    let btn_text = if self.multi_view { "Single" } else { "All" };
-                    if ui.button(btn_text).clicked() {
-                        self.multi_view = !self.multi_view;
+                    ui.label("表示:");
+                    if ui.selectable_label(self.view_mode == ViewMode::Single, "単一").clicked() {
+                        self.view_mode = ViewMode::Single;
                         self.update_dxf_preview();
                     }
-                    if self.multi_view {
+                    if ui.selectable_label(self.view_mode == ViewMode::AllGrid, "全横断").clicked() {
+                        self.view_mode = ViewMode::AllGrid;
+                        self.update_dxf_preview();
+                    }
+                    if ui.selectable_label(self.view_mode == ViewMode::Longitudinal, "縦断").clicked() {
+                        self.view_mode = ViewMode::Longitudinal;
+                        self.update_dxf_preview();
+                    }
+                });
+
+                // AllGridモード時の列数調整
+                if self.view_mode == ViewMode::AllGrid {
+                    ui.horizontal(|ui| {
                         ui.label(format!("{}列", self.grid_columns));
                         if ui.small_button("+").clicked() && self.grid_columns < 5 {
                             self.grid_columns += 1;
@@ -860,30 +1040,41 @@ impl eframe::App for CrossSectionApp {
                             self.grid_columns -= 1;
                             self.update_dxf_preview();
                         }
-                    }
-                });
+                    });
+                }
 
                 // DXFダウンロード
                 if !self.sections.is_empty() {
-                    if self.multi_view {
-                        if ui.button("Download All DXF").clicked() {
-                            let dxf_content = generate_multi_dxf_bytes(&self.sections, self.grid_columns);
-                            download_file("cross_sections_all.dxf", &dxf_content);
+                    match self.view_mode {
+                        ViewMode::AllGrid => {
+                            if ui.button("Download All DXF").clicked() {
+                                let dxf_content = generate_multi_dxf_bytes(&self.sections, self.grid_columns);
+                                download_file("cross_sections_all.dxf", &dxf_content);
+                            }
                         }
-                    } else if let Some(idx) = self.selected_index {
-                        if let Some(section) = self.sections.get(idx) {
-                            if ui.button("Download DXF").clicked() {
-                                let dxf_content = generate_dxf_bytes(section);
-                                let filename = format!("{}.dxf", section.survey_point_name);
-                                download_file(&filename, &dxf_content);
+                        ViewMode::Longitudinal => {
+                            if ui.button("Download 縦断 DXF").clicked() {
+                                let dxf_content = generate_longitudinal_dxf_bytes(&self.sections);
+                                download_file("longitudinal.dxf", &dxf_content);
+                            }
+                        }
+                        ViewMode::Single => {
+                            if let Some(idx) = self.selected_index {
+                                if let Some(section) = self.sections.get(idx) {
+                                    if ui.button("Download DXF").clicked() {
+                                        let dxf_content = generate_dxf_bytes(section);
+                                        let filename = format!("{}.dxf", section.survey_point_name);
+                                        download_file(&filename, &dxf_content);
+                                    }
+                                }
                             }
                         }
                     }
                 }
                 ui.separator();
 
-                // マルチビュー時は測点リストを非表示
-                if !self.multi_view {
+                // 単一横断図モード時のみ測点リストを表示
+                if self.view_mode == ViewMode::Single {
                     ui.label("Stations:");
                     let mut new_selection = None;
                     egui::ScrollArea::vertical().max_height(200.0).show(ui, |ui| {
@@ -906,8 +1097,10 @@ impl eframe::App for CrossSectionApp {
                             ui.label(format!("L->CL: {:.2}m", section.l_to_cl_distance));
                         }
                     }
-                } else {
+                } else if self.view_mode == ViewMode::AllGrid {
                     ui.label(format!("全{}測点をグリッド表示", self.sections.len()));
+                } else {
+                    ui.label("縦断図: 全測点のCL高を接続");
                 }
 
                 ui.separator();
