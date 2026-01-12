@@ -925,9 +925,7 @@ fn render_dxf(painter: &Painter, drawing: &Drawing, view: &DxfViewState) {
             }
             EntityType::Text(text) => {
                 let base_pos = view.dxf_to_screen(text.location.x, text.location.y);
-                let raw_font_size = text.text_height as f32 * view.zoom;
-                // 最小フォントサイズを設定（小さすぎると読めない）
-                let font_size = raw_font_size.max(8.0);
+                let font_size = (text.text_height as f32 * view.zoom).max(1.0);
                 let font = egui::FontId::proportional(font_size);
 
                 // Galleyを取得
