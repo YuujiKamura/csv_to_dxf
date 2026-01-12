@@ -1353,16 +1353,12 @@ impl CrossSectionData {
     }
 
     pub fn all_samples() -> Vec<Self> {
-        // JSONから読み込み（計画.xlsxからの変換データ）
-        const SECTIONS_JSON: &str = include_str!("../static/sections.json");
-        match serde_json::from_str::<Vec<Self>>(SECTIONS_JSON) {
-            Ok(sections) => sections,
-            Err(e) => {
-                // フォールバック: 元のサンプルデータ
-                eprintln!("JSON parse error: {e}, using fallback samples");
-                Self::fallback_samples()
-            }
-        }
+        // フォールバック用（fetch完了までの初期表示）
+        Self::fallback_samples()
+    }
+
+    pub fn from_json(json: &str) -> Result<Vec<Self>, String> {
+        serde_json::from_str(json).map_err(|e| format!("JSON parse error: {e}"))
     }
 
     fn fallback_samples() -> Vec<Self> {
@@ -1709,6 +1705,38 @@ impl CrossSectionApp {
 
 impl eframe::App for CrossSectionApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // 起動時にsections.jsonをfetch開始
+        start_json_fetch();
+
+        // JSONのfetch結果を処理
+        if let Some(json_text) = take_pending_json() {
+            match CrossSectionData::from_json(&json_text) {
+                Ok(sections) => {
+                    let dump = if sections.is_empty() {
+                        "JSONデータなし".to_string()
+                    } else {
+                        let first = &sections[0];
+                        let last = &sections[sections.len() - 1];
+                        format!(
+                            "JSON: {}測点 {} ~ {} (DL={:.2}, {}点)",
+                            sections.len(),
+                            first.survey_point_name,
+                            last.survey_point_name,
+                            first.dl,
+                            first.survey_data.len()
+                        )
+                    };
+                    self.sections = sections;
+                    self.selected_index = Some(0);
+                    self.status_message = Some(dump);
+                    self.update_dxf_preview();
+                }
+                Err(e) => {
+                    self.status_message = Some(format!("JSONエラー: {e}"));
+                }
+            }
+        }
+
         if let Some(csv_text) = take_pending_csv() {
             self.handle_csv_loaded(&csv_text);
         }
@@ -2037,6 +2065,8 @@ use web_sys::{console, Event, FileReader, HtmlCanvasElement, HtmlInputElement};
 #[cfg(target_arch = "wasm32")]
 thread_local! {
     static PENDING_CSV: std::cell::RefCell<Option<String>> = std::cell::RefCell::new(None);
+    static PENDING_JSON: std::cell::RefCell<Option<String>> = std::cell::RefCell::new(None);
+    static JSON_FETCH_STARTED: std::cell::Cell<bool> = std::cell::Cell::new(false);
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -2104,6 +2134,78 @@ fn take_pending_csv() -> Option<String> {
 #[cfg(not(target_arch = "wasm32"))]
 fn take_pending_csv() -> Option<String> {
     None
+}
+
+#[cfg(target_arch = "wasm32")]
+fn take_pending_json() -> Option<String> {
+    PENDING_JSON.with(|cell| cell.borrow_mut().take())
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn take_pending_json() -> Option<String> {
+    None
+}
+
+#[cfg(target_arch = "wasm32")]
+fn start_json_fetch() {
+    use wasm_bindgen_futures::JsFuture;
+    use web_sys::{Request, RequestInit, Response};
+
+    let already_started = JSON_FETCH_STARTED.with(|cell| {
+        if cell.get() { return true; }
+        cell.set(true);
+        false
+    });
+    if already_started { return; }
+
+    wasm_bindgen_futures::spawn_local(async {
+        let window = match web_sys::window() {
+            Some(w) => w,
+            None => return,
+        };
+
+        // 相対パスでsections.jsonを取得
+        let url = "sections.json";
+        let mut opts = RequestInit::new();
+        opts.method("GET");
+
+        let request = match Request::new_with_str_and_init(url, &opts) {
+            Ok(r) => r,
+            Err(_) => return,
+        };
+
+        let resp_value = match JsFuture::from(window.fetch_with_request(&request)).await {
+            Ok(r) => r,
+            Err(_) => return,
+        };
+
+        let resp: Response = match resp_value.dyn_into() {
+            Ok(r) => r,
+            Err(_) => return,
+        };
+
+        let text = match resp.text() {
+            Ok(t) => t,
+            Err(_) => return,
+        };
+
+        let text: String = match JsFuture::from(text).await {
+            Ok(t) => match t.as_string() {
+                Some(s) => s,
+                None => return,
+            },
+            Err(_) => return,
+        };
+
+        PENDING_JSON.with(|cell| {
+            *cell.borrow_mut() = Some(text);
+        });
+    });
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn start_json_fetch() {
+    // ネイティブでは何もしない
 }
 
 #[cfg(target_arch = "wasm32")]
