@@ -561,14 +561,7 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
     let table_top = 0.0;
     let table_bottom = table_top - (table_rows.len() as f64) * row_height;
 
-    // ===================
-    // タイトルブロック
-    // ===================
-    let title_y = graph_height + title_height * 0.7;
-    add_text(&mut drawing, label_width + graph_width / 2.0, title_y,
-        "縦断図", text_height * 2.0, 7, "TITLE", TextAlign::Center);
-    add_text(&mut drawing, label_width + graph_width / 2.0, title_y - text_height * 1.5,
-        "H=1:500  V=1:100", text_height * 1.0, 7, "TITLE", TextAlign::Center);
+    // タイトルは描画しない（ピッチリ）
 
     // ===================
     // グラフ部分の描画
