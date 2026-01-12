@@ -810,7 +810,19 @@ impl eframe::App for CrossSectionApp {
                         self.load_samples();
                     }
 
-                    if self.selected_index.is_some() && ui.button("DXF").clicked() {
+                    // All/Single切替
+                    let btn_text = if self.multi_view { "Single" } else { "All" };
+                    if ui.button(btn_text).clicked() {
+                        self.multi_view = !self.multi_view;
+                        self.update_dxf_preview();
+                    }
+
+                    if self.multi_view {
+                        if ui.button("DXF All").clicked() {
+                            let dxf_content = generate_multi_dxf_bytes(&self.sections, self.grid_columns);
+                            download_file("cross_sections_all.dxf", &dxf_content);
+                        }
+                    } else if self.selected_index.is_some() && ui.button("DXF").clicked() {
                         if let Some(idx) = self.selected_index {
                             if let Some(section) = self.sections.get(idx) {
                                 let dxf_content = generate_dxf_bytes(section);
