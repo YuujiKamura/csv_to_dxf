@@ -18,17 +18,15 @@
             height: 100%;
         }
     </style>
-<link rel="modulepreload" href="/csv_to_dxf/cross_section_ui-250d61b278129d45.js" crossorigin="anonymous"><link rel="preload" href="/csv_to_dxf/cross_section_ui-250d61b278129d45_bg.wasm" crossorigin="anonymous" as="fetch" type="application/wasm"></head>
+<link rel="modulepreload" href="/csv_to_dxf/cross_section_ui-d6b448a5450ac57.js" crossorigin="anonymous"><link rel="preload" href="/csv_to_dxf/cross_section_ui-d6b448a5450ac57_bg.wasm" crossorigin="anonymous" as="fetch" type="application/wasm"></head>
 <body>
     <canvas id="canvas"></canvas>
 
 <script type="module">
-import init, * as bindings from '/csv_to_dxf/cross_section_ui-250d61b278129d45.js';
-const wasm = await init({ module_or_path: '/csv_to_dxf/cross_section_ui-250d61b278129d45_bg.wasm' });
-
+import init, * as bindings from '/csv_to_dxf/cross_section_ui-d6b448a5450ac57.js';
+const wasm = await init({ module_or_path: '/csv_to_dxf/cross_section_ui-d6b448a5450ac57_bg.wasm' });
 
 window.wasmBindings = bindings;
-
 
 dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
 
