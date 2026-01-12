@@ -432,10 +432,14 @@ pub fn generate_multi_dxf_bytes(sections: &[CrossSectionData], columns: usize) -
 // Longitudinal Profile (縦断図)
 // ============================================================================
 
-/// 測点名から路線距離を取得（"No.X" → X * 10m）
+/// 測点間隔のデフォルト値（メートル）
+/// 土木工事では測点間隔は通常20mが標準
+const DEFAULT_STATION_INTERVAL: f64 = 20.0;
+
+/// 測点名から路線距離を取得（"No.X" → X * DEFAULT_STATION_INTERVAL）
 fn parse_station_distance(name: &str) -> f64 {
     if name.starts_with("No.") {
-        name[3..].parse::<f64>().unwrap_or(0.0) * 10.0
+        name[3..].parse::<f64>().unwrap_or(0.0) * DEFAULT_STATION_INTERVAL
     } else {
         0.0
     }
@@ -468,9 +472,10 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
     }
 
     // データ収集（路線距離順にソート）
+    // route_distanceがあればそれを優先、なければ測点名からパース
     let mut points: Vec<(f64, f64, f64, String)> = sections.iter().map(|s| {
         let cl = &s.survey_data[s.cl_index.min(s.survey_data.len() - 1)];
-        let dist = parse_station_distance(&s.survey_point_name);
+        let dist = s.route_distance.unwrap_or_else(|| parse_station_distance(&s.survey_point_name));
         (dist, cl.elevation, cl.planned_height, s.survey_point_name.clone())
     }).collect();
     points.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
@@ -869,6 +874,8 @@ pub struct CrossSectionData {
     pub cl_index: usize,
     pub l_to_cl_distance: f64,
     pub survey_data: Vec<SurveyRow>,
+    /// 路線距離（m）- 測点の絶対位置。指定されていればparse_station_distanceより優先
+    pub route_distance: Option<f64>,
 }
 
 impl CrossSectionData {
@@ -907,7 +914,8 @@ impl CrossSectionData {
 
         CrossSectionData {
             survey_point_name: name.to_string(),
-            dl, cl_index, l_to_cl_distance: l_to_cl, survey_data
+            dl, cl_index, l_to_cl_distance: l_to_cl, survey_data,
+            route_distance: None, // 測点名からパースされる
         }
     }
 
