@@ -802,21 +802,25 @@ pub fn generate_longitudinal_dxf_bytes(sections: &[CrossSectionData]) -> Vec<u8>
 
 /// コンボビュー（縦断図＋全横断図）を生成
 /// 縦断図を上部に、全横断図グリッドを下部に配置（横断図は2行で横長配置）
+/// レイアウトマネージャ：センタリング揃え＋適切な間隔
 pub fn generate_combo_drawing(sections: &[CrossSectionData], _columns: usize) -> Drawing {
     if sections.is_empty() {
         return Drawing::new();
     }
 
-    // 縦断図を生成し、そのバウンディングボックスを取得
+    // 縦断図を生成し、バウンディングボックスを取得
     let longitudinal = generate_longitudinal_drawing(sections);
-    let (_long_min_x, long_min_y, _long_max_x, long_max_y) = calc_dxf_bounds(&longitudinal);
-    let _long_height = long_max_y - long_min_y;
+    let (long_min_x, long_min_y, long_max_x, _long_max_y) = calc_dxf_bounds(&longitudinal);
+    let long_width = long_max_x - long_min_x;
+    let long_center_x = (long_min_x + long_max_x) / 2.0;
 
     // 横断図は2行で横長配置（列数を自動計算）
-    let combo_columns = (sections.len() + 1) / 2;  // 2行に収まるように列数を計算
+    let combo_columns = (sections.len() + 1) / 2;
     let multi = generate_multi_drawing(sections, combo_columns);
-    let (_multi_min_x, multi_min_y, _multi_max_x, multi_max_y) = calc_dxf_bounds(&multi);
+    let (multi_min_x, multi_min_y, multi_max_x, multi_max_y) = calc_dxf_bounds(&multi);
+    let multi_width = multi_max_x - multi_min_x;
     let multi_height = multi_max_y - multi_min_y;
+    let multi_center_x = (multi_min_x + multi_max_x) / 2.0;
 
     // 新しいDrawingを作成
     let mut drawing = Drawing::new();
@@ -830,7 +834,6 @@ pub fn generate_combo_drawing(sections: &[CrossSectionData], _columns: usize) ->
         drawing.add_layer(new_layer);
     }
     for layer in multi.layers() {
-        // 重複するレイヤーは追加しない
         if drawing.layers().find(|l| l.name == layer.name).is_none() {
             let mut new_layer = dxf::tables::Layer::default();
             new_layer.name = layer.name.clone();
@@ -839,10 +842,14 @@ pub fn generate_combo_drawing(sections: &[CrossSectionData], _columns: usize) ->
         }
     }
 
-    // 間隔
-    let spacing = 1000.0;
+    // === レイアウト計算 ===
+    // 間隔（縦断図の下端と横断図の上端の間）
+    let spacing = 300.0;
 
-    // 全横断図を下部に配置（Y座標をシフト）
+    // X方向: センタリング（縦断図の中心に横断図の中心を合わせる）
+    let multi_x_offset = long_center_x - multi_center_x;
+
+    // Y方向: 縦断図の下に横断図を配置
     let multi_y_offset = long_min_y - spacing - multi_height;
 
     // 縦断図のエンティティをそのままコピー
@@ -850,14 +857,67 @@ pub fn generate_combo_drawing(sections: &[CrossSectionData], _columns: usize) ->
         drawing.add_entity(entity.clone());
     }
 
-    // 全横断図のエンティティをY座標をオフセットしてコピー
+    // 全横断図のエンティティをXY両方オフセットしてコピー
     for entity in multi.entities() {
         let mut shifted_entity = entity.clone();
-        shift_entity_y(&mut shifted_entity, (multi_y_offset - multi_min_y) as f64);
+        shift_entity_xy(&mut shifted_entity, multi_x_offset as f64, (multi_y_offset - multi_min_y) as f64);
         drawing.add_entity(shifted_entity);
     }
 
     drawing
+}
+
+/// エンティティのXY座標をシフトする
+fn shift_entity_xy(entity: &mut dxf::entities::Entity, offset_x: f64, offset_y: f64) {
+    use dxf::entities::EntityType;
+    match &mut entity.specific {
+        EntityType::Line(line) => {
+            line.p1.x += offset_x;
+            line.p1.y += offset_y;
+            line.p2.x += offset_x;
+            line.p2.y += offset_y;
+        }
+        EntityType::Text(text) => {
+            text.location.x += offset_x;
+            text.location.y += offset_y;
+            text.second_alignment_point.x += offset_x;
+            text.second_alignment_point.y += offset_y;
+        }
+        EntityType::MText(mtext) => {
+            mtext.insertion_point.x += offset_x;
+            mtext.insertion_point.y += offset_y;
+        }
+        EntityType::Circle(circle) => {
+            circle.center.x += offset_x;
+            circle.center.y += offset_y;
+        }
+        EntityType::Arc(arc) => {
+            arc.center.x += offset_x;
+            arc.center.y += offset_y;
+        }
+        EntityType::Polyline(_polyline) => {
+            // Polyline vertices are stored separately in DXF, skip for now
+        }
+        EntityType::LwPolyline(lwpoly) => {
+            for vertex in &mut lwpoly.vertices {
+                vertex.x += offset_x;
+                vertex.y += offset_y;
+            }
+        }
+        EntityType::RotatedDimension(dim) => {
+            dim.dimension_base.definition_point_1.x += offset_x;
+            dim.dimension_base.definition_point_1.y += offset_y;
+            dim.dimension_base.text_mid_point.x += offset_x;
+            dim.dimension_base.text_mid_point.y += offset_y;
+            dim.insertion_point.x += offset_x;
+            dim.insertion_point.y += offset_y;
+            dim.definition_point_2.x += offset_x;
+            dim.definition_point_2.y += offset_y;
+            dim.definition_point_3.x += offset_x;
+            dim.definition_point_3.y += offset_y;
+        }
+        _ => {} // その他のエンティティは無視
+    }
 }
 
 /// エンティティのY座標をシフトする
