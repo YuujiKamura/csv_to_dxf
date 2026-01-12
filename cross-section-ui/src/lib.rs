@@ -925,13 +925,10 @@ fn render_dxf(painter: &Painter, drawing: &Drawing, view: &DxfViewState) {
             }
             EntityType::Text(text) => {
                 let base_pos = view.dxf_to_screen(text.location.x, text.location.y);
-                let font_size = text.text_height as f32 * view.zoom;
+                let raw_font_size = text.text_height as f32 * view.zoom;
+                // 最小フォントサイズを設定（小さすぎると読めない）
+                let font_size = raw_font_size.max(8.0);
                 let font = egui::FontId::proportional(font_size);
-
-                // デバッグ: rotation値を確認
-                if text.rotation != 0.0 {
-                    web_sys::console::log_1(&format!("Text '{}' rotation: {}", text.value, text.rotation).into());
-                }
 
                 // Galleyを取得
                 let galley = painter.layout_no_wrap(text.value.clone(), font, color);
