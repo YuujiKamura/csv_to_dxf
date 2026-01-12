@@ -1549,6 +1549,7 @@ pub struct CrossSectionApp {
     view_mode: ViewMode,
     grid_columns: usize,     // グリッドの列数
     status_message: Option<String>,
+    needs_fit: bool,         // canvas_rect更新後にfit_to_dxfを呼ぶフラグ
 }
 
 impl Default for CrossSectionApp {
@@ -1561,6 +1562,7 @@ impl Default for CrossSectionApp {
             view_mode: ViewMode::Combo, // デフォルトで縦断図＋全横断図
             grid_columns: 3,
             status_message: None,
+            needs_fit: false,
         }
     }
 }
@@ -1641,9 +1643,8 @@ impl CrossSectionApp {
             }
         };
 
-        let (min_x, min_y, max_x, max_y) = calc_dxf_bounds(&drawing);
-        self.dxf_view_state.fit_to_dxf(min_x, min_y, max_x, max_y);
         self.dxf_drawing = Some(drawing);
+        self.needs_fit = true; // canvas_rect更新後にfit_to_dxfを呼ぶ
     }
 }
 
@@ -1921,6 +1922,15 @@ impl eframe::App for CrossSectionApp {
             // 白背景
             painter.rect_filled(response.rect, 0.0, Color32::from_rgb(250, 250, 250));
             self.dxf_view_state.canvas_rect = response.rect;
+
+            // canvas_rect更新後にfit_to_dxfを実行
+            if self.needs_fit {
+                if let Some(ref drawing) = self.dxf_drawing {
+                    let (min_x, min_y, max_x, max_y) = calc_dxf_bounds(drawing);
+                    self.dxf_view_state.fit_to_dxf(min_x, min_y, max_x, max_y);
+                }
+                self.needs_fit = false;
+            }
 
             if response.dragged() {
                 self.dxf_view_state.pan += response.drag_delta();
