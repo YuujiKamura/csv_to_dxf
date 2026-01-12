@@ -1,0 +1,8 @@
+# Build artifacts (comment out to include pre-built wasm)
+# www/pkg/
+
+# Rust target
+target/
+
+# Cargo lock (optional for libraries)
+# Cargo.lock

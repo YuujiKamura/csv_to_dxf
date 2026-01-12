@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DXF Viewer - Web CAD</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f0f23;
+            color: #cccccc;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            background: #1a1a2e;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #333;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            color: #00d4ff;
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        button {
+            background: #2a2a4a;
+            color: #fff;
+            border: 1px solid #444;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: #3a3a6a;
+            border-color: #00d4ff;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        .main-container {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        .canvas-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #dxfCanvas {
+            display: block;
+            cursor: grab;
+        }
+
+        #dxfCanvas:active {
+            cursor: grabbing;
+        }
+
+        .sidebar {
+            width: 300px;
+            background: #1a1a2e;
+            border-left: 1px solid #333;
+            padding: 1rem;
+            overflow-y: auto;
+        }
+
+        .sidebar h2 {
+            font-size: 1rem;
+            color: #00d4ff;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #333;
+        }
+
+        .info-item {
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .info-label {
+            color: #888;
+        }
+
+        .info-value {
+            color: #fff;
+        }
+
+        .drop-zone {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            pointer-events: none;
+        }
+
+        .drop-zone.hidden {
+            display: none;
+        }
+
+        .drop-icon {
+            font-size: 4rem;
+            color: #444;
+            margin-bottom: 1rem;
+        }
+
+        .drop-text {
+            font-size: 1.2rem;
+            color: #666;
+        }
+
+        .drop-hint {
+            font-size: 0.9rem;
+            color: #444;
+            margin-top: 0.5rem;
+        }
+
+        .drag-over .drop-zone {
+            opacity: 1;
+        }
+
+        .drag-over .drop-icon {
+            color: #00d4ff;
+        }
+
+        .drag-over .drop-text {
+            color: #00d4ff;
+        }
+
+        #status {
+            padding: 0.5rem 2rem;
+            background: #16213e;
+            font-size: 0.85rem;
+            color: #888;
+            border-top: 1px solid #333;
+        }
+
+        .layer-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .layer-item {
+            padding: 0.3rem 0;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .layer-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>DXF Viewer</h1>
+        <div class="toolbar">
+            <button id="btnOpen">Open DXF</button>
+            <button id="btnSample">Load Sample</button>
+            <button id="btnZoomIn">Zoom +</button>
+            <button id="btnZoomOut">Zoom -</button>
+            <button id="btnFit">Fit</button>
+            <button id="btnTheme">Light Mode</button>
+        </div>
+    </header>
+
+    <div class="main-container">
+        <div class="canvas-container" id="canvasContainer">
+            <canvas id="dxfCanvas"></canvas>
+            <div class="drop-zone" id="dropZone">
+                <div class="drop-icon">&#128194;</div>
+                <div class="drop-text">Drop DXF file here</div>
+                <div class="drop-hint">or click "Open DXF" button</div>
+            </div>
+        </div>
+
+        <div class="sidebar">
+            <h2>File Info</h2>
+            <div class="info-item">
+                <span class="info-label">File: </span>
+                <span class="info-value" id="infoFile">-</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Lines: </span>
+                <span class="info-value" id="infoLines">0</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Circles: </span>
+                <span class="info-value" id="infoCircles">0</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Arcs: </span>
+                <span class="info-value" id="infoArcs">0</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Polylines: </span>
+                <span class="info-value" id="infoPolylines">0</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Texts: </span>
+                <span class="info-value" id="infoTexts">0</span>
+            </div>
+
+            <h2 style="margin-top: 1.5rem;">Controls</h2>
+            <div class="info-item">
+                <span class="info-label">Pan: </span>
+                <span class="info-value">Drag</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Zoom: </span>
+                <span class="info-value">Scroll</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="status">Ready - Drop a DXF file or click Open</div>
+
+    <input type="file" id="fileInput" accept=".dxf">
+
+    <script type="module">
+        // Import WASM module
+        import init, { DxfViewer } from './pkg/dxf_viewer.js';
+
+        let viewer = null;
+        let canvas = null;
+        let ctx = null;
+        let isDragging = false;
+        let lastX = 0;
+        let lastY = 0;
+
+        async function initApp() {
+            // Initialize WASM
+            await init();
+
+            viewer = new DxfViewer();
+            canvas = document.getElementById('dxfCanvas');
+            ctx = canvas.getContext('2d');
+
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+
+            setupEventListeners();
+            render();
+
+            setStatus('Ready - Drop a DXF file or click Open');
+        }
+
+        function resizeCanvas() {
+            const container = document.getElementById('canvasContainer');
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+
+            if (viewer) {
+                viewer.set_canvas_size(canvas.width, canvas.height);
+                render();
+            }
+        }
+
+        function setupEventListeners() {
+            // File input
+            document.getElementById('btnOpen').addEventListener('click', () => {
+                document.getElementById('fileInput').click();
+            });
+
+            document.getElementById('fileInput').addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) loadFile(file);
+            });
+
+            // Sample file
+            document.getElementById('btnSample').addEventListener('click', async () => {
+                setStatus('Loading sample...');
+                try {
+                    const response = await fetch('./sample.dxf');
+                    const text = await response.text();
+                    loadDxfContent(text, 'sample.dxf');
+                } catch (err) {
+                    setStatus('Error loading sample: ' + err);
+                }
+            });
+
+            // Drag and drop
+            const container = document.getElementById('canvasContainer');
+
+            container.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                container.classList.add('drag-over');
+            });
+
+            container.addEventListener('dragleave', () => {
+                container.classList.remove('drag-over');
+            });
+
+            container.addEventListener('drop', (e) => {
+                e.preventDefault();
+                container.classList.remove('drag-over');
+                const file = e.dataTransfer.files[0];
+                if (file && file.name.toLowerCase().endsWith('.dxf')) {
+                    loadFile(file);
+                }
+            });
+
+            // Zoom buttons
+            document.getElementById('btnZoomIn').addEventListener('click', () => {
+                viewer.zoom(1.2, canvas.width / 2, canvas.height / 2);
+                render();
+            });
+
+            document.getElementById('btnZoomOut').addEventListener('click', () => {
+                viewer.zoom(0.8, canvas.width / 2, canvas.height / 2);
+                render();
+            });
+
+            document.getElementById('btnFit').addEventListener('click', () => {
+                if (viewer) {
+                    // Reload to fit
+                    const json = viewer.get_result_json();
+                    if (json !== 'null') {
+                        viewer.set_canvas_size(canvas.width, canvas.height);
+                        render();
+                    }
+                }
+            });
+
+            // Theme toggle
+            document.getElementById('btnTheme').addEventListener('click', () => {
+                const btn = document.getElementById('btnTheme');
+                const isDark = viewer.is_dark_mode();
+                viewer.set_dark_mode(!isDark);
+                btn.textContent = isDark ? 'Dark Mode' : 'Light Mode';
+                render();
+            });
+
+            // Mouse events for pan
+            canvas.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                lastX = e.clientX;
+                lastY = e.clientY;
+                canvas.style.cursor = 'grabbing';
+            });
+
+            canvas.addEventListener('mousemove', (e) => {
+                if (isDragging) {
+                    const dx = e.clientX - lastX;
+                    const dy = e.clientY - lastY;
+                    viewer.pan(dx, dy);
+                    lastX = e.clientX;
+                    lastY = e.clientY;
+                    render();
+                }
+            });
+
+            canvas.addEventListener('mouseup', () => {
+                isDragging = false;
+                canvas.style.cursor = 'grab';
+            });
+
+            canvas.addEventListener('mouseleave', () => {
+                isDragging = false;
+                canvas.style.cursor = 'grab';
+            });
+
+            // Mouse wheel for zoom
+            canvas.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                const factor = e.deltaY > 0 ? 0.9 : 1.1;
+                viewer.zoom(factor, x, y);
+                render();
+            });
+        }
+
+        async function loadFile(file) {
+            setStatus(`Loading ${file.name}...`);
+            try {
+                const text = await file.text();
+                loadDxfContent(text, file.name);
+            } catch (err) {
+                setStatus(`Error: ${err}`);
+                console.error(err);
+            }
+        }
+
+        function loadDxfContent(text, filename) {
+            try {
+                const summary = viewer.load_dxf(text);
+
+                document.getElementById('dropZone').classList.add('hidden');
+                document.getElementById('infoFile').textContent = filename;
+
+                // Parse summary to update info
+                const match = summary.match(/(\d+) lines, (\d+) circles, (\d+) arcs, (\d+) polylines, (\d+) texts/);
+                if (match) {
+                    document.getElementById('infoLines').textContent = match[1];
+                    document.getElementById('infoCircles').textContent = match[2];
+                    document.getElementById('infoArcs').textContent = match[3];
+                    document.getElementById('infoPolylines').textContent = match[4];
+                    document.getElementById('infoTexts').textContent = match[5];
+                }
+
+                render();
+                setStatus(summary);
+            } catch (err) {
+                setStatus(`Error: ${err}`);
+                console.error(err);
+            }
+        }
+
+        function render() {
+            if (viewer && ctx) {
+                viewer.render(ctx);
+            }
+        }
+
+        function setStatus(text) {
+            document.getElementById('status').textContent = text;
+        }
+
+        // Start the app
+        initApp().catch(console.error);
+    </script>
+</body>
+</html>
