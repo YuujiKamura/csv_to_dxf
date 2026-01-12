@@ -47,7 +47,7 @@ jobs:
 
       - name: Build WASM with trunk
         working-directory: ./cross-section-ui
-        run: trunk build --release
+        run: trunk build --release --public-url /csv_to_dxf/
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
