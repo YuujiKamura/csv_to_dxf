@@ -1062,6 +1062,16 @@ impl SurveyRow {
     pub fn pavement_thickness(&self) -> f64 { self.planned_height - self.cutting_bottom }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct CsvSection {
+    pub name: String,
+    pub unit_distances: Vec<f64>,
+    pub elevations: Vec<f64>,
+    pub planned_heights: Vec<f64>,
+    pub cutting_depth: f64,
+    pub cl_index: Option<usize>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CrossSectionData {
     pub survey_point_name: String,
@@ -1130,6 +1140,206 @@ impl CrossSectionData {
             Self::from_3point("No.18", 2.55, 2.62,  27.495, 27.635, 27.649,  27.595, 27.735, 27.749,  27.0, cut),  // 盛土
         ]
     }
+
+    fn from_csv_section(section: &CsvSection) -> Result<Self, String> {
+        let count = section.unit_distances.len();
+        if count == 0 {
+            return Err(format!("{}: no rows", section.name));
+        }
+        if section.elevations.len() != count || section.planned_heights.len() != count {
+            return Err(format!("{}: column length mismatch", section.name));
+        }
+        let cl_index = section.cl_index.unwrap_or(0).min(count.saturating_sub(1));
+        let cumulative = Self::calc_cumulative_distances(&section.unit_distances, cl_index);
+        let cutting_bottoms: Vec<f64> = section
+            .planned_heights
+            .iter()
+            .map(|&fh| fh - section.cutting_depth)
+            .collect();
+        let l_to_cl = cumulative[0].abs();
+        let dl = section
+            .elevations
+            .iter()
+            .cloned()
+            .fold(f64::INFINITY, f64::min)
+            .floor()
+            - 1.0;
+
+        let survey_data: Vec<SurveyRow> = (0..count)
+            .map(|i| SurveyRow {
+                unit_distance: section.unit_distances[i],
+                elevation: section.elevations[i],
+                planned_height: section.planned_heights[i],
+                cumulative_distance: cumulative[i],
+                cutting_bottom: cutting_bottoms[i],
+            })
+            .collect();
+
+        Ok(CrossSectionData {
+            survey_point_name: section.name.clone(),
+            dl,
+            cl_index,
+            l_to_cl_distance: l_to_cl,
+            survey_data,
+            route_distance: None,
+        })
+    }
+}
+
+// ============================================================================
+// CSV Loaders (wasm only)
+// ============================================================================
+
+#[cfg(target_arch = "wasm32")]
+fn parse_csv_sections(content: &str) -> Result<Vec<CsvSection>, String> {
+    let mut reader = csv::ReaderBuilder::new()
+        .has_headers(true)
+        .from_reader(content.as_bytes());
+    let headers = reader
+        .headers()
+        .map_err(|e| format!("CSV header error: {e}"))?
+        .clone();
+
+    let get_idx = |name: &str| -> Option<usize> { headers.iter().position(|h| h.trim() == name) };
+
+    let name_idx = get_idx("name")
+        .or_else(|| get_idx("測点名"))
+        .ok_or_else(|| "missing column: name/測点名".to_string())?;
+    let unit_idx = get_idx("unit_distance")
+        .or_else(|| get_idx("単延長"))
+        .ok_or_else(|| "missing column: unit_distance/単延長".to_string())?;
+    let elev_idx = get_idx("elevation")
+        .or_else(|| get_idx("現地盤"))
+        .ok_or_else(|| "missing column: elevation/現地盤".to_string())?;
+    let plan_idx = get_idx("planned_height")
+        .or_else(|| get_idx("計画高"))
+        .ok_or_else(|| "missing column: planned_height/計画高".to_string())?;
+    let cut_idx = get_idx("cutting_depth")
+        .or_else(|| get_idx("切削厚"))
+        .ok_or_else(|| "missing column: cutting_depth/切削厚".to_string())?;
+
+    let section_idx = get_idx("section").or_else(|| get_idx("区間"));
+    let cl_flag_idx = get_idx("cl")
+        .or_else(|| get_idx("CL"))
+        .or_else(|| get_idx("center"))
+        .or_else(|| get_idx("中央"));
+    let cl_index_idx = get_idx("cl_index").or_else(|| get_idx("CL_index"));
+    let mut sections: Vec<CsvSection> = Vec::new();
+    let mut current_name = String::new();
+    let mut unit_distances = Vec::new();
+    let mut elevations = Vec::new();
+    let mut planned_heights = Vec::new();
+    let mut cutting_depth: Option<f64> = None;
+    let mut cl_index: Option<usize> = None;
+
+    let mut flush = |name: &str,
+                     unit_distances: &mut Vec<f64>,
+                     elevations: &mut Vec<f64>,
+                     planned_heights: &mut Vec<f64>,
+                     cutting_depth: &mut Option<f64>,
+                     cl_index: &mut Option<usize>,
+                     out: &mut Vec<CsvSection>| {
+        if unit_distances.is_empty() {
+            return;
+        }
+        let cut = cutting_depth.unwrap_or(0.0);
+        out.push(CsvSection {
+            name: name.to_string(),
+            unit_distances: unit_distances.clone(),
+            elevations: elevations.clone(),
+            planned_heights: planned_heights.clone(),
+            cutting_depth: cut,
+            cl_index: *cl_index,
+        });
+        unit_distances.clear();
+        elevations.clear();
+        planned_heights.clear();
+        *cutting_depth = None;
+        *cl_index = None;
+    };
+
+    for record in reader.records() {
+        let record = record.map_err(|e| format!("CSV row error: {e}"))?;
+        if record.iter().all(|v| v.trim().is_empty()) {
+            continue;
+        }
+
+        let section_name = section_idx
+            .and_then(|idx| record.get(idx))
+            .map(|v| v.trim())
+            .filter(|v| !v.is_empty());
+        if let Some(section_name) = section_name {
+            if current_name.is_empty() {
+                current_name = section_name.to_string();
+            } else if section_name != current_name {
+                flush(
+                    &current_name,
+                    &mut unit_distances,
+                    &mut elevations,
+                    &mut planned_heights,
+                    &mut cutting_depth,
+                    &mut cl_index,
+                    &mut sections,
+                );
+                current_name = section_name.to_string();
+            }
+        }
+
+        let name = record.get(name_idx).unwrap_or("未設定").trim();
+        if current_name.is_empty() {
+            current_name = name.to_string();
+        }
+
+        unit_distances.push(parse_cell(record.get(unit_idx))?);
+        elevations.push(parse_cell(record.get(elev_idx))?);
+        planned_heights.push(parse_cell(record.get(plan_idx))?);
+        let cut_value = parse_cell(record.get(cut_idx))?;
+        cutting_depth = Some(cutting_depth.map_or(cut_value, |v| v.max(cut_value)));
+        if cl_index.is_none() {
+            if let Some(idx) = cl_index_idx.and_then(|idx| record.get(idx)) {
+                if !idx.trim().is_empty() {
+                    cl_index = idx.trim().parse::<usize>().ok();
+                }
+            } else if let Some(flag) = cl_flag_idx.and_then(|idx| record.get(idx)) {
+                let flag = flag.trim();
+                if matches!(flag, "1" | "true" | "TRUE" | "yes" | "YES" | "y" | "Y" | "中央") {
+                    cl_index = Some(unit_distances.len().saturating_sub(1));
+                }
+            }
+        }
+    }
+
+    if !current_name.is_empty() {
+        flush(
+            &current_name,
+            &mut unit_distances,
+            &mut elevations,
+            &mut planned_heights,
+            &mut cutting_depth,
+            &mut cl_index,
+            &mut sections,
+        );
+    }
+
+    if sections.is_empty() {
+        return Err("no valid sections in CSV".to_string());
+    }
+    Ok(sections)
+}
+
+#[cfg(target_arch = "wasm32")]
+fn parse_cell(value: Option<&str>) -> Result<f64, String> {
+    let raw = value.unwrap_or("").trim();
+    if raw.is_empty() {
+        return Err("empty numeric cell".to_string());
+    }
+    raw.parse::<f64>()
+        .map_err(|_| format!("invalid number: {raw}"))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn parse_csv_sections(_content: &str) -> Result<Vec<CsvSection>, String> {
+    Err("CSV loader is only available in wasm builds".to_string())
 }
 
 // ============================================================================
@@ -1150,6 +1360,7 @@ pub struct CrossSectionApp {
     dxf_view_state: DxfViewState,
     view_mode: ViewMode,
     grid_columns: usize,     // グリッドの列数
+    status_message: Option<String>,
 }
 
 impl Default for CrossSectionApp {
@@ -1161,6 +1372,7 @@ impl Default for CrossSectionApp {
             dxf_view_state: DxfViewState::default(),
             view_mode: ViewMode::Single,
             grid_columns: 3,
+            status_message: None,
         }
     }
 }
@@ -1193,7 +1405,32 @@ impl CrossSectionApp {
     fn load_samples(&mut self) {
         self.sections = CrossSectionData::all_samples();
         self.selected_index = Some(0);
+        self.status_message = Some("サンプルを読み込みました".to_string());
         self.update_dxf_preview();
+    }
+
+    fn handle_csv_loaded(&mut self, csv_text: &str) {
+        match parse_csv_sections(csv_text) {
+            Ok(raw_sections) => {
+                let mut sections = Vec::with_capacity(raw_sections.len());
+                for section in raw_sections.iter() {
+                    match CrossSectionData::from_csv_section(section) {
+                        Ok(data) => sections.push(data),
+                        Err(err) => {
+                            self.status_message = Some(format!("CSV変換エラー: {err}"));
+                            return;
+                        }
+                    }
+                }
+                self.sections = sections;
+                self.selected_index = self.sections.first().map(|_| 0);
+                self.status_message = Some(format!("CSVを読み込みました ({} 区間)", self.sections.len()));
+                self.update_dxf_preview();
+            }
+            Err(err) => {
+                self.status_message = Some(format!("CSV読み込みエラー: {err}"));
+            }
+        }
     }
 
     fn update_dxf_preview(&mut self) {
@@ -1221,6 +1458,9 @@ impl CrossSectionApp {
 
 impl eframe::App for CrossSectionApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        if let Some(csv_text) = take_pending_csv() {
+            self.handle_csv_loaded(&csv_text);
+        }
         let screen_width = ctx.screen_rect().width();
         let is_mobile = screen_width < 600.0;
 
@@ -1256,6 +1496,13 @@ impl eframe::App for CrossSectionApp {
 
                     if ui.button("Load").clicked() {
                         self.load_samples();
+                    }
+                    #[cfg(target_arch = "wasm32")]
+                    if ui.button("CSV").clicked() {
+                        trigger_csv_dialog();
+                    }
+                    if let Some(message) = &self.status_message {
+                        ui.label(message);
                     }
 
                     // 表示モード切替ボタン
@@ -1318,6 +1565,13 @@ impl eframe::App for CrossSectionApp {
 
                 if ui.button("Load Sample").clicked() {
                     self.load_samples();
+                }
+                #[cfg(target_arch = "wasm32")]
+                if ui.button("CSVを読み込む").clicked() {
+                    trigger_csv_dialog();
+                }
+                if let Some(message) = &self.status_message {
+                    ui.label(message);
                 }
 
                 // 表示モード切替
@@ -1511,7 +1765,87 @@ impl eframe::App for CrossSectionApp {
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::{prelude::*, JsCast};
 #[cfg(target_arch = "wasm32")]
-use web_sys::HtmlCanvasElement;
+use web_sys::{Event, FileReader, HtmlCanvasElement, HtmlInputElement};
+
+#[cfg(target_arch = "wasm32")]
+thread_local! {
+    static PENDING_CSV: std::cell::RefCell<Option<String>> = std::cell::RefCell::new(None);
+}
+
+#[cfg(target_arch = "wasm32")]
+fn trigger_csv_dialog() {
+    let window = match web_sys::window() {
+        Some(window) => window,
+        None => return,
+    };
+    let document = match window.document() {
+        Some(document) => document,
+        None => return,
+    };
+
+    let input = match document.create_element("input") {
+        Ok(input) => input,
+        Err(_) => return,
+    };
+    let input: HtmlInputElement = match input.dyn_into() {
+        Ok(input) => input,
+        Err(_) => return,
+    };
+    input.set_type("file");
+    input.set_accept(".csv,text/csv");
+
+    let on_change = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+        let target = match event.target() {
+            Some(target) => target,
+            None => return,
+        };
+        let input: HtmlInputElement = match target.dyn_into() {
+            Ok(input) => input,
+            Err(_) => return,
+        };
+        let files = match input.files() {
+            Some(files) => files,
+            None => return,
+        };
+        let file = match files.get(0) {
+            Some(file) => file,
+            None => return,
+        };
+
+        let reader = match FileReader::new() {
+            Ok(reader) => reader,
+            Err(_) => return,
+        };
+        let reader_clone = reader.clone();
+        let on_load = Closure::<dyn FnMut(Event)>::new(move |_event: Event| {
+            let result = reader_clone.result();
+            if let Some(result) = result {
+                if let Some(text) = result.as_string() {
+                    PENDING_CSV.with(|cell| {
+                        *cell.borrow_mut() = Some(text);
+                    });
+                }
+            }
+        });
+        reader.set_onload(Some(on_load.as_ref().unchecked_ref()));
+        on_load.forget();
+        let _ = reader.read_as_text(&file);
+    });
+
+    input.set_onchange(Some(on_change.as_ref().unchecked_ref()));
+    on_change.forget();
+    input.click();
+}
+
+#[cfg(target_arch = "wasm32")]
+fn take_pending_csv() -> Option<String> {
+    PENDING_CSV.with(|cell| cell.borrow_mut().take())
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn take_pending_csv() -> Option<String> {
+    None
+}
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen(start)]
