@@ -533,9 +533,9 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
     let min_elev = points.iter().map(|p| p.1.min(p.2)).fold(f64::MAX, f64::min);
     let max_elev = points.iter().map(|p| p.1.max(p.2)).fold(f64::MIN, f64::max);
 
-    // DL（基準高）を1m単位で切り下げ
-    let dl = (min_elev - 0.5).floor();
-    let graph_top = (max_elev + 0.5).ceil();
+    // DL（基準高）を1m単位で切り下げ（最小限のマージン）
+    let dl = (min_elev - 0.1).floor();
+    let graph_top = (max_elev + 0.1).ceil();
 
     // 左右マージンなし（ピッチリ）
     let margin_x = 0.0;
