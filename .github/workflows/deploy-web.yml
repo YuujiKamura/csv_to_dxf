@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, master]
     paths:
-      - 'web/**'
+      - 'cross-section-ui/**'
       - '.github/workflows/deploy-web.yml'
   workflow_dispatch:
 
@@ -37,17 +37,17 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            web/target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('web/Cargo.lock') }}
+            cross-section-ui/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('cross-section-ui/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
 
-      - name: Install wasm-pack
-        run: cargo install wasm-pack --locked || true
+      - name: Install trunk
+        run: cargo install trunk --locked || true
 
-      - name: Build WASM
-        working-directory: ./web
-        run: wasm-pack build --target web --out-dir www/pkg
+      - name: Build WASM with trunk
+        working-directory: ./cross-section-ui
+        run: trunk build --release
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
@@ -55,7 +55,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './web/www'
+          path: './cross-section-ui/dist'
 
   deploy:
     environment:
