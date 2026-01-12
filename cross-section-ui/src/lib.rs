@@ -1227,90 +1227,92 @@ impl eframe::App for CrossSectionApp {
         if is_mobile {
             // モバイル: トップバー + フルスクリーン図面
             egui::TopBottomPanel::top("mobile_top").show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    // 測点プルダウン
-                    let current_name = self.selected_index
-                        .and_then(|i| self.sections.get(i))
-                        .map(|s| s.survey_point_name.as_str())
-                        .unwrap_or("--");
+                ui.vertical(|ui| {
+                    ui.horizontal_wrapped(|ui| {
+                        // 測点プルダウン
+                        let current_name = self.selected_index
+                            .and_then(|i| self.sections.get(i))
+                            .map(|s| s.survey_point_name.as_str())
+                            .unwrap_or("--");
 
-                    let mut new_selection = None;
-                    egui::ComboBox::from_id_salt("station_select")
-                        .selected_text(current_name)
-                        .show_ui(ui, |ui| {
-                            for (i, section) in self.sections.iter().enumerate() {
-                                if ui.selectable_label(
-                                    self.selected_index == Some(i),
-                                    &section.survey_point_name
-                                ).clicked() {
-                                    new_selection = Some(i);
+                        let mut new_selection = None;
+                        egui::ComboBox::from_id_salt("station_select")
+                            .selected_text(current_name)
+                            .show_ui(ui, |ui| {
+                                for (i, section) in self.sections.iter().enumerate() {
+                                    if ui.selectable_label(
+                                        self.selected_index == Some(i),
+                                        &section.survey_point_name
+                                    ).clicked() {
+                                        new_selection = Some(i);
+                                    }
                                 }
-                            }
-                        });
-                    if let Some(idx) = new_selection {
-                        self.selected_index = Some(idx);
-                        self.update_dxf_preview();
-                    }
-
-                    ui.separator();
-
-                    if ui.button("Load").clicked() {
-                        self.load_samples();
-                    }
-
-                    // 表示モード切替（モバイルではComboBoxで確実に切替）
-                    let mode_text = match self.view_mode {
-                        ViewMode::Single => "単一",
-                        ViewMode::AllGrid => "全横断",
-                        ViewMode::Longitudinal => "縦断",
-                    };
-                    let mut new_view_mode = None;
-                    egui::ComboBox::from_id_salt("view_mode_select")
-                        .selected_text(mode_text)
-                        .show_ui(ui, |ui| {
-                            if ui.selectable_label(self.view_mode == ViewMode::Single, "単一横断").clicked() {
-                                new_view_mode = Some(ViewMode::Single);
-                            }
-                            if ui.selectable_label(self.view_mode == ViewMode::AllGrid, "全横断").clicked() {
-                                new_view_mode = Some(ViewMode::AllGrid);
-                            }
-                            if ui.selectable_label(self.view_mode == ViewMode::Longitudinal, "縦断図").clicked() {
-                                new_view_mode = Some(ViewMode::Longitudinal);
-                            }
-                        });
-                    if let Some(mode) = new_view_mode {
-                        if self.view_mode != mode {
-                            self.view_mode = mode;
+                            });
+                        if let Some(idx) = new_selection {
+                            self.selected_index = Some(idx);
                             self.update_dxf_preview();
                         }
-                    }
 
-                    // DXFダウンロード
-                    match self.view_mode {
-                        ViewMode::AllGrid => {
-                            if ui.button("DXF").clicked() {
-                                let dxf_content = generate_multi_dxf_bytes(&self.sections, self.grid_columns);
-                                download_file("cross_sections_all.dxf", &dxf_content);
+                        if ui.button("Load").clicked() {
+                            self.load_samples();
+                        }
+                    });
+
+                    ui.horizontal_wrapped(|ui| {
+                        // 表示モード切替（モバイルではComboBoxで確実に切替）
+                        let mode_text = match self.view_mode {
+                            ViewMode::Single => "単一",
+                            ViewMode::AllGrid => "全横断",
+                            ViewMode::Longitudinal => "縦断",
+                        };
+                        let mut new_view_mode = None;
+                        egui::ComboBox::from_id_salt("view_mode_select")
+                            .selected_text(mode_text)
+                            .show_ui(ui, |ui| {
+                                if ui.selectable_label(self.view_mode == ViewMode::Single, "単一横断").clicked() {
+                                    new_view_mode = Some(ViewMode::Single);
+                                }
+                                if ui.selectable_label(self.view_mode == ViewMode::AllGrid, "全横断").clicked() {
+                                    new_view_mode = Some(ViewMode::AllGrid);
+                                }
+                                if ui.selectable_label(self.view_mode == ViewMode::Longitudinal, "縦断図").clicked() {
+                                    new_view_mode = Some(ViewMode::Longitudinal);
+                                }
+                            });
+                        if let Some(mode) = new_view_mode {
+                            if self.view_mode != mode {
+                                self.view_mode = mode;
+                                self.update_dxf_preview();
                             }
                         }
-                        ViewMode::Longitudinal => {
-                            if ui.button("DXF").clicked() {
-                                let dxf_content = generate_longitudinal_dxf_bytes(&self.sections);
-                                download_file("longitudinal.dxf", &dxf_content);
+
+                        // DXFダウンロード
+                        match self.view_mode {
+                            ViewMode::AllGrid => {
+                                if ui.button("DXF").clicked() {
+                                    let dxf_content = generate_multi_dxf_bytes(&self.sections, self.grid_columns);
+                                    download_file("cross_sections_all.dxf", &dxf_content);
+                                }
                             }
-                        }
-                        ViewMode::Single => {
-                            if self.selected_index.is_some() && ui.button("DXF").clicked() {
-                                if let Some(idx) = self.selected_index {
-                                    if let Some(section) = self.sections.get(idx) {
-                                        let dxf_content = generate_dxf_bytes(section);
-                                        let filename = format!("{}.dxf", section.survey_point_name);
-                                        download_file(&filename, &dxf_content);
+                            ViewMode::Longitudinal => {
+                                if ui.button("DXF").clicked() {
+                                    let dxf_content = generate_longitudinal_dxf_bytes(&self.sections);
+                                    download_file("longitudinal.dxf", &dxf_content);
+                                }
+                            }
+                            ViewMode::Single => {
+                                if self.selected_index.is_some() && ui.button("DXF").clicked() {
+                                    if let Some(idx) = self.selected_index {
+                                        if let Some(section) = self.sections.get(idx) {
+                                            let dxf_content = generate_dxf_bytes(section);
+                                            let filename = format!("{}.dxf", section.survey_point_name);
+                                            download_file(&filename, &dxf_content);
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
+                    });
                 });
             });
         } else {
