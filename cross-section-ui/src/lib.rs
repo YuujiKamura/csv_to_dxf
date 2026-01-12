@@ -441,11 +441,14 @@ fn parse_station_distance(name: &str) -> f64 {
     }
 }
 
-/// 縦断図を生成
+/// 縦断図を生成（土木標準形式）
 pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
-    let scale_x = 100.0;   // 横方向スケール（1m = 100mm）
-    let scale_y = 1000.0;  // 縦方向スケール（1m = 1000mm）
-    let text_height = 150.0;
+    // スケール設定（DXF単位）
+    let scale_x = 100.0;     // 横方向スケール（1m = 100単位）
+    let scale_y = 500.0;     // 縦方向スケール（1m = 500単位）
+    let text_height = 120.0; // 基本テキスト高さ
+    let row_height = 180.0;  // データ表の行高さ
+    let label_width = 500.0; // 左側のラベル幅
 
     let mut drawing = Drawing::new();
     drawing.header.version = dxf::enums::AcadVersion::R2010;
@@ -455,6 +458,7 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
         ("GROUND", 7),    // 黒 - 現地盤高
         ("PLAN", 1),      // 赤 - 計画高
         ("GRID", 8),      // グレー - グリッド
+        ("TABLE", 7),     // 黒 - 表枠
         ("TEXT", 7),      // 黒 - テキスト
     ] {
         let mut layer = dxf::tables::Layer::default();
@@ -479,34 +483,56 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
     let min_elev = points.iter().map(|p| p.1.min(p.2)).fold(f64::MAX, f64::min);
     let max_elev = points.iter().map(|p| p.1.max(p.2)).fold(f64::MIN, f64::max);
 
-    // DL（基準高）を最小標高の1m下に設定
-    let dl = (min_elev - 1.0).floor();
-    let graph_height = max_elev - dl + 1.0;
+    // DL（基準高）を1m単位で切り下げ
+    let dl = (min_elev - 0.5).floor();
+    let graph_top = (max_elev + 0.5).ceil();
 
-    let to_dxf_x = |d: f64| (d - min_dist) * scale_x;
+    // 座標変換
+    let to_dxf_x = |d: f64| label_width + (d - min_dist) * scale_x;
     let to_dxf_y = |h: f64| (h - dl) * scale_y;
 
-    // グリッド描画
-    let grid_step_x = 20.0;  // 20m間隔
-    let grid_step_y = 1.0;   // 1m間隔
+    let graph_width = (max_dist - min_dist) * scale_x;
+    let graph_height = (graph_top - dl) * scale_y;
 
-    // 縦グリッド
-    let mut x = (min_dist / grid_step_x).floor() * grid_step_x;
-    while x <= max_dist {
-        if x >= min_dist {
-            add_line(&mut drawing, to_dxf_x(x), to_dxf_y(dl), to_dxf_x(x), to_dxf_y(dl + graph_height), 8, "GRID");
-        }
-        x += grid_step_x;
+    // データ表の行定義（上から下へ）
+    let table_rows = [
+        ("勾配", 0),
+        ("盛土", 1),
+        ("切土", 2),
+        ("計画高", 3),
+        ("地盤高", 4),
+        ("追加距離", 5),
+        ("単距離", 6),
+        ("測点名", 7),
+    ];
+    let table_top = 0.0;
+    let table_bottom = table_top - (table_rows.len() as f64) * row_height;
+
+    // ===================
+    // グラフ部分の描画
+    // ===================
+
+    // 横グリッド線（標高ライン）- 1m間隔
+    let grid_step = 1.0;
+    let mut elev = dl;
+    while elev <= graph_top {
+        let y = to_dxf_y(elev);
+        add_line(&mut drawing, label_width, y, label_width + graph_width, y, 8, "GRID");
+        // 標高ラベル（左側）- DL行は特別表示
+        let label_text = if (elev - dl).abs() < 0.01 {
+            format!("DL={:.0}", elev)
+        } else {
+            format!("{:.0}", elev)
+        };
+        add_text(&mut drawing, label_width - 80.0, y, &label_text, text_height * 0.9, 7, "TEXT", TextAlign::Right);
+        elev += grid_step;
     }
 
-    // 横グリッド
-    let mut y = dl;
-    while y <= dl + graph_height {
-        add_line(&mut drawing, to_dxf_x(min_dist), to_dxf_y(y), to_dxf_x(max_dist), to_dxf_y(y), 8, "GRID");
-        // 標高ラベル
-        add_text(&mut drawing, to_dxf_x(min_dist) - 200.0, to_dxf_y(y), &format!("{:.1}", y), text_height, 8, "TEXT", TextAlign::Right);
-        y += grid_step_y;
-    }
+    // グラフ枠線
+    add_line(&mut drawing, label_width, 0.0, label_width + graph_width, 0.0, 7, "TABLE");
+    add_line(&mut drawing, label_width, graph_height, label_width + graph_width, graph_height, 7, "TABLE");
+    add_line(&mut drawing, label_width, 0.0, label_width, graph_height, 7, "TABLE");
+    add_line(&mut drawing, label_width + graph_width, 0.0, label_width + graph_width, graph_height, 7, "TABLE");
 
     // 現地盤高線（黒）
     for i in 0..points.len() - 1 {
@@ -524,23 +550,84 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
             1, "PLAN");
     }
 
-    // 測点ラベルと数値
-    for (dist, gh, fh, name) in &points {
-        let x = to_dxf_x(*dist);
-        // 測点名（グラフ上部）
-        add_text(&mut drawing, x, to_dxf_y(dl + graph_height) + 300.0, name, text_height, 7, "TEXT", TextAlign::Center);
-        // GH/FH（グラフ下部）
-        add_text(&mut drawing, x, to_dxf_y(dl) - 200.0, &format!("{:.3}", gh), text_height * 0.8, 7, "TEXT", TextAlign::Center);
-        add_text(&mut drawing, x, to_dxf_y(dl) - 400.0, &format!("{:.3}", fh), text_height * 0.8, 1, "TEXT", TextAlign::Center);
+    // ===================
+    // データ表の描画
+    // ===================
+
+    // 表の横線
+    for i in 0..=table_rows.len() {
+        let y = table_top - (i as f64) * row_height;
+        add_line(&mut drawing, 0.0, y, label_width + graph_width, y, 7, "TABLE");
     }
 
-    // タイトル
-    add_text(&mut drawing, to_dxf_x((min_dist + max_dist) / 2.0), to_dxf_y(dl + graph_height) + 600.0,
-        "縦断図", text_height * 2.0, 7, "TEXT", TextAlign::Center);
+    // 左端・ラベル列の縦線
+    add_line(&mut drawing, 0.0, table_top, 0.0, table_bottom, 7, "TABLE");
+    add_line(&mut drawing, label_width, table_top, label_width, table_bottom, 7, "TABLE");
 
-    // DLラベル
-    add_text(&mut drawing, to_dxf_x(min_dist) - 200.0, to_dxf_y(dl) - 100.0,
-        &format!("DL={:.1}", dl), text_height, 7, "TEXT", TextAlign::Right);
+    // 行ラベル
+    for (label, idx) in &table_rows {
+        let y = table_top - (*idx as f64) * row_height - row_height / 2.0;
+        add_text(&mut drawing, label_width / 2.0, y, label, text_height, 7, "TEXT", TextAlign::Center);
+    }
+
+    // 各測点のデータ
+    let mut prev_dist = min_dist;
+    let mut cum_dist = 0.0;
+
+    for (i, (dist, gh, fh, name)) in points.iter().enumerate() {
+        let x = to_dxf_x(*dist);
+
+        // 縦線（グラフ上端から表下端まで）
+        add_line(&mut drawing, x, graph_height, x, table_bottom, 8, "GRID");
+
+        // 単距離・累積距離計算
+        let unit_dist = if i == 0 { 0.0 } else { dist - prev_dist };
+        cum_dist += unit_dist;
+
+        // 盛土・切土計算
+        let fill = if fh > gh { fh - gh } else { 0.0 };
+        let cut = if gh > fh { gh - fh } else { 0.0 };
+
+        // 勾配計算（次の点との区間）
+        let slope_str = if i < points.len() - 1 {
+            let next = &points[i + 1];
+            let d_dist = next.0 - dist;
+            let d_elev = next.2 - fh;
+            if d_dist.abs() > 0.001 {
+                let slope_pct = (d_elev / d_dist) * 100.0;
+                format!("{:.3}%", slope_pct)
+            } else {
+                String::new()
+            }
+        } else {
+            String::new()
+        };
+
+        // 各行にデータを配置
+        let row_data = [
+            (0, slope_str),
+            (1, if fill > 0.001 { format!("{:.3}", fill) } else { String::new() }),
+            (2, if cut > 0.001 { format!("{:.3}", cut) } else { String::new() }),
+            (3, format!("{:.3}", fh)),
+            (4, format!("{:.3}", gh)),
+            (5, format!("{:.3}", cum_dist)),
+            (6, format!("{:.3}", unit_dist)),
+            (7, name.clone()),
+        ];
+
+        let cell_text_height = text_height * 0.9;
+        for (row_idx, text) in row_data {
+            if !text.is_empty() {
+                let y = table_top - (row_idx as f64) * row_height - row_height / 2.0;
+                add_text(&mut drawing, x, y, &text, cell_text_height, 7, "TEXT", TextAlign::Center);
+            }
+        }
+
+        prev_dist = *dist;
+    }
+
+    // 右端の縦線
+    add_line(&mut drawing, label_width + graph_width, table_top, label_width + graph_width, table_bottom, 7, "TABLE");
 
     drawing
 }
@@ -826,17 +913,18 @@ impl CrossSectionData {
 
     pub fn all_samples() -> Vec<Self> {
         let cut = 0.05;
+        // 現地盤高(GH)と計画高(FH)に差をつけて切土・盛土を表現
         vec![
-            Self::from_3point("No.0",  2.75, 2.70,  9.500, 9.490, 9.427,  9.500, 9.490, 9.427,  9.0, cut),
-            Self::from_3point("No.2",  2.60, 2.52,  11.862, 11.913, 11.836,  11.862, 11.913, 11.836,  11.0, cut),
-            Self::from_3point("No.4",  2.56, 2.54,  14.633, 14.700, 14.644,  14.633, 14.700, 14.644,  14.0, cut),
-            Self::from_3point("No.6",  2.53, 2.59,  17.417, 17.467, 17.403,  17.417, 17.467, 17.403,  17.0, cut),
-            Self::from_3point("No.8",  2.53, 2.57,  19.846, 19.927, 19.855,  19.846, 19.927, 19.855,  19.0, cut),
-            Self::from_3point("No.10", 2.58, 2.55,  20.505, 20.576, 20.525,  20.505, 20.576, 20.525,  20.0, cut),
-            Self::from_3point("No.12", 2.56, 2.56,  20.967, 21.026, 20.973,  20.967, 21.026, 20.973,  20.0, cut),
-            Self::from_3point("No.14", 2.55, 2.60,  22.360, 22.405, 22.354,  22.360, 22.405, 22.354,  22.0, cut),
-            Self::from_3point("No.16", 2.61, 2.59,  25.135, 25.174, 25.111,  25.135, 25.174, 25.111,  25.0, cut),
-            Self::from_3point("No.18", 2.55, 2.62,  27.595, 27.735, 27.749,  27.595, 27.735, 27.749,  27.0, cut),
+            Self::from_3point("No.0",  2.75, 2.70,  9.620, 9.610, 9.547,  9.500, 9.490, 9.427,  9.0, cut),  // 切土
+            Self::from_3point("No.2",  2.60, 2.52,  11.762, 11.813, 11.736,  11.862, 11.913, 11.836,  11.0, cut),  // 盛土
+            Self::from_3point("No.4",  2.56, 2.54,  14.733, 14.800, 14.744,  14.633, 14.700, 14.644,  14.0, cut),  // 切土
+            Self::from_3point("No.6",  2.53, 2.59,  17.317, 17.367, 17.303,  17.417, 17.467, 17.403,  17.0, cut),  // 盛土
+            Self::from_3point("No.8",  2.53, 2.57,  19.946, 20.027, 19.955,  19.846, 19.927, 19.855,  19.0, cut),  // 切土
+            Self::from_3point("No.10", 2.58, 2.55,  20.405, 20.476, 20.425,  20.505, 20.576, 20.525,  20.0, cut),  // 盛土
+            Self::from_3point("No.12", 2.56, 2.56,  21.067, 21.126, 21.073,  20.967, 21.026, 20.973,  20.0, cut),  // 切土
+            Self::from_3point("No.14", 2.55, 2.60,  22.260, 22.305, 22.254,  22.360, 22.405, 22.354,  22.0, cut),  // 盛土
+            Self::from_3point("No.16", 2.61, 2.59,  25.235, 25.274, 25.211,  25.135, 25.174, 25.111,  25.0, cut),  // 切土
+            Self::from_3point("No.18", 2.55, 2.62,  27.495, 27.635, 27.649,  27.595, 27.735, 27.749,  27.0, cut),  // 盛土
         ]
     }
 }
