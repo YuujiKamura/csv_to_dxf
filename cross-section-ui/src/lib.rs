@@ -727,10 +727,6 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
     for (i, (dist, gh, fh, name)) in points.iter().enumerate() {
         let x = to_dxf_x(*dist);
 
-        // 縦線（グラフ上端から表下端まで）- 主要測点は太線(7)、プラス杭は細線(8)
-        let line_color = if is_plus_stake(name) { 8 } else { 7 };
-        add_line(&mut drawing, x, graph_height, x, table_bottom, line_color, "GRID");
-
         // 単距離・累積距離計算
         let unit_dist = if i == 0 { 0.0 } else { dist - prev_dist };
         cum_dist += unit_dist;
@@ -932,27 +928,15 @@ fn render_dxf(painter: &Painter, drawing: &Drawing, view: &DxfViewState) {
                 let font_size = text.text_height as f32 * view.zoom;
                 let font = egui::FontId::proportional(font_size);
 
-                // 90度回転テキストは縦書き風に描画
-                if (text.rotation - 90.0).abs() < 1.0 {
-                    // 縦書き: 1文字ずつ縦に並べる
-                    let chars: Vec<char> = text.value.chars().collect();
-                    let char_height = font_size * 1.2;
-                    let start_y = pos.y - (chars.len() as f32 * char_height) / 2.0;
-                    for (i, ch) in chars.iter().enumerate() {
-                        let char_pos = Pos2::new(pos.x, start_y + i as f32 * char_height);
-                        painter.text(char_pos, egui::Align2::CENTER_CENTER,
-                            &ch.to_string(), font.clone(), color);
-                    }
-                } else {
-                    // 通常の水平テキスト
-                    let align = match text.horizontal_text_justification {
-                        HorizontalTextJustification::Left => egui::Align2::LEFT_CENTER,
-                        HorizontalTextJustification::Center => egui::Align2::CENTER_CENTER,
-                        HorizontalTextJustification::Right => egui::Align2::RIGHT_CENTER,
-                        _ => egui::Align2::LEFT_CENTER,
-                    };
-                    painter.text(pos, align, &text.value, font, color);
-                }
+                // eguiはテキスト回転非対応のため、プレビューでは水平表示
+                // DXF出力では正しく回転が設定される
+                let align = match text.horizontal_text_justification {
+                    HorizontalTextJustification::Left => egui::Align2::LEFT_CENTER,
+                    HorizontalTextJustification::Center => egui::Align2::CENTER_CENTER,
+                    HorizontalTextJustification::Right => egui::Align2::RIGHT_CENTER,
+                    _ => egui::Align2::LEFT_CENTER,
+                };
+                painter.text(pos, align, &text.value, font, color);
             }
             EntityType::RotatedDimension(dim) => {
                 let p2 = &dim.definition_point_2;
