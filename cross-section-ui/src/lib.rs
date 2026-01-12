@@ -397,7 +397,7 @@ fn render_dxf(painter: &Painter, drawing: &Drawing, view: &DxfViewState) {
                     HorizontalTextJustification::Right => egui::Align2::RIGHT_CENTER,
                     _ => egui::Align2::LEFT_CENTER,
                 };
-                let font_size = (text.text_height as f32 * view.zoom).clamp(8.0, 24.0);
+                let font_size = (text.text_height as f32 * view.zoom).max(12.0);
                 let font = egui::FontId::proportional(font_size);
                 painter.text(pos, align, &text.value, font, color);
             }
@@ -424,7 +424,7 @@ fn render_dxf(painter: &Painter, drawing: &Drawing, view: &DxfViewState) {
 
                 let distance = (p3.x - p2.x).abs();
                 let text_pos = view.dxf_to_screen(text_pt.x, text_pt.y);
-                let font_size = (25.0 * view.zoom).clamp(8.0, 18.0);
+                let font_size = (25.0 * view.zoom).max(12.0);
                 let font = egui::FontId::proportional(font_size);
                 painter.text(text_pos, egui::Align2::CENTER_CENTER,
                     &format!("{:.2}", distance / 1000.0), font, color);
