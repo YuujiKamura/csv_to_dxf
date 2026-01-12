@@ -1353,22 +1353,11 @@ impl CrossSectionData {
     }
 
     pub fn all_samples() -> Vec<Self> {
-        // フォールバック用（fetch完了までの初期表示）
-        Self::fallback_samples()
+        Vec::new() // fetch完了まで空
     }
 
     pub fn from_json(json: &str) -> Result<Vec<Self>, String> {
         serde_json::from_str(json).map_err(|e| format!("JSON parse error: {e}"))
-    }
-
-    fn fallback_samples() -> Vec<Self> {
-        let cut = 0.05;
-        // 現地盤高(GH)と計画高(FH)に差をつけて切土・盛土を表現
-        vec![
-            Self::from_3point("No.0",  2.75, 2.70,  9.620, 9.610, 9.547,  9.500, 9.490, 9.427,  9.0, cut),  // 切土
-            Self::from_3point("No.2",  2.60, 2.52,  11.762, 11.813, 11.736,  11.862, 11.913, 11.836,  11.0, cut),  // 盛土
-            Self::from_3point("No.4",  2.56, 2.54,  14.733, 14.800, 14.744,  14.633, 14.700, 14.644,  14.0, cut),  // 切土
-        ]
     }
 
     fn from_csv_section(section: &CsvSection) -> Result<Self, String> {
@@ -1634,23 +1623,8 @@ impl CrossSectionApp {
 
     fn load_samples(&mut self) {
         self.sections = CrossSectionData::all_samples();
-        self.selected_index = Some(0);
-        // データダンプ: 測点数と最初・最後の測点名を表示
-        let dump = if self.sections.is_empty() {
-            "データなし".to_string()
-        } else {
-            let first = &self.sections[0];
-            let last = &self.sections[self.sections.len() - 1];
-            format!(
-                "{}測点: {} ~ {} (DL={:.2}, {}点)",
-                self.sections.len(),
-                first.survey_point_name,
-                last.survey_point_name,
-                first.dl,
-                first.survey_data.len()
-            )
-        };
-        self.status_message = Some(dump);
+        self.selected_index = if self.sections.is_empty() { None } else { Some(0) };
+        self.status_message = Some("読み込み中...".to_string());
         self.update_dxf_preview();
     }
 
