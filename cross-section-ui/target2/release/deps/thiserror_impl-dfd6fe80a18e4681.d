@@ -1,0 +1,17 @@
+C:\Users\yuuji\Sanyuu2Kouku\cursor_tools\csv_to_dxf\cross-section-ui\target2\release\deps\thiserror_impl-dfd6fe80a18e4681.d: F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-impl-2.0.17\src\lib.rs F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-impl-2.0.17\src\ast.rs F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-impl-2.0.17\src\attr.rs F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-impl-2.0.17\src\expand.rs F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-impl-2.0.17\src\fallback.rs F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-impl-2.0.17\src\fmt.rs F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-impl-2.0.17\src\generics.rs F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-impl-2.0.17\src\prop.rs F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-impl-2.0.17\src\scan_expr.rs F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-impl-2.0.17\src\unraw.rs F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-impl-2.0.17\src\valid.rs
+
+C:\Users\yuuji\Sanyuu2Kouku\cursor_tools\csv_to_dxf\cross-section-ui\target2\release\deps\thiserror_impl-dfd6fe80a18e4681.dll: F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-impl-2.0.17\src\lib.rs F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-impl-2.0.17\src\ast.rs F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-impl-2.0.17\src\attr.rs F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-impl-2.0.17\src\expand.rs F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-impl-2.0.17\src\fallback.rs F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-impl-2.0.17\src\fmt.rs F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-impl-2.0.17\src\generics.rs F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-impl-2.0.17\src\prop.rs F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-impl-2.0.17\src\scan_expr.rs F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-impl-2.0.17\src\unraw.rs F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-impl-2.0.17\src\valid.rs
+
+F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-impl-2.0.17\src\lib.rs:
+F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-impl-2.0.17\src\ast.rs:
+F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-impl-2.0.17\src\attr.rs:
+F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-impl-2.0.17\src\expand.rs:
+F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-impl-2.0.17\src\fallback.rs:
+F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-impl-2.0.17\src\fmt.rs:
+F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-impl-2.0.17\src\generics.rs:
+F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-impl-2.0.17\src\prop.rs:
+F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-impl-2.0.17\src\scan_expr.rs:
+F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-impl-2.0.17\src\unraw.rs:
+F:/Cache/.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-impl-2.0.17\src\valid.rs:
+
+# env-dep:CARGO_PKG_VERSION_PATCH=17
