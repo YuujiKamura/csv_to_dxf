@@ -601,69 +601,120 @@ impl CrossSectionApp {
 
 impl eframe::App for CrossSectionApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::SidePanel::left("side_panel").min_width(180.0).show(ctx, |ui| {
-            ui.heading("Cross Section");
-            ui.separator();
+        let screen_width = ctx.screen_rect().width();
+        let is_mobile = screen_width < 600.0;
 
-            if ui.button("Load Sample").clicked() {
-                self.load_samples();
-            }
+        if is_mobile {
+            // モバイル: トップバー + フルスクリーン図面
+            egui::TopBottomPanel::top("mobile_top").show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    // 測点プルダウン
+                    let current_name = self.selected_index
+                        .and_then(|i| self.sections.get(i))
+                        .map(|s| s.survey_point_name.as_str())
+                        .unwrap_or("--");
 
-            if self.selected_index.is_some() {
-                if ui.button("Download DXF").clicked() {
-                    if let Some(idx) = self.selected_index {
-                        if let Some(section) = self.sections.get(idx) {
-                            let dxf_content = generate_dxf_bytes(section);
-                            let filename = format!("{}.dxf", section.survey_point_name);
-                            download_file(&filename, &dxf_content);
+                    let mut new_selection = None;
+                    egui::ComboBox::from_id_salt("station_select")
+                        .selected_text(current_name)
+                        .show_ui(ui, |ui| {
+                            for (i, section) in self.sections.iter().enumerate() {
+                                if ui.selectable_label(
+                                    self.selected_index == Some(i),
+                                    &section.survey_point_name
+                                ).clicked() {
+                                    new_selection = Some(i);
+                                }
+                            }
+                        });
+                    if let Some(idx) = new_selection {
+                        self.selected_index = Some(idx);
+                        self.update_dxf_preview();
+                    }
+
+                    ui.separator();
+
+                    if ui.button("Load").clicked() {
+                        self.load_samples();
+                    }
+
+                    if self.selected_index.is_some() && ui.button("DXF").clicked() {
+                        if let Some(idx) = self.selected_index {
+                            if let Some(section) = self.sections.get(idx) {
+                                let dxf_content = generate_dxf_bytes(section);
+                                let filename = format!("{}.dxf", section.survey_point_name);
+                                download_file(&filename, &dxf_content);
+                            }
+                        }
+                    }
+                });
+            });
+        } else {
+            // デスクトップ: サイドパネル
+            egui::SidePanel::left("side_panel").min_width(180.0).show(ctx, |ui| {
+                ui.heading("Cross Section");
+                ui.separator();
+
+                if ui.button("Load Sample").clicked() {
+                    self.load_samples();
+                }
+
+                if self.selected_index.is_some() {
+                    if ui.button("Download DXF").clicked() {
+                        if let Some(idx) = self.selected_index {
+                            if let Some(section) = self.sections.get(idx) {
+                                let dxf_content = generate_dxf_bytes(section);
+                                let filename = format!("{}.dxf", section.survey_point_name);
+                                download_file(&filename, &dxf_content);
+                            }
                         }
                     }
                 }
-            }
-            ui.separator();
+                ui.separator();
 
-            ui.label("Stations:");
-            let mut new_selection = None;
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                for (i, section) in self.sections.iter().enumerate() {
-                    let selected = self.selected_index == Some(i);
-                    if ui.selectable_label(selected, &section.survey_point_name).clicked() {
-                        new_selection = Some(i);
+                ui.label("Stations:");
+                let mut new_selection = None;
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    for (i, section) in self.sections.iter().enumerate() {
+                        let selected = self.selected_index == Some(i);
+                        if ui.selectable_label(selected, &section.survey_point_name).clicked() {
+                            new_selection = Some(i);
+                        }
+                    }
+                });
+                if let Some(idx) = new_selection {
+                    self.selected_index = Some(idx);
+                    self.update_dxf_preview();
+                }
+
+                ui.separator();
+                if let Some(idx) = self.selected_index {
+                    if let Some(section) = self.sections.get(idx) {
+                        ui.label(format!("DL: {:.3}", section.dl));
+                        ui.label(format!("L->CL: {:.2}m", section.l_to_cl_distance));
                     }
                 }
-            });
-            if let Some(idx) = new_selection {
-                self.selected_index = Some(idx);
-                self.update_dxf_preview();
-            }
 
-            ui.separator();
-            if let Some(idx) = self.selected_index {
-                if let Some(section) = self.sections.get(idx) {
-                    ui.label(format!("DL: {:.3}", section.dl));
-                    ui.label(format!("L->CL: {:.2}m", section.l_to_cl_distance));
-                }
-            }
-
-            ui.separator();
-            ui.label("Legend:");
-            ui.horizontal(|ui| {
-                ui.colored_label(Color32::BLACK, "=");
-                ui.label("Ground(GH)");
+                ui.separator();
+                ui.label("Legend:");
+                ui.horizontal(|ui| {
+                    ui.colored_label(Color32::BLACK, "=");
+                    ui.label("Ground(GH)");
+                });
+                ui.horizontal(|ui| {
+                    ui.colored_label(Color32::from_rgb(255, 0, 0), "=");
+                    ui.label("Planned(FH)");
+                });
+                ui.horizontal(|ui| {
+                    ui.colored_label(Color32::from_rgb(0, 0, 255), "=");
+                    ui.label("Cutting");
+                });
+                ui.horizontal(|ui| {
+                    ui.colored_label(Color32::from_rgb(128, 128, 128), "=");
+                    ui.label("Dimension");
+                });
             });
-            ui.horizontal(|ui| {
-                ui.colored_label(Color32::from_rgb(255, 0, 0), "=");
-                ui.label("Planned(FH)");
-            });
-            ui.horizontal(|ui| {
-                ui.colored_label(Color32::from_rgb(0, 0, 255), "=");
-                ui.label("Cutting");
-            });
-            ui.horizontal(|ui| {
-                ui.colored_label(Color32::from_rgb(128, 128, 128), "=");
-                ui.label("Dimension");
-            });
-        });
+        }
 
         egui::CentralPanel::default().show(ctx, |ui| {
             let available = ui.available_size();
@@ -690,35 +741,38 @@ impl eframe::App for CrossSectionApp {
                 painter.text(
                     response.rect.center(),
                     egui::Align2::CENTER_CENTER,
-                    "Click 'Load Sample' to start",
+                    if is_mobile { "Tap 'Load'" } else { "Click 'Load Sample' to start" },
                     egui::FontId::proportional(16.0),
                     Color32::GRAY
                 );
             }
 
-            if let Some(idx) = self.selected_index {
-                if let Some(section) = self.sections.get(idx) {
-                    egui::Window::new("Cutting Calculation")
-                        .default_pos([response.rect.right() - 320.0, response.rect.bottom() - 150.0])
-                        .show(ctx, |ui| {
-                            egui::Grid::new("calc_table").striped(true).show(ui, |ui| {
-                                ui.label("Dist");
-                                ui.label("GH");
-                                ui.label("FH");
-                                ui.label("Cut");
-                                ui.label("Depth(cm)");
-                                ui.end_row();
-
-                                for p in &section.survey_data {
-                                    ui.label(format!("{:.2}", p.cumulative_distance));
-                                    ui.label(format!("{:.3}", p.elevation));
-                                    ui.label(format!("{:.3}", p.planned_height));
-                                    ui.label(format!("{:.3}", p.cutting_bottom));
-                                    ui.label(format!("{:.1}", p.cutting_depth() * 100.0));
+            // デスクトップのみ: Cutting Calculation ウィンドウ
+            if !is_mobile {
+                if let Some(idx) = self.selected_index {
+                    if let Some(section) = self.sections.get(idx) {
+                        egui::Window::new("Cutting Calculation")
+                            .default_pos([response.rect.right() - 320.0, response.rect.bottom() - 150.0])
+                            .show(ctx, |ui| {
+                                egui::Grid::new("calc_table").striped(true).show(ui, |ui| {
+                                    ui.label("Dist");
+                                    ui.label("GH");
+                                    ui.label("FH");
+                                    ui.label("Cut");
+                                    ui.label("Depth(cm)");
                                     ui.end_row();
-                                }
+
+                                    for p in &section.survey_data {
+                                        ui.label(format!("{:.2}", p.cumulative_distance));
+                                        ui.label(format!("{:.3}", p.elevation));
+                                        ui.label(format!("{:.3}", p.planned_height));
+                                        ui.label(format!("{:.3}", p.cutting_bottom));
+                                        ui.label(format!("{:.1}", p.cutting_depth() * 100.0));
+                                        ui.end_row();
+                                    }
+                                });
                             });
-                        });
+                    }
                 }
             }
         });
