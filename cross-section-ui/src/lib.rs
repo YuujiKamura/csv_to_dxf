@@ -887,6 +887,13 @@ fn shift_entity_y(entity: &mut dxf::entities::Entity, offset: f64) {
                 vertex.y += offset;
             }
         }
+        EntityType::RotatedDimension(dim) => {
+            dim.dimension_base.definition_point_1.y += offset;
+            dim.dimension_base.text_mid_point.y += offset;
+            dim.insertion_point.y += offset;
+            dim.definition_point_2.y += offset;
+            dim.definition_point_3.y += offset;
+        }
         _ => {} // その他のエンティティは無視
     }
 }
@@ -1862,35 +1869,6 @@ impl eframe::App for CrossSectionApp {
                     egui::FontId::proportional(16.0),
                     Color32::GRAY
                 );
-            }
-
-            // デスクトップのみ: Cutting Calculation ウィンドウ
-            if !is_mobile {
-                if let Some(idx) = self.selected_index {
-                    if let Some(section) = self.sections.get(idx) {
-                        egui::Window::new("Cutting Calculation")
-                            .default_pos([response.rect.right() - 320.0, response.rect.bottom() - 150.0])
-                            .show(ctx, |ui| {
-                                egui::Grid::new("calc_table").striped(true).show(ui, |ui| {
-                                    ui.label("Dist");
-                                    ui.label("GH");
-                                    ui.label("FH");
-                                    ui.label("Cut");
-                                    ui.label("Depth(cm)");
-                                    ui.end_row();
-
-                                    for p in &section.survey_data {
-                                        ui.label(format!("{:.2}", p.cumulative_distance));
-                                        ui.label(format!("{:.3}", p.elevation));
-                                        ui.label(format!("{:.3}", p.planned_height));
-                                        ui.label(format!("{:.3}", p.cutting_bottom));
-                                        ui.label(format!("{:.1}", p.cutting_depth() * 100.0));
-                                        ui.end_row();
-                                    }
-                                });
-                            });
-                    }
-                }
             }
         });
     }
