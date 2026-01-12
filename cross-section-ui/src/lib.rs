@@ -843,8 +843,8 @@ pub fn generate_combo_drawing(sections: &[CrossSectionData], _columns: usize) ->
     }
 
     // === レイアウト計算 ===
-    // 間隔（縦断図の下端と横断図の上端の間）
-    let spacing = 300.0;
+    // 間隔（縦断図の下端と横断図の上端の間）- 横断図高さの10%
+    let spacing = multi_height * 0.1;
 
     // X方向: センタリング（縦断図の中心に横断図の中心を合わせる）
     let multi_x_offset = long_center_x - multi_center_x;
@@ -882,8 +882,8 @@ pub fn generate_combo_drawing(sections: &[CrossSectionData], _columns: usize) ->
     add_line(&mut drawing, shifted_multi_max_x as f64, shifted_multi_max_y as f64, shifted_multi_min_x as f64, shifted_multi_max_y as f64, 4, "DEBUG_BOX"); // 上辺
     add_line(&mut drawing, shifted_multi_min_x as f64, shifted_multi_max_y as f64, shifted_multi_min_x as f64, shifted_multi_min_y as f64, 4, "DEBUG_BOX"); // 左辺
 
-    // センターライン（黄色）
-    add_line(&mut drawing, long_center_x as f64, (long_max_y + 100.0) as f64, long_center_x as f64, (shifted_multi_min_y - 100.0) as f64, 2, "DEBUG_BOX");
+    // センターライン（黄色）- デバッグボックス内に収める
+    add_line(&mut drawing, long_center_x as f64, long_max_y as f64, long_center_x as f64, shifted_multi_min_y as f64, 2, "DEBUG_BOX");
 
     drawing
 }
