@@ -50,5 +50,7 @@ desktop.ini
 *.dxf
 *.csv
 *.json
-# Keep specific config files if needed, but generally ignore data jsons
+# Keep specific config files if needed
 !app_config.json
+!cross-section-ui/static/sections.json
+tmp/
