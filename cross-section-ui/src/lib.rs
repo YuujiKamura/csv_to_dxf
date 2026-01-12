@@ -448,11 +448,12 @@ fn parse_station_distance(name: &str) -> f64 {
 /// 縦断図を生成（土木標準形式）
 pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
     // スケール設定（DXF単位）
-    let scale_x = 100.0;     // 横方向スケール（1m = 100単位）
-    let scale_y = 500.0;     // 縦方向スケール（1m = 500単位）
+    let scale_x = 100.0;     // 横方向スケール（1m = 100単位）H=1:500
+    let scale_y = 500.0;     // 縦方向スケール（1m = 500単位）V=1:100
     let text_height = 120.0; // 基本テキスト高さ
     let row_height = 180.0;  // データ表の行高さ
     let label_width = 500.0; // 左側のラベル幅
+    let title_height = 400.0; // タイトルブロック用の高さ
 
     let mut drawing = Drawing::new();
     drawing.header.version = dxf::enums::AcadVersion::R2010;
@@ -464,6 +465,8 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
         ("GRID", 8),      // グレー - グリッド
         ("TABLE", 7),     // 黒 - 表枠
         ("TEXT", 7),      // 黒 - テキスト
+        ("TITLE", 7),     // 黒 - タイトル
+        ("ANNOTATION", 5), // 青 - 注釈
     ] {
         let mut layer = dxf::tables::Layer::default();
         layer.name = name.to_string();
@@ -514,6 +517,15 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
     let table_bottom = table_top - (table_rows.len() as f64) * row_height;
 
     // ===================
+    // タイトルブロック
+    // ===================
+    let title_y = graph_height + title_height * 0.7;
+    add_text(&mut drawing, label_width + graph_width / 2.0, title_y,
+        "縦断図", text_height * 2.0, 7, "TITLE", TextAlign::Center);
+    add_text(&mut drawing, label_width + graph_width / 2.0, title_y - text_height * 1.5,
+        "H=1:500  V=1:100", text_height * 1.0, 7, "TITLE", TextAlign::Center);
+
+    // ===================
     // グラフ部分の描画
     // ===================
 
@@ -530,6 +542,10 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
             format!("{:.0}", elev)
         };
         add_text(&mut drawing, label_width - 80.0, y, &label_text, text_height * 0.9, 7, "TEXT", TextAlign::Right);
+
+        // 標高ラベル（右側）
+        add_text(&mut drawing, label_width + graph_width + 80.0, y, &format!("{:.0}", elev),
+            text_height * 0.9, 7, "TEXT", TextAlign::Left);
         elev += grid_step;
     }
 
@@ -538,6 +554,15 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
     add_line(&mut drawing, label_width, graph_height, label_width + graph_width, graph_height, 7, "TABLE");
     add_line(&mut drawing, label_width, 0.0, label_width, graph_height, 7, "TABLE");
     add_line(&mut drawing, label_width + graph_width, 0.0, label_width + graph_width, graph_height, 7, "TABLE");
+
+    // ===================
+    // 測点ラベル（グラフ上端）
+    // ===================
+    for (dist, _gh, _fh, name) in &points {
+        let x = to_dxf_x(*dist);
+        add_text(&mut drawing, x, graph_height + text_height * 0.8, name,
+            text_height * 0.8, 7, "TEXT", TextAlign::Center);
+    }
 
     // 現地盤高線（黒）
     for i in 0..points.len() - 1 {
@@ -553,6 +578,84 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
             to_dxf_x(points[i].0), to_dxf_y(points[i].2),
             to_dxf_x(points[i + 1].0), to_dxf_y(points[i + 1].2),
             1, "PLAN");
+    }
+
+    // ===================
+    // 勾配変化点の注釈 (ΔV, i%, L)
+    // ===================
+    // 区間ごとの勾配を計算
+    let mut slopes: Vec<f64> = Vec::new();
+    for i in 0..points.len() - 1 {
+        let d_dist = points[i + 1].0 - points[i].0;
+        let d_elev = points[i + 1].2 - points[i].2;  // 計画高の差
+        if d_dist.abs() > 0.001 {
+            slopes.push((d_elev / d_dist) * 100.0);  // %表示
+        } else {
+            slopes.push(0.0);
+        }
+    }
+
+    // 各区間の中点に勾配・区間長を表示
+    for i in 0..points.len() - 1 {
+        let mid_x = (to_dxf_x(points[i].0) + to_dxf_x(points[i + 1].0)) / 2.0;
+        let mid_y = (to_dxf_y(points[i].2) + to_dxf_y(points[i + 1].2)) / 2.0;
+
+        let section_length = points[i + 1].0 - points[i].0;
+        let slope = slopes[i];
+
+        // 勾配表示 (i%)
+        let slope_text = format!("i={:.2}%", slope);
+        add_text(&mut drawing, mid_x, mid_y + text_height * 1.2, &slope_text,
+            text_height * 0.8, 5, "ANNOTATION", TextAlign::Center);
+
+        // 区間長表示 (L)
+        let length_text = format!("L={:.1}m", section_length);
+        add_text(&mut drawing, mid_x, mid_y + text_height * 0.3, &length_text,
+            text_height * 0.7, 5, "ANNOTATION", TextAlign::Center);
+    }
+
+    // 変曲点にΔV（勾配差）を表示
+    for i in 1..slopes.len() {
+        let delta_v = slopes[i] - slopes[i - 1];
+        if delta_v.abs() > 0.001 {  // 有意な勾配変化がある場合のみ
+            let x = to_dxf_x(points[i].0);
+            let y = to_dxf_y(points[i].2);
+
+            // ΔV表示
+            let delta_text = format!("ΔV={:.2}%", delta_v);
+            add_text(&mut drawing, x, y - text_height * 0.8, &delta_text,
+                text_height * 0.7, 5, "ANNOTATION", TextAlign::Center);
+
+            // 変曲点マーカー（小さな円の代わりに十字）
+            let marker_size = 50.0;
+            add_line(&mut drawing, x - marker_size, y, x + marker_size, y, 5, "ANNOTATION");
+            add_line(&mut drawing, x, y - marker_size, x, y + marker_size, 5, "ANNOTATION");
+        }
+    }
+
+    // ===================
+    // 始点・終点の標高マーカー
+    // ===================
+    if let Some(first) = points.first() {
+        let x = to_dxf_x(first.0);
+        // 地盤高マーカー
+        add_text(&mut drawing, x - text_height * 1.5, to_dxf_y(first.1),
+            &format!("GH={:.3}", first.1), text_height * 0.7, 7, "TEXT", TextAlign::Right);
+        // 計画高マーカー
+        add_text(&mut drawing, x - text_height * 1.5, to_dxf_y(first.2),
+            &format!("FH={:.3}", first.2), text_height * 0.7, 1, "PLAN", TextAlign::Right);
+    }
+    // 終点マーカーは複数点がある場合のみ（単一点で重複を防止）
+    if points.len() > 1 {
+        if let Some(last) = points.last() {
+            let x = to_dxf_x(last.0);
+            // 地盤高マーカー
+            add_text(&mut drawing, x + text_height * 1.0, to_dxf_y(last.1),
+                &format!("GH={:.3}", last.1), text_height * 0.7, 7, "TEXT", TextAlign::Left);
+            // 計画高マーカー
+            add_text(&mut drawing, x + text_height * 1.0, to_dxf_y(last.2),
+                &format!("FH={:.3}", last.2), text_height * 0.7, 1, "PLAN", TextAlign::Left);
+        }
     }
 
     // ===================
@@ -593,17 +696,9 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
         let fill = if fh > gh { fh - gh } else { 0.0 };
         let cut = if gh > fh { gh - fh } else { 0.0 };
 
-        // 勾配計算（次の点との区間）
-        let slope_str = if i < points.len() - 1 {
-            let next = &points[i + 1];
-            let d_dist = next.0 - dist;
-            let d_elev = next.2 - fh;
-            if d_dist.abs() > 0.001 {
-                let slope_pct = (d_elev / d_dist) * 100.0;
-                format!("{:.3}%", slope_pct)
-            } else {
-                String::new()
-            }
+        // 勾配計算（slopesベクトルを再利用）
+        let slope_str = if i < slopes.len() {
+            format!("{:.3}%", slopes[i])
         } else {
             String::new()
         };
