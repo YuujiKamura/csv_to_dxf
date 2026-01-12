@@ -537,11 +537,14 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
     let dl = (min_elev - 0.5).floor();
     let graph_top = (max_elev + 0.5).ceil();
 
+    // 左右マージン（テキストが枠線と重ならないように）
+    let margin_x = 300.0;
+
     // 座標変換
-    let to_dxf_x = |d: f64| label_width + (d - min_dist) * scale_x;
+    let to_dxf_x = |d: f64| label_width + margin_x + (d - min_dist) * scale_x;
     let to_dxf_y = |h: f64| (h - dl) * scale_y;
 
-    let graph_width = (max_dist - min_dist) * scale_x;
+    let graph_width = (max_dist - min_dist) * scale_x + margin_x * 2.0;
     let graph_height = (graph_top - dl) * scale_y;
 
     // データ表の行定義（上から下へ）
@@ -792,6 +795,104 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
 
 pub fn generate_longitudinal_dxf_bytes(sections: &[CrossSectionData]) -> Vec<u8> {
     let drawing = generate_longitudinal_drawing(sections);
+    let mut output: Vec<u8> = Vec::new();
+    drawing.save(&mut output).expect("Failed to save DXF");
+    output
+}
+
+/// コンボビュー（縦断図＋全横断図）を生成
+/// 縦断図を上部に、全横断図グリッドを下部に配置
+pub fn generate_combo_drawing(sections: &[CrossSectionData], columns: usize) -> Drawing {
+    if sections.is_empty() {
+        return Drawing::new();
+    }
+
+    // 縦断図を生成し、そのバウンディングボックスを取得
+    let longitudinal = generate_longitudinal_drawing(sections);
+    let (_long_min_x, long_min_y, _long_max_x, long_max_y) = calc_dxf_bounds(&longitudinal);
+    let _long_height = long_max_y - long_min_y;
+
+    // 全横断図を生成
+    let multi = generate_multi_drawing(sections, columns);
+    let (_multi_min_x, multi_min_y, _multi_max_x, multi_max_y) = calc_dxf_bounds(&multi);
+    let multi_height = multi_max_y - multi_min_y;
+
+    // 新しいDrawingを作成
+    let mut drawing = Drawing::new();
+    drawing.header.version = dxf::enums::AcadVersion::R2010;
+
+    // 両方のレイヤーをマージ
+    for layer in longitudinal.layers() {
+        let mut new_layer = dxf::tables::Layer::default();
+        new_layer.name = layer.name.clone();
+        new_layer.color = layer.color.clone();
+        drawing.add_layer(new_layer);
+    }
+    for layer in multi.layers() {
+        // 重複するレイヤーは追加しない
+        if drawing.layers().find(|l| l.name == layer.name).is_none() {
+            let mut new_layer = dxf::tables::Layer::default();
+            new_layer.name = layer.name.clone();
+            new_layer.color = layer.color.clone();
+            drawing.add_layer(new_layer);
+        }
+    }
+
+    // 間隔
+    let spacing = 1000.0;
+
+    // 全横断図を下部に配置（Y座標をシフト）
+    let multi_y_offset = long_min_y - spacing - multi_height;
+
+    // 縦断図のエンティティをそのままコピー
+    for entity in longitudinal.entities() {
+        drawing.add_entity(entity.clone());
+    }
+
+    // 全横断図のエンティティをY座標をオフセットしてコピー
+    for entity in multi.entities() {
+        let mut shifted_entity = entity.clone();
+        shift_entity_y(&mut shifted_entity, (multi_y_offset - multi_min_y) as f64);
+        drawing.add_entity(shifted_entity);
+    }
+
+    drawing
+}
+
+/// エンティティのY座標をシフトする
+fn shift_entity_y(entity: &mut dxf::entities::Entity, offset: f64) {
+    use dxf::entities::EntityType;
+    match &mut entity.specific {
+        EntityType::Line(line) => {
+            line.p1.y += offset;
+            line.p2.y += offset;
+        }
+        EntityType::Text(text) => {
+            text.location.y += offset;
+        }
+        EntityType::MText(mtext) => {
+            mtext.insertion_point.y += offset;
+        }
+        EntityType::Circle(circle) => {
+            circle.center.y += offset;
+        }
+        EntityType::Arc(arc) => {
+            arc.center.y += offset;
+        }
+        EntityType::Polyline(_polyline) => {
+            // Polyline vertices are stored separately in DXF, skip for now
+        }
+        EntityType::LwPolyline(lwpoly) => {
+            for vertex in &mut lwpoly.vertices {
+                vertex.y += offset;
+            }
+        }
+        _ => {} // その他のエンティティは無視
+    }
+}
+
+pub fn generate_combo_dxf_bytes(sections: &[CrossSectionData], columns: usize) -> Vec<u8> {
+    let drawing = generate_combo_drawing(sections, columns);
     let mut output: Vec<u8> = Vec::new();
     drawing.save(&mut output).expect("Failed to save DXF");
     output
@@ -1348,6 +1449,7 @@ enum ViewMode {
     Single,      // 単一横断図
     AllGrid,     // 全横断図グリッド
     Longitudinal, // 縦断図
+    Combo,       // 縦断図＋全横断図
 }
 
 pub struct CrossSectionApp {
@@ -1367,7 +1469,7 @@ impl Default for CrossSectionApp {
             selected_index: None,
             dxf_drawing: None,
             dxf_view_state: DxfViewState::default(),
-            view_mode: ViewMode::Single,
+            view_mode: ViewMode::Combo, // デフォルトで縦断図＋全横断図
             grid_columns: 3,
             status_message: None,
         }
@@ -1432,6 +1534,9 @@ impl CrossSectionApp {
 
     fn update_dxf_preview(&mut self) {
         let drawing = match self.view_mode {
+            ViewMode::Combo if !self.sections.is_empty() => {
+                generate_combo_drawing(&self.sections, self.grid_columns)
+            }
             ViewMode::AllGrid if !self.sections.is_empty() => {
                 generate_multi_drawing(&self.sections, self.grid_columns)
             }
@@ -1498,6 +1603,7 @@ impl eframe::App for CrossSectionApp {
                     ui.horizontal_wrapped(|ui| {
                         // 表示モード切替（モバイルではComboBoxで確実に切替）
                         let mode_text = match self.view_mode {
+                            ViewMode::Combo => "コンボ",
                             ViewMode::Single => "単一",
                             ViewMode::AllGrid => "全横断",
                             ViewMode::Longitudinal => "縦断",
@@ -1506,6 +1612,9 @@ impl eframe::App for CrossSectionApp {
                         egui::ComboBox::from_id_salt("view_mode_select")
                             .selected_text(mode_text)
                             .show_ui(ui, |ui| {
+                                if ui.selectable_label(self.view_mode == ViewMode::Combo, "コンボ (縦断+全横断)").clicked() {
+                                    new_view_mode = Some(ViewMode::Combo);
+                                }
                                 if ui.selectable_label(self.view_mode == ViewMode::Single, "単一横断").clicked() {
                                     new_view_mode = Some(ViewMode::Single);
                                 }
@@ -1524,7 +1633,7 @@ impl eframe::App for CrossSectionApp {
                         }
                     });
 
-                    if self.view_mode == ViewMode::AllGrid {
+                    if self.view_mode == ViewMode::AllGrid || self.view_mode == ViewMode::Combo {
                         ui.horizontal_wrapped(|ui| {
                             ui.label(format!("{}列", self.grid_columns));
                             if ui.small_button("+").clicked() && self.grid_columns < 5 {
@@ -1541,6 +1650,12 @@ impl eframe::App for CrossSectionApp {
                     ui.horizontal_wrapped(|ui| {
                         // DXFダウンロード
                         match self.view_mode {
+                            ViewMode::Combo => {
+                                if ui.button("DXF").clicked() {
+                                    let dxf_content = generate_combo_dxf_bytes(&self.sections, self.grid_columns);
+                                    download_file("combo.dxf", &dxf_content);
+                                }
+                            }
                             ViewMode::AllGrid => {
                                 if ui.button("DXF").clicked() {
                                     let dxf_content = generate_multi_dxf_bytes(&self.sections, self.grid_columns);
@@ -1588,6 +1703,10 @@ impl eframe::App for CrossSectionApp {
                 // 表示モード切替
                 ui.horizontal(|ui| {
                     ui.label("表示:");
+                    if ui.selectable_label(self.view_mode == ViewMode::Combo, "コンボ").clicked() {
+                        self.view_mode = ViewMode::Combo;
+                        self.update_dxf_preview();
+                    }
                     if ui.selectable_label(self.view_mode == ViewMode::Single, "単一").clicked() {
                         self.view_mode = ViewMode::Single;
                         self.update_dxf_preview();
@@ -1602,8 +1721,8 @@ impl eframe::App for CrossSectionApp {
                     }
                 });
 
-                // AllGridモード時の列数調整
-                if self.view_mode == ViewMode::AllGrid {
+                // AllGrid/Comboモード時の列数調整
+                if self.view_mode == ViewMode::AllGrid || self.view_mode == ViewMode::Combo {
                     ui.horizontal(|ui| {
                         ui.label(format!("{}列", self.grid_columns));
                         if ui.small_button("+").clicked() && self.grid_columns < 5 {
@@ -1620,6 +1739,12 @@ impl eframe::App for CrossSectionApp {
                 // DXFダウンロード
                 if !self.sections.is_empty() {
                     match self.view_mode {
+                        ViewMode::Combo => {
+                            if ui.button("Download Combo DXF").clicked() {
+                                let dxf_content = generate_combo_dxf_bytes(&self.sections, self.grid_columns);
+                                download_file("combo.dxf", &dxf_content);
+                            }
+                        }
                         ViewMode::AllGrid => {
                             if ui.button("Download All DXF").clicked() {
                                 let dxf_content = generate_multi_dxf_bytes(&self.sections, self.grid_columns);
@@ -1673,6 +1798,8 @@ impl eframe::App for CrossSectionApp {
                     }
                 } else if self.view_mode == ViewMode::AllGrid {
                     ui.label(format!("全{}測点をグリッド表示", self.sections.len()));
+                } else if self.view_mode == ViewMode::Combo {
+                    ui.label(format!("縦断図＋全横断図 ({}測点)", self.sections.len()));
                 } else {
                     ui.label("縦断図: 全測点のCL高を接続");
                 }
