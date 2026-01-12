@@ -1639,7 +1639,22 @@ impl CrossSectionApp {
     fn load_samples(&mut self) {
         self.sections = CrossSectionData::all_samples();
         self.selected_index = Some(0);
-        self.status_message = Some("サンプルを読み込みました".to_string());
+        // データダンプ: 測点数と最初・最後の測点名を表示
+        let dump = if self.sections.is_empty() {
+            "データなし".to_string()
+        } else {
+            let first = &self.sections[0];
+            let last = &self.sections[self.sections.len() - 1];
+            format!(
+                "{}測点: {} ~ {} (DL={:.2}, {}点)",
+                self.sections.len(),
+                first.survey_point_name,
+                last.survey_point_name,
+                first.dl,
+                first.survey_data.len()
+            )
+        };
+        self.status_message = Some(dump);
         self.update_dxf_preview();
     }
 
