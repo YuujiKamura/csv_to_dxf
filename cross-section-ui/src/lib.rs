@@ -1507,29 +1507,39 @@ impl eframe::App for CrossSectionApp {
                         ui.label(message);
                     }
 
-                    // 表示モード切替ボタン
+                    // 表示モード切替（ComboBox）
                     let mode_text = match self.view_mode {
                         ViewMode::Single => "単一",
                         ViewMode::AllGrid => "全横断",
                         ViewMode::Longitudinal => "縦断",
                     };
-                    ui.menu_button(mode_text, |ui| {
-                        if ui.button("単一横断").clicked() {
-                            self.view_mode = ViewMode::Single;
-                            self.update_dxf_preview();
-                            ui.close_menu();
-                        }
-                        if ui.button("全横断").clicked() {
-                            self.view_mode = ViewMode::AllGrid;
-                            self.update_dxf_preview();
-                            ui.close_menu();
-                        }
-                        if ui.button("縦断図").clicked() {
-                            self.view_mode = ViewMode::Longitudinal;
-                            self.update_dxf_preview();
-                            ui.close_menu();
-                        }
-                    });
+                    let mut new_mode = None;
+                    egui::ComboBox::from_id_salt("view_mode_select")
+                        .selected_text(mode_text)
+                        .show_ui(ui, |ui| {
+                            if ui.selectable_label(
+                                self.view_mode == ViewMode::Single,
+                                "単一"
+                            ).clicked() {
+                                new_mode = Some(ViewMode::Single);
+                            }
+                            if ui.selectable_label(
+                                self.view_mode == ViewMode::AllGrid,
+                                "全横断"
+                            ).clicked() {
+                                new_mode = Some(ViewMode::AllGrid);
+                            }
+                            if ui.selectable_label(
+                                self.view_mode == ViewMode::Longitudinal,
+                                "縦断"
+                            ).clicked() {
+                                new_mode = Some(ViewMode::Longitudinal);
+                            }
+                        });
+                    if let Some(mode) = new_mode {
+                        self.view_mode = mode;
+                        self.update_dxf_preview();
+                    }
 
                     // DXFダウンロード
                     match self.view_mode {
@@ -1800,12 +1810,12 @@ fn trigger_csv_dialog() {
 
         let Ok(reader) = FileReader::new() else { return; };
         let reader_clone = reader.clone();
-        let on_load_handle = on_load_handle.clone();
+        let on_load_handle_clone = on_load_handle.clone();
         let on_change_handle = on_change_handle.clone();
 
         *on_load_handle.borrow_mut() = Some(Closure::<dyn FnMut(Event)>::new(move |_event: Event| {
             let result = reader_clone.result();
-            if let Some(result) = result {
+            if let Ok(result) = result {
                 if let Some(text) = result.as_string() {
                     PENDING_CSV.with(|cell| {
                         *cell.borrow_mut() = Some(text);
@@ -1813,7 +1823,7 @@ fn trigger_csv_dialog() {
                 }
             }
             reader_clone.set_onload(None);
-            on_load_handle.borrow_mut().take();
+            on_load_handle_clone.borrow_mut().take();
         }));
 
         if let Some(handler) = on_load_handle.borrow().as_ref() {
