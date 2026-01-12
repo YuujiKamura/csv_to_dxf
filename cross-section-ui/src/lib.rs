@@ -1128,7 +1128,25 @@ impl Default for CrossSectionApp {
 }
 
 impl CrossSectionApp {
-    pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        // 日本語フォントを設定
+        let mut fonts = egui::FontDefinitions::default();
+        fonts.font_data.insert(
+            "NotoSansJP".to_owned(),
+            egui::FontData::from_static(
+                include_bytes!("../static/NotoSansJP-Regular.ttf")
+            )
+        );
+        fonts.families
+            .entry(egui::FontFamily::Proportional)
+            .or_default()
+            .insert(0, "NotoSansJP".to_owned());
+        fonts.families
+            .entry(egui::FontFamily::Monospace)
+            .or_default()
+            .insert(0, "NotoSansJP".to_owned());
+        cc.egui_ctx.set_fonts(fonts);
+
         let mut app = Self::default();
         app.load_samples();
         app
