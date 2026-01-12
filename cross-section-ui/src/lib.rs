@@ -601,7 +601,7 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
         // 勾配表示 (i%)
         let slope_text = format!("i={:.2}%", slope);
         add_text(&mut drawing, mid_x, mid_y + text_height * 1.2, &slope_text,
-            text_height * 0.8, 1, "ANNOTATION", TextAlign::Center);
+            text_height * 0.8, 5, "ANNOTATION", TextAlign::Center);
 
         // 区間長表示 (L)
         let length_text = format!("L={:.1}m", section_length);
@@ -640,14 +640,17 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
         add_text(&mut drawing, x - text_height * 1.5, to_dxf_y(first.2),
             &format!("FH={:.3}", first.2), text_height * 0.7, 1, "PLAN", TextAlign::Right);
     }
-    if let Some(last) = points.last() {
-        let x = to_dxf_x(last.0);
-        // 地盤高マーカー
-        add_text(&mut drawing, x + text_height * 1.0, to_dxf_y(last.1),
-            &format!("GH={:.3}", last.1), text_height * 0.7, 7, "TEXT", TextAlign::Left);
-        // 計画高マーカー
-        add_text(&mut drawing, x + text_height * 1.0, to_dxf_y(last.2),
-            &format!("FH={:.3}", last.2), text_height * 0.7, 1, "PLAN", TextAlign::Left);
+    // 終点マーカーは複数点がある場合のみ（単一点で重複を防止）
+    if points.len() > 1 {
+        if let Some(last) = points.last() {
+            let x = to_dxf_x(last.0);
+            // 地盤高マーカー
+            add_text(&mut drawing, x + text_height * 1.0, to_dxf_y(last.1),
+                &format!("GH={:.3}", last.1), text_height * 0.7, 7, "TEXT", TextAlign::Left);
+            // 計画高マーカー
+            add_text(&mut drawing, x + text_height * 1.0, to_dxf_y(last.2),
+                &format!("FH={:.3}", last.2), text_height * 0.7, 1, "PLAN", TextAlign::Left);
+        }
     }
 
     // ===================
@@ -688,17 +691,9 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
         let fill = if fh > gh { fh - gh } else { 0.0 };
         let cut = if gh > fh { gh - fh } else { 0.0 };
 
-        // 勾配計算（次の点との区間）
-        let slope_str = if i < points.len() - 1 {
-            let next = &points[i + 1];
-            let d_dist = next.0 - dist;
-            let d_elev = next.2 - fh;
-            if d_dist.abs() > 0.001 {
-                let slope_pct = (d_elev / d_dist) * 100.0;
-                format!("{:.3}%", slope_pct)
-            } else {
-                String::new()
-            }
+        // 勾配計算（slopesベクトルを再利用）
+        let slope_str = if i < slopes.len() {
+            format!("{:.3}%", slopes[i])
         } else {
             String::new()
         };
