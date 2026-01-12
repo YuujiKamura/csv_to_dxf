@@ -264,6 +264,129 @@ pub fn generate_dxf_bytes(section: &CrossSectionData) -> Vec<u8> {
 }
 
 // ============================================================================
+// Multi-Section Grid Layout
+// ============================================================================
+
+/// 複数横断図をグリッド配置したDrawingを生成
+pub fn generate_multi_drawing(sections: &[CrossSectionData], columns: usize) -> Drawing {
+    let scale = 1000.0;
+
+    let mut drawing = Drawing::new();
+    drawing.header.version = dxf::enums::AcadVersion::R2010;
+
+    for (name, color_idx) in [
+        ("GROUND", 7), ("PLAN", 1), ("TEXT", 7),
+        ("DIMENSION", 8), ("CUTTING", 5), ("FRAME", 9)
+    ] {
+        drawing.add_layer(dxf::tables::Layer {
+            name: name.to_string(),
+            color: Color::from_index(color_idx),
+            ..Default::default()
+        });
+    }
+
+    if sections.is_empty() { return drawing; }
+
+    let mut max_width: f64 = 0.0;
+    let mut max_height: f64 = 0.0;
+
+    for section in sections {
+        if section.survey_data.len() < 2 { continue; }
+        let data = &section.survey_data;
+        let total_width = (data.last().unwrap().cumulative_distance
+                         - data.first().unwrap().cumulative_distance).abs();
+        max_width = max_width.max(total_width);
+        let max_elev = data.iter().map(|d| d.elevation.max(d.planned_height)).fold(f64::MIN, f64::max);
+        max_height = max_height.max(max_elev - section.dl + 1.5);
+    }
+
+    let cell_width = (max_width + 2.0) * scale;
+    let cell_height = (max_height + 1.0) * scale;
+
+    for (idx, section) in sections.iter().enumerate() {
+        if section.survey_data.len() < 2 { continue; }
+        let col = idx % columns;
+        let row = idx / columns;
+        let offset_x = col as f64 * cell_width;
+        let offset_y = -(row as f64) * cell_height;
+        draw_section_at_offset(&mut drawing, section, offset_x, offset_y, scale);
+
+        let frame_x1 = offset_x - 0.5 * scale;
+        let frame_x2 = offset_x + (max_width + 1.5) * scale;
+        let frame_y1 = offset_y - 0.5 * scale;
+        let frame_y2 = offset_y + max_height * scale;
+        add_line(&mut drawing, frame_x1, frame_y1, frame_x2, frame_y1, 9, "FRAME");
+        add_line(&mut drawing, frame_x2, frame_y1, frame_x2, frame_y2, 9, "FRAME");
+        add_line(&mut drawing, frame_x2, frame_y2, frame_x1, frame_y2, 9, "FRAME");
+        add_line(&mut drawing, frame_x1, frame_y2, frame_x1, frame_y1, 9, "FRAME");
+    }
+    drawing
+}
+
+fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
+                          offset_x: f64, offset_y: f64, scale: f64) {
+    let data = &section.survey_data;
+    let dl = section.dl;
+    let to_dxf_x = |d: f64| offset_x + d * scale;
+    let to_dxf_y = |h: f64| offset_y + (h - dl) * scale;
+
+    let l_data = &data[0];
+    let cl_data = &data[section.cl_index.min(data.len() - 1)];
+    let r_data = &data[data.len() - 1];
+
+    let left_dist = (cl_data.cumulative_distance - l_data.cumulative_distance).abs();
+    let right_dist = (r_data.cumulative_distance - cl_data.cumulative_distance).abs();
+    let left_slope = if left_dist > 0.0 { ((l_data.planned_height - cl_data.planned_height) / left_dist) * 100.0 } else { 0.0 };
+    let right_slope = if right_dist > 0.0 { ((r_data.planned_height - cl_data.planned_height) / right_dist) * 100.0 } else { 0.0 };
+
+    for i in 0..data.len() - 1 {
+        add_line(drawing, to_dxf_x(data[i].cumulative_distance), to_dxf_y(data[i].elevation),
+            to_dxf_x(data[i + 1].cumulative_distance), to_dxf_y(data[i + 1].elevation), 7, "GROUND");
+        add_line(drawing, to_dxf_x(data[i].cumulative_distance), to_dxf_y(data[i].planned_height),
+            to_dxf_x(data[i + 1].cumulative_distance), to_dxf_y(data[i + 1].planned_height), 1, "PLAN");
+        add_line(drawing, to_dxf_x(data[i].cumulative_distance), to_dxf_y(data[i].cutting_bottom),
+            to_dxf_x(data[i + 1].cumulative_distance), to_dxf_y(data[i + 1].cutting_bottom), 5, "CUTTING");
+    }
+
+    let text_height = 150.0;
+    let cl_ground_y = to_dxf_y(cl_data.elevation);
+    let flag_y = cl_ground_y + 800.0;
+    let l_x = to_dxf_x(l_data.cumulative_distance);
+    let cl_x = to_dxf_x(cl_data.cumulative_distance);
+    let r_x = to_dxf_x(r_data.cumulative_distance);
+
+    add_text(drawing, cl_x, flag_y + 500.0, &section.survey_point_name, text_height * 1.5, 7, "TEXT", TextAlign::Center);
+    add_text(drawing, cl_x, flag_y + 300.0, &format!("GH={:.3}", cl_data.elevation), text_height, 7, "TEXT", TextAlign::Center);
+    add_text(drawing, cl_x, flag_y + 100.0, &format!("FH={:.3}", cl_data.planned_height), text_height, 1, "PLAN", TextAlign::Center);
+
+    let l_ground_y = to_dxf_y(l_data.elevation);
+    add_text(drawing, l_x, l_ground_y + 300.0, &format!("GH={:.3}", l_data.elevation), text_height, 7, "TEXT", TextAlign::Left);
+    add_text(drawing, l_x, l_ground_y + 100.0, &format!("FH={:.3}", l_data.planned_height), text_height, 1, "PLAN", TextAlign::Left);
+
+    let r_ground_y = to_dxf_y(r_data.elevation);
+    add_text(drawing, r_x, r_ground_y + 300.0, &format!("GH={:.3}", r_data.elevation), text_height, 7, "TEXT", TextAlign::Right);
+    add_text(drawing, r_x, r_ground_y + 100.0, &format!("FH={:.3}", r_data.planned_height), text_height, 1, "PLAN", TextAlign::Right);
+
+    let mid_l_x = (l_x + cl_x) / 2.0;
+    let mid_r_x = (cl_x + r_x) / 2.0;
+    add_text(drawing, mid_l_x, flag_y - text_height - 50.0, &format!("il={:.1}%", left_slope), text_height, 7, "TEXT", TextAlign::Center);
+    add_text(drawing, mid_r_x, flag_y - text_height - 50.0, &format!("ir={:.1}%", right_slope), text_height, 7, "TEXT", TextAlign::Center);
+
+    add_text(drawing, cl_x, to_dxf_y(dl) - 200.0, &format!("DL={:.3}", dl), text_height, 7, "TEXT", TextAlign::Left);
+
+    let cl_cumulative = cl_data.cumulative_distance;
+    add_line(drawing, to_dxf_x(cl_cumulative - 3.0), to_dxf_y(dl), to_dxf_x(cl_cumulative + 3.0), to_dxf_y(dl), 8, "DIMENSION");
+    add_line(drawing, to_dxf_x(cl_cumulative), to_dxf_y(dl), to_dxf_x(cl_cumulative), to_dxf_y(dl + 1.0), 8, "DIMENSION");
+}
+
+pub fn generate_multi_dxf_bytes(sections: &[CrossSectionData], columns: usize) -> Vec<u8> {
+    let drawing = generate_multi_drawing(sections, columns);
+    let mut output: Vec<u8> = Vec::new();
+    drawing.save(&mut output).expect("Failed to save DXF");
+    output
+}
+
+// ============================================================================
 // DXF Renderer
 // ============================================================================
 
@@ -561,6 +684,8 @@ pub struct CrossSectionApp {
     selected_index: Option<usize>,
     dxf_drawing: Option<Drawing>,
     dxf_view_state: DxfViewState,
+    multi_view: bool,        // true: 全測点グリッド表示
+    grid_columns: usize,     // グリッドの列数
 }
 
 impl Default for CrossSectionApp {
@@ -570,6 +695,8 @@ impl Default for CrossSectionApp {
             selected_index: None,
             dxf_drawing: None,
             dxf_view_state: DxfViewState::default(),
+            multi_view: false,
+            grid_columns: 3,
         }
     }
 }
@@ -588,14 +715,17 @@ impl CrossSectionApp {
     }
 
     fn update_dxf_preview(&mut self) {
-        if let Some(idx) = self.selected_index {
+        let drawing = if self.multi_view && !self.sections.is_empty() {
+            generate_multi_drawing(&self.sections, self.grid_columns)
+        } else if let Some(idx) = self.selected_index {
             if let Some(section) = self.sections.get(idx) {
-                let drawing = generate_drawing(section);
-                let (min_x, min_y, max_x, max_y) = calc_dxf_bounds(&drawing);
-                self.dxf_view_state.fit_to_dxf(min_x, min_y, max_x, max_y);
-                self.dxf_drawing = Some(drawing);
-            }
-        }
+                generate_drawing(section)
+            } else { return; }
+        } else { return; };
+
+        let (min_x, min_y, max_x, max_y) = calc_dxf_bounds(&drawing);
+        self.dxf_view_state.fit_to_dxf(min_x, min_y, max_x, max_y);
+        self.dxf_drawing = Some(drawing);
     }
 }
 
@@ -659,10 +789,36 @@ impl eframe::App for CrossSectionApp {
                     self.load_samples();
                 }
 
-                if self.selected_index.is_some() {
-                    if ui.button("Download DXF").clicked() {
-                        if let Some(idx) = self.selected_index {
-                            if let Some(section) = self.sections.get(idx) {
+                // 表示モード切替
+                ui.horizontal(|ui| {
+                    let btn_text = if self.multi_view { "Single" } else { "All" };
+                    if ui.button(btn_text).clicked() {
+                        self.multi_view = !self.multi_view;
+                        self.update_dxf_preview();
+                    }
+                    if self.multi_view {
+                        ui.label(format!("{}列", self.grid_columns));
+                        if ui.small_button("+").clicked() && self.grid_columns < 5 {
+                            self.grid_columns += 1;
+                            self.update_dxf_preview();
+                        }
+                        if ui.small_button("-").clicked() && self.grid_columns > 1 {
+                            self.grid_columns -= 1;
+                            self.update_dxf_preview();
+                        }
+                    }
+                });
+
+                // DXFダウンロード
+                if !self.sections.is_empty() {
+                    if self.multi_view {
+                        if ui.button("Download All DXF").clicked() {
+                            let dxf_content = generate_multi_dxf_bytes(&self.sections, self.grid_columns);
+                            download_file("cross_sections_all.dxf", &dxf_content);
+                        }
+                    } else if let Some(idx) = self.selected_index {
+                        if let Some(section) = self.sections.get(idx) {
+                            if ui.button("Download DXF").clicked() {
                                 let dxf_content = generate_dxf_bytes(section);
                                 let filename = format!("{}.dxf", section.survey_point_name);
                                 download_file(&filename, &dxf_content);
@@ -672,27 +828,32 @@ impl eframe::App for CrossSectionApp {
                 }
                 ui.separator();
 
-                ui.label("Stations:");
-                let mut new_selection = None;
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    for (i, section) in self.sections.iter().enumerate() {
-                        let selected = self.selected_index == Some(i);
-                        if ui.selectable_label(selected, &section.survey_point_name).clicked() {
-                            new_selection = Some(i);
+                // マルチビュー時は測点リストを非表示
+                if !self.multi_view {
+                    ui.label("Stations:");
+                    let mut new_selection = None;
+                    egui::ScrollArea::vertical().max_height(200.0).show(ui, |ui| {
+                        for (i, section) in self.sections.iter().enumerate() {
+                            let selected = self.selected_index == Some(i);
+                            if ui.selectable_label(selected, &section.survey_point_name).clicked() {
+                                new_selection = Some(i);
+                            }
+                        }
+                    });
+                    if let Some(idx) = new_selection {
+                        self.selected_index = Some(idx);
+                        self.update_dxf_preview();
+                    }
+
+                    ui.separator();
+                    if let Some(idx) = self.selected_index {
+                        if let Some(section) = self.sections.get(idx) {
+                            ui.label(format!("DL: {:.3}", section.dl));
+                            ui.label(format!("L->CL: {:.2}m", section.l_to_cl_distance));
                         }
                     }
-                });
-                if let Some(idx) = new_selection {
-                    self.selected_index = Some(idx);
-                    self.update_dxf_preview();
-                }
-
-                ui.separator();
-                if let Some(idx) = self.selected_index {
-                    if let Some(section) = self.sections.get(idx) {
-                        ui.label(format!("DL: {:.3}", section.dl));
-                        ui.label(format!("L->CL: {:.2}m", section.l_to_cl_distance));
-                    }
+                } else {
+                    ui.label(format!("全{}測点をグリッド表示", self.sections.len()));
                 }
 
                 ui.separator();
