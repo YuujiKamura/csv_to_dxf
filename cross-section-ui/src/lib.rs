@@ -834,8 +834,8 @@ pub fn generate_combo_drawing(sections: &[CrossSectionData], _columns: usize) ->
     }
 
     // === レイアウト計算 ===
-    // 間隔（縦断図の下端と横断図の上端の間）- 横断図高さの10%
-    let spacing = multi_height * 0.1;
+    // 間隔なし（ピッチリ）
+    let spacing = 0.0;
 
     // X方向: センタリング（縦断図の中心に横断図の中心を合わせる）
     let multi_x_offset = long_center_x - multi_center_x;
@@ -854,6 +854,25 @@ pub fn generate_combo_drawing(sections: &[CrossSectionData], _columns: usize) ->
         shift_entity_xy(&mut shifted_entity, multi_x_offset as f64, (multi_y_offset - multi_min_y) as f64);
         drawing.add_entity(shifted_entity);
     }
+
+    // === デバッグ用：バウンディングボックスを描画 ===
+    // 縦断図のバウンディングボックス（マゼンタ）
+    let (long_min_x, long_min_y, long_max_x, long_max_y) = calc_dxf_bounds(&longitudinal);
+    web_sys::console::log_1(&format!("longitudinal bounds: ({}, {}) - ({}, {})", long_min_x, long_min_y, long_max_x, long_max_y).into());
+    add_line(&mut drawing, long_min_x as f64, long_min_y as f64, long_max_x as f64, long_min_y as f64, 6, "DEBUG");
+    add_line(&mut drawing, long_max_x as f64, long_min_y as f64, long_max_x as f64, long_max_y as f64, 6, "DEBUG");
+    add_line(&mut drawing, long_max_x as f64, long_max_y as f64, long_min_x as f64, long_max_y as f64, 6, "DEBUG");
+    add_line(&mut drawing, long_min_x as f64, long_max_y as f64, long_min_x as f64, long_min_y as f64, 6, "DEBUG");
+
+    // 横断図グリッドのバウンディングボックス（シアン）
+    let shifted_multi_min_x = multi_min_x + multi_x_offset;
+    let shifted_multi_max_x = multi_max_x + multi_x_offset;
+    let shifted_multi_min_y = multi_y_offset;
+    let shifted_multi_max_y = multi_y_offset + multi_height;
+    add_line(&mut drawing, shifted_multi_min_x as f64, shifted_multi_min_y as f64, shifted_multi_max_x as f64, shifted_multi_min_y as f64, 4, "DEBUG");
+    add_line(&mut drawing, shifted_multi_max_x as f64, shifted_multi_min_y as f64, shifted_multi_max_x as f64, shifted_multi_max_y as f64, 4, "DEBUG");
+    add_line(&mut drawing, shifted_multi_max_x as f64, shifted_multi_max_y as f64, shifted_multi_min_x as f64, shifted_multi_max_y as f64, 4, "DEBUG");
+    add_line(&mut drawing, shifted_multi_min_x as f64, shifted_multi_max_y as f64, shifted_multi_min_x as f64, shifted_multi_min_y as f64, 4, "DEBUG");
 
     drawing
 }
@@ -967,7 +986,7 @@ fn aci_to_color32(aci: i16) -> Color32 {
         1 => Color32::from_rgb(255, 0, 0),      // 赤
         2 => Color32::from_rgb(255, 255, 0),    // 黄
         3 => Color32::from_rgb(0, 255, 0),      // 緑
-        4 => Color32::from_rgb(128, 128, 128),  // グレー
+        4 => Color32::from_rgb(0, 255, 255),    // シアン
         5 => Color32::from_rgb(0, 0, 255),      // 青
         6 => Color32::from_rgb(255, 0, 255),    // マゼンタ
         7 => Color32::from_rgb(0, 0, 0),        // 黒（白背景用）
@@ -1036,12 +1055,61 @@ fn calc_dxf_bounds(drawing: &Drawing) -> (f32, f32, f32, f32) {
                 max_y = max_y.max(line.p1.y as f32).max(line.p2.y as f32);
             }
             EntityType::Text(text) => {
-                let x = text.location.x as f32;
-                let y = text.location.y as f32;
-                min_x = min_x.min(x);
-                min_y = min_y.min(y);
-                max_x = max_x.max(x);
-                max_y = max_y.max(y);
+                // テキストの実際の描画範囲を推定
+                let base_x = text.location.x as f32;
+                let base_y = text.location.y as f32;
+                let text_height = text.text_height as f32;
+                // テキスト幅を推定（文字数 * 高さ * 0.6）
+                let estimated_width = text.value.len() as f32 * text_height * 0.6;
+
+                // アライメントに基づくオフセット計算
+                let align_h = text.horizontal_text_justification as i32;
+                let align_v = text.vertical_text_justification as i32;
+
+                // 水平方向: 描画開始位置
+                let (text_left, text_right) = match align_h {
+                    0 => (base_x, base_x + estimated_width),                      // 左揃え
+                    1 => (base_x - estimated_width / 2.0, base_x + estimated_width / 2.0), // 中央揃え
+                    2 => (base_x - estimated_width, base_x),                       // 右揃え
+                    _ => (base_x, base_x + estimated_width),
+                };
+
+                // 垂直方向: 描画範囲
+                let (text_bottom, text_top) = match align_v {
+                    0 | 1 => (base_y - text_height, base_y),  // ベースライン/下揃え
+                    2 => (base_y - text_height / 2.0, base_y + text_height / 2.0), // 中央揃え
+                    3 => (base_y, base_y + text_height),      // 上揃え
+                    _ => (base_y - text_height, base_y),
+                };
+
+                // 回転を考慮（簡易版: 回転時は4コーナーをすべてチェック）
+                let angle_rad = (text.rotation as f32).to_radians();
+                if angle_rad.abs() > 0.01 {
+                    // 回転がある場合：4コーナーを回転して最大範囲を取る
+                    let corners = [
+                        (text_left, text_bottom),
+                        (text_right, text_bottom),
+                        (text_right, text_top),
+                        (text_left, text_top),
+                    ];
+                    let cos_a = angle_rad.cos();
+                    let sin_a = angle_rad.sin();
+                    for (cx, cy) in corners {
+                        let dx = cx - base_x;
+                        let dy = cy - base_y;
+                        let rx = base_x + dx * cos_a - dy * sin_a;
+                        let ry = base_y + dx * sin_a + dy * cos_a;
+                        min_x = min_x.min(rx);
+                        min_y = min_y.min(ry);
+                        max_x = max_x.max(rx);
+                        max_y = max_y.max(ry);
+                    }
+                } else {
+                    min_x = min_x.min(text_left);
+                    min_y = min_y.min(text_bottom);
+                    max_x = max_x.max(text_right);
+                    max_y = max_y.max(text_top);
+                }
             }
             EntityType::RotatedDimension(dim) => {
                 let points = [
@@ -1064,8 +1132,8 @@ fn calc_dxf_bounds(drawing: &Drawing) -> (f32, f32, f32, f32) {
     if min_x == f32::MAX {
         (0.0, 0.0, 1000.0, 1000.0)
     } else {
-        let margin = (max_x - min_x).max(max_y - min_y) * 0.1;
-        (min_x - margin, min_y - margin, max_x + margin, max_y + margin)
+        // マージンなしで返す（レイアウト計算用にタイトなバウンドが必要）
+        (min_x, min_y, max_x, max_y)
     }
 }
 
@@ -1943,7 +2011,7 @@ impl eframe::App for CrossSectionApp {
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::{prelude::*, JsCast};
 #[cfg(target_arch = "wasm32")]
-use web_sys::{Event, FileReader, HtmlCanvasElement, HtmlInputElement};
+use web_sys::{console, Event, FileReader, HtmlCanvasElement, HtmlInputElement};
 
 #[cfg(target_arch = "wasm32")]
 thread_local! {
