@@ -4,7 +4,7 @@
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
     <title>横断図・切削計算システム</title>
-    <link rel="stylesheet" href="./styles-9a96754d224539b0.css"/>
+    <link rel="stylesheet" href="./styles-9a96754d224539b0.css" integrity="sha384-9zV9u0D2vslYPxN+PU+CYZoBVmRo9vDRxacv9zMyaJOzyrL8nkidJA63Yl6vH87n"/>
     <style>
         html, body {
             margin: 0;
@@ -18,16 +18,20 @@
             height: 100%;
         }
     </style>
-    <link rel="modulepreload" href="./cross_section_ui-f2652dbfc5b4a767.js" crossorigin="anonymous">
-    <link rel="preload" href="./cross_section_ui-f2652dbfc5b4a767_bg.wasm" crossorigin="anonymous" as="fetch" type="application/wasm">
-</head>
+<link rel="modulepreload" href="./cross_section_ui-838a93c932c79d0f.js" crossorigin="anonymous" integrity="sha384-1OKTsMbXLZdszCPsTsKoPe4O8T0f69B3bIsUR/FGJlSUCIiq0innS6TkF+/YtzqN"><link rel="preload" href="./cross_section_ui-838a93c932c79d0f_bg.wasm" crossorigin="anonymous" integrity="sha384-/gLSb/IR7FSyv53KpELjcFSfge5TlJbeIV2dXxOs84hBgL+7Pd6tq2HYpXZXohaQ" as="fetch" type="application/wasm"></head>
 <body>
     <canvas id="canvas"></canvas>
-    <script type="module">
-import init, * as bindings from './cross_section_ui-f2652dbfc5b4a767.js';
-const wasm = await init({ module_or_path: './cross_section_ui-f2652dbfc5b4a767_bg.wasm' });
+    
+<script type="module">
+import init, * as bindings from './cross_section_ui-838a93c932c79d0f.js';
+const wasm = await init({ module_or_path: './cross_section_ui-838a93c932c79d0f_bg.wasm' });
+
+
 window.wasmBindings = bindings;
+
+
 dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
-    </script>
+
+</script>
 </body>
 </html>
