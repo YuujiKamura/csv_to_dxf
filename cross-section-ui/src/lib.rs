@@ -1258,29 +1258,32 @@ impl eframe::App for CrossSectionApp {
                         self.load_samples();
                     }
 
-                    // 表示モード切替ボタン
+                    // 表示モード切替（モバイルではComboBoxで確実に切替）
                     let mode_text = match self.view_mode {
                         ViewMode::Single => "単一",
                         ViewMode::AllGrid => "全横断",
                         ViewMode::Longitudinal => "縦断",
                     };
-                    ui.menu_button(mode_text, |ui| {
-                        if ui.button("単一横断").clicked() {
-                            self.view_mode = ViewMode::Single;
+                    let mut new_view_mode = None;
+                    egui::ComboBox::from_id_salt("view_mode_select")
+                        .selected_text(mode_text)
+                        .show_ui(ui, |ui| {
+                            if ui.selectable_label(self.view_mode == ViewMode::Single, "単一横断").clicked() {
+                                new_view_mode = Some(ViewMode::Single);
+                            }
+                            if ui.selectable_label(self.view_mode == ViewMode::AllGrid, "全横断").clicked() {
+                                new_view_mode = Some(ViewMode::AllGrid);
+                            }
+                            if ui.selectable_label(self.view_mode == ViewMode::Longitudinal, "縦断図").clicked() {
+                                new_view_mode = Some(ViewMode::Longitudinal);
+                            }
+                        });
+                    if let Some(mode) = new_view_mode {
+                        if self.view_mode != mode {
+                            self.view_mode = mode;
                             self.update_dxf_preview();
-                            ui.close_menu();
                         }
-                        if ui.button("全横断").clicked() {
-                            self.view_mode = ViewMode::AllGrid;
-                            self.update_dxf_preview();
-                            ui.close_menu();
-                        }
-                        if ui.button("縦断図").clicked() {
-                            self.view_mode = ViewMode::Longitudinal;
-                            self.update_dxf_preview();
-                            ui.close_menu();
-                        }
-                    });
+                    }
 
                     // DXFダウンロード
                     match self.view_mode {
