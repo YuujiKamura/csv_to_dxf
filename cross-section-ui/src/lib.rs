@@ -924,19 +924,38 @@ fn render_dxf(painter: &Painter, drawing: &Drawing, view: &DxfViewState) {
                 painter.line_segment([p1, p2], Stroke::new(1.5, color));
             }
             EntityType::Text(text) => {
-                let pos = view.dxf_to_screen(text.location.x, text.location.y);
+                let base_pos = view.dxf_to_screen(text.location.x, text.location.y);
                 let font_size = text.text_height as f32 * view.zoom;
                 let font = egui::FontId::proportional(font_size);
 
-                // eguiはテキスト回転非対応のため、プレビューでは水平表示
-                // DXF出力では正しく回転が設定される
+                // Galleyを取得
+                let galley = painter.layout_no_wrap(text.value.clone(), font, color);
+                let rect = galley.rect;
+
+                // アライメントに基づいて位置を調整
                 let align = match text.horizontal_text_justification {
                     HorizontalTextJustification::Left => egui::Align2::LEFT_CENTER,
                     HorizontalTextJustification::Center => egui::Align2::CENTER_CENTER,
                     HorizontalTextJustification::Right => egui::Align2::RIGHT_CENTER,
                     _ => egui::Align2::LEFT_CENTER,
                 };
-                painter.text(pos, align, &text.value, font, color);
+                let pos = align.anchor_size(base_pos, rect.size()).min;
+
+                // TextShapeで回転を適用
+                // DXFは度数法（反時計回り）、eguiはラジアン（時計回り）
+                // 画面座標系ではY軸が反転しているため、符号を調整
+                let angle = -(text.rotation as f32).to_radians();
+
+                let text_shape = egui::epaint::TextShape {
+                    pos,
+                    galley,
+                    underline: egui::Stroke::NONE,
+                    fallback_color: color,
+                    override_text_color: Some(color),
+                    opacity_factor: 1.0,
+                    angle,
+                };
+                painter.add(egui::Shape::Text(text_shape));
             }
             EntityType::RotatedDimension(dim) => {
                 let p2 = &dim.definition_point_2;
