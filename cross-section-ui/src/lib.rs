@@ -757,14 +757,14 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
         if fill > 0.001 {
             let y = table_top - 1.0 * row_height - row_height / 2.0;
             add_text_rotated(&mut drawing, x, y, &format!("{:.3}", fill),
-                cell_text_height, 7, "TEXT", TextAlign::Center, VerticalAlign::Middle, 90.0);
+                cell_text_height, 7, "TEXT", TextAlign::Center, VerticalAlign::Middle, -90.0);
         }
 
         // 切土: 90°回転、中央配置（row_height / 2.0）
         if cut > 0.001 {
             let y = table_top - 2.0 * row_height - row_height / 2.0;
             add_text_rotated(&mut drawing, x, y, &format!("{:.3}", cut),
-                cell_text_height, 7, "TEXT", TextAlign::Center, VerticalAlign::Middle, 90.0);
+                cell_text_height, 7, "TEXT", TextAlign::Center, VerticalAlign::Middle, -90.0);
         }
 
         // FH/GH/追加距離/単距離/測点名: 90°回転、中央配置
@@ -778,7 +778,7 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
         for (row_idx, text) in row_data {
             let y = table_top - row_idx as f64 * row_height - row_height / 2.0;
             add_text_rotated(&mut drawing, x, y, &text,
-                cell_text_height, 7, "TEXT", TextAlign::Center, VerticalAlign::Middle, 90.0);
+                cell_text_height, 7, "TEXT", TextAlign::Center, VerticalAlign::Middle, -90.0);
         }
 
         prev_dist = *dist;
@@ -954,7 +954,7 @@ fn render_dxf(painter: &Painter, drawing: &Drawing, view: &DxfViewState) {
                     _ => -text_height,
                 };
 
-                // 回転角度（DXFは度数法反時計回り、eguiはラジアン時計回り）
+                // 回転角度（テキストの頭が右向き=測点進行方向）
                 let angle_rad = -(text.rotation as f32).to_radians();
 
                 // オフセットを回転させる（回転後の描画位置を計算）
