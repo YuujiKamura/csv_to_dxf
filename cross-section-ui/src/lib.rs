@@ -56,6 +56,54 @@ fn add_text(drawing: &mut Drawing, x: f64, y: f64, text: &str, height: f64, colo
     drawing.add_entity(entity);
 }
 
+/// 垂直アライメント
+#[derive(Clone, Copy)]
+enum VerticalAlign { Top, Middle, Bottom }
+
+/// TEXT追加ヘルパー（回転・垂直アライメント対応）
+/// rotation: 度数法（0=水平、90=下から上に読む方向）
+fn add_text_rotated(
+    drawing: &mut Drawing, x: f64, y: f64, text: &str, height: f64,
+    color: i16, layer: &str, align: TextAlign, v_align: VerticalAlign, rotation: f64
+) {
+    let mut t = Text::default();
+    t.location = Point::new(x, y, 0.0);
+    t.text_height = height;
+    t.value = text.to_string();
+    t.rotation = rotation;
+
+    match align {
+        TextAlign::Left => {
+            t.horizontal_text_justification = HorizontalTextJustification::Left;
+        }
+        TextAlign::Center => {
+            t.horizontal_text_justification = HorizontalTextJustification::Center;
+            t.second_alignment_point = Point::new(x, y, 0.0);
+        }
+        TextAlign::Right => {
+            t.horizontal_text_justification = HorizontalTextJustification::Right;
+            t.second_alignment_point = Point::new(x, y, 0.0);
+        }
+    }
+
+    match v_align {
+        VerticalAlign::Top => {
+            t.vertical_text_justification = VerticalTextJustification::Top;
+        }
+        VerticalAlign::Middle => {
+            t.vertical_text_justification = VerticalTextJustification::Middle;
+        }
+        VerticalAlign::Bottom => {
+            t.vertical_text_justification = VerticalTextJustification::Bottom;
+        }
+    }
+
+    let mut entity = Entity::new(EntityType::Text(t));
+    entity.common.layer = layer.to_string();
+    entity.common.color = Color::from_index(color as u8);
+    drawing.add_entity(entity);
+}
+
 /// Drawingオブジェクトを生成する
 pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
     let scale = 1000.0; // mm単位
@@ -441,13 +489,18 @@ fn parse_station_distance(name: &str) -> f64 {
     }
 }
 
+/// 測点名がプラス杭かどうか判定（例: "No.1+5" はプラス杭）
+fn is_plus_stake(name: &str) -> bool {
+    name.contains('+')
+}
+
 /// 縦断図を生成（土木標準形式）
 pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
     // スケール設定（DXF単位）
     let scale_x = 100.0;     // 横方向スケール（1m = 100単位）
     let scale_y = 500.0;     // 縦方向スケール（1m = 500単位）
     let text_height = 120.0; // 基本テキスト高さ
-    let row_height = 180.0;  // データ表の行高さ
+    let row_height = 350.0;  // データ表の行高さ（回転テキスト対応）
     let label_width = 500.0; // 左側のラベル幅
 
     let mut drawing = Drawing::new();
@@ -577,8 +630,9 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
     for (i, (dist, gh, fh, name)) in points.iter().enumerate() {
         let x = to_dxf_x(*dist);
 
-        // 縦線（グラフ上端から表下端まで）
-        add_line(&mut drawing, x, graph_height, x, table_bottom, 8, "GRID");
+        // 縦線（グラフ上端から表下端まで）- 主要測点は太線(7)、プラス杭は細線(8)
+        let line_color = if is_plus_stake(name) { 8 } else { 7 };
+        add_line(&mut drawing, x, graph_height, x, table_bottom, line_color, "GRID");
 
         // 単距離・累積距離計算
         let unit_dist = if i == 0 { 0.0 } else { dist - prev_dist };
@@ -588,39 +642,71 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
         let fill = if fh > gh { fh - gh } else { 0.0 };
         let cut = if gh > fh { gh - fh } else { 0.0 };
 
-        // 勾配計算（次の点との区間）
-        let slope_str = if i < points.len() - 1 {
+        // 勾配計算（次の点との区間）- 勾配はセル中央X座標に配置
+        if i < points.len() - 1 {
             let next = &points[i + 1];
             let d_dist = next.0 - dist;
             let d_elev = next.2 - fh;
             if d_dist.abs() > 0.001 {
                 let slope_pct = (d_elev / d_dist) * 100.0;
-                format!("{:.3}%", slope_pct)
-            } else {
-                String::new()
+                let slope_str = format!("{:.3}%", slope_pct);
+                // 勾配: 0°回転、上寄せ（row_height * 0.25）
+                let slope_y = table_top - 0.0 * row_height - row_height * 0.25;
+                let slope_mid_x = (x + to_dxf_x(next.0)) / 2.0;
+                add_text_rotated(&mut drawing, slope_mid_x, slope_y, &slope_str,
+                    text_height * 0.9, 7, "TEXT", TextAlign::Center, VerticalAlign::Top, 0.0);
             }
-        } else {
-            String::new()
-        };
-
-        // 各行にデータを配置
-        let row_data = [
-            (0, slope_str),
-            (1, if fill > 0.001 { format!("{:.3}", fill) } else { String::new() }),
-            (2, if cut > 0.001 { format!("{:.3}", cut) } else { String::new() }),
-            (3, format!("{:.3}", fh)),
-            (4, format!("{:.3}", gh)),
-            (5, format!("{:.3}", cum_dist)),
-            (6, format!("{:.3}", unit_dist)),
-            (7, name.clone()),
-        ];
+        }
 
         let cell_text_height = text_height * 0.9;
-        for (row_idx, text) in row_data {
-            if !text.is_empty() {
-                let y = table_top - (row_idx as f64) * row_height - row_height / 2.0;
-                add_text(&mut drawing, x, y, &text, cell_text_height, 7, "TEXT", TextAlign::Center);
-            }
+
+        // 盛土: 90°回転、中央配置（row_height / 2.0）
+        if fill > 0.001 {
+            let y = table_top - 1.0 * row_height - row_height / 2.0;
+            add_text_rotated(&mut drawing, x, y, &format!("{:.3}", fill),
+                cell_text_height, 7, "TEXT", TextAlign::Center, VerticalAlign::Middle, 90.0);
+        }
+
+        // 切土: 90°回転、中央配置（row_height / 2.0）
+        if cut > 0.001 {
+            let y = table_top - 2.0 * row_height - row_height / 2.0;
+            add_text_rotated(&mut drawing, x, y, &format!("{:.3}", cut),
+                cell_text_height, 7, "TEXT", TextAlign::Center, VerticalAlign::Middle, 90.0);
+        }
+
+        // 計画高(FH): 90°回転、中央配置（row_height / 2.0）
+        {
+            let y = table_top - 3.0 * row_height - row_height / 2.0;
+            add_text_rotated(&mut drawing, x, y, &format!("{:.3}", fh),
+                cell_text_height, 7, "TEXT", TextAlign::Center, VerticalAlign::Middle, 90.0);
+        }
+
+        // 地盤高(GH): 90°回転、中央配置（row_height / 2.0）
+        {
+            let y = table_top - 4.0 * row_height - row_height / 2.0;
+            add_text_rotated(&mut drawing, x, y, &format!("{:.3}", gh),
+                cell_text_height, 7, "TEXT", TextAlign::Center, VerticalAlign::Middle, 90.0);
+        }
+
+        // 追加距離: 90°回転、中央配置（row_height / 2.0）
+        {
+            let y = table_top - 5.0 * row_height - row_height / 2.0;
+            add_text_rotated(&mut drawing, x, y, &format!("{:.3}", cum_dist),
+                cell_text_height, 7, "TEXT", TextAlign::Center, VerticalAlign::Middle, 90.0);
+        }
+
+        // 単距離: 90°回転、中央配置（row_height / 2.0）
+        {
+            let y = table_top - 6.0 * row_height - row_height / 2.0;
+            add_text_rotated(&mut drawing, x, y, &format!("{:.3}", unit_dist),
+                cell_text_height, 7, "TEXT", TextAlign::Center, VerticalAlign::Middle, 90.0);
+        }
+
+        // 測点名: 0°回転、下寄せ（row_height * 0.75）
+        {
+            let y = table_top - 7.0 * row_height - row_height * 0.75;
+            add_text_rotated(&mut drawing, x, y, name,
+                cell_text_height, 7, "TEXT", TextAlign::Center, VerticalAlign::Bottom, 0.0);
         }
 
         prev_dist = *dist;
