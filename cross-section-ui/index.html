@@ -5,7 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
     <title>横断図・切削計算システム</title>
     <link data-trunk rel="css" href="static/styles.css"/>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+        #canvas {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
 </head>
 <body>
+    <canvas id="canvas"></canvas>
+    <link data-trunk rel="rust" data-wasm-opt="0"/>
 </body>
 </html>
