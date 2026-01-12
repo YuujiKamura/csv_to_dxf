@@ -495,7 +495,7 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
     let text_height = 120.0; // 基本テキスト高さ
     let row_height = 350.0;  // データ表の行高さ（回転テキスト対応）
     let label_width = 500.0; // 左側のラベル幅
-    let title_height = 400.0; // タイトルブロック用の高さ
+    let title_height = 0.0; // タイトルなし（ピッチリ）
 
     let mut drawing = Drawing::new();
     drawing.header.version = dxf::enums::AcadVersion::R2010;
@@ -537,8 +537,8 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
     let dl = (min_elev - 0.5).floor();
     let graph_top = (max_elev + 0.5).ceil();
 
-    // 左右マージン（テキストが枠線と重ならないように）
-    let margin_x = 300.0;
+    // 左右マージンなし（ピッチリ）
+    let margin_x = 0.0;
 
     // 座標変換
     let to_dxf_x = |d: f64| label_width + margin_x + (d - min_dist) * scale_x;
