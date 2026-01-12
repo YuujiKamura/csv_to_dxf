@@ -1036,7 +1036,7 @@ impl DxfViewState {
         let content_width = (max_x - min_x).max(0.1);
         let content_height = (max_y - min_y).max(0.1);
 
-        let padding = 0.85;
+        let padding = 0.95; // 画面の95%を使用（5%マージン）
         let zoom_x = self.canvas_rect.width() * padding / content_width;
         let zoom_y = self.canvas_rect.height() * padding / content_height;
         self.zoom = zoom_x.min(zoom_y);
