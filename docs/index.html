@@ -5,12 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
     <title>横断図・切削計算システム</title>
     <link rel="stylesheet" href="/styles-9a96754d224539b0.css" integrity="sha384-9zV9u0D2vslYPxN+PU+CYZoBVmRo9vDRxacv9zMyaJOzyrL8nkidJA63Yl6vH87n"/>
-<link rel="modulepreload" href="/cross_section_ui-c08198a88108e773.js" crossorigin="anonymous" integrity="sha384-UBLJgWLA5YGkPEaNQcnjjAkPnozaxDl7AQtBUKTqepFeyRTye6dIzugHl6ppV54Q"><link rel="preload" href="/cross_section_ui-c08198a88108e773_bg.wasm" crossorigin="anonymous" integrity="sha384-sn2Gxfb/KSOkmpy/Ioy2q5TixQgP1e1DWj4VOFv5w7bJqwf6RiEIE3ltlb+JfKW1" as="fetch" type="application/wasm"></head>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+        #canvas {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+<link rel="modulepreload" href="/cross_section_ui-3b9a31d5d1f15c27.js" crossorigin="anonymous" integrity="sha384-DLH5rnzvQNZMBZ5KBW6w9qlw7p28yR1Wa3tqyFIiAaQHYmWO8IUHro7b/BCIO0VX"><link rel="preload" href="/cross_section_ui-3b9a31d5d1f15c27_bg.wasm" crossorigin="anonymous" integrity="sha384-NLTIvBM1b7MfRGCd9Wtc515H2Z1ZoSs6e+a8L5tWFjq/45y2rL7GBgEQqNATargX" as="fetch" type="application/wasm"></head>
 <body>
-
+    <canvas id="canvas"></canvas>
+    
 <script type="module">
-import init, * as bindings from '/cross_section_ui-c08198a88108e773.js';
-const wasm = await init({ module_or_path: '/cross_section_ui-c08198a88108e773_bg.wasm' });
+import init, * as bindings from '/cross_section_ui-3b9a31d5d1f15c27.js';
+const wasm = await init({ module_or_path: '/cross_section_ui-3b9a31d5d1f15c27_bg.wasm' });
 
 
 window.wasmBindings = bindings;
@@ -18,7 +32,8 @@ window.wasmBindings = bindings;
 
 dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
 
-</script><script>"use strict";
+</script>
+<script>"use strict";
 
 (function () {
 
