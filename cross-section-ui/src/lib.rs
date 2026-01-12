@@ -145,7 +145,7 @@ pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
         add_line(&mut drawing, p1_x, p1_y, p2_x, p2_y, 5, "CUTTING");
     }
 
-    let text_height = 350.0;
+    let text_height = 150.0;
     let cl_ground_y = to_dxf_y(cl_data.elevation);
     let flag_height_mm = 800.0;
     let flag_y = cl_ground_y + flag_height_mm;
@@ -424,7 +424,7 @@ fn render_dxf(painter: &Painter, drawing: &Drawing, view: &DxfViewState) {
 
                 let distance = (p3.x - p2.x).abs();
                 let text_pos = view.dxf_to_screen(text_pt.x, text_pt.y);
-                let font_size = 350.0 * view.zoom;
+                let font_size = 150.0 * view.zoom;
                 let font = egui::FontId::proportional(font_size);
                 painter.text(text_pos, egui::Align2::CENTER_CENTER,
                     &format!("{:.2}", distance / 1000.0), font, color);
