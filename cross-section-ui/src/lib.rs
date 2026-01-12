@@ -56,8 +56,8 @@ fn add_text(drawing: &mut Drawing, x: f64, y: f64, text: &str, height: f64, colo
     drawing.add_entity(entity);
 }
 
-/// DXFファイルを生成する（Python版dxf_exporter.pyと同等）
-pub fn generate_dxf(section: &CrossSectionData) -> Vec<u8> {
+/// Drawingオブジェクトを生成する
+pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
     let scale = 1000.0; // mm単位
     let data = &section.survey_data;
 
@@ -92,9 +92,7 @@ pub fn generate_dxf(section: &CrossSectionData) -> Vec<u8> {
     });
 
     if data.len() < 2 {
-        let mut output: Vec<u8> = Vec::new();
-        drawing.save(&mut output).expect("Failed to save DXF");
-        return output;
+        return drawing;
     }
 
     let dl = section.dl;
@@ -254,6 +252,12 @@ pub fn generate_dxf(section: &CrossSectionData) -> Vec<u8> {
         to_dxf_x(cl_cumulative), to_dxf_y(dl + guide_v_length_mm / 1000.0),
         8, "DIMENSION");
 
+    drawing
+}
+
+/// DXFバイト列を生成する（ダウンロード用）
+pub fn generate_dxf_bytes(section: &CrossSectionData) -> Vec<u8> {
+    let drawing = generate_drawing(section);
     let mut output: Vec<u8> = Vec::new();
     drawing.save(&mut output).expect("Failed to save DXF");
     output
@@ -321,12 +325,6 @@ impl DxfViewState {
             self.canvas_rect.height() / 2.0 + center_y * self.zoom,
         );
     }
-}
-
-fn parse_dxf(dxf_bytes: &[u8]) -> Option<Drawing> {
-    use std::io::Cursor;
-    let mut cursor = Cursor::new(dxf_bytes);
-    Drawing::load(&mut cursor).ok()
 }
 
 fn calc_dxf_bounds(drawing: &Drawing) -> (f32, f32, f32, f32) {
@@ -561,7 +559,6 @@ impl CrossSectionData {
 pub struct CrossSectionApp {
     sections: Vec<CrossSectionData>,
     selected_index: Option<usize>,
-    dxf_bytes: Option<Vec<u8>>,
     dxf_drawing: Option<Drawing>,
     dxf_view_state: DxfViewState,
 }
@@ -571,7 +568,6 @@ impl Default for CrossSectionApp {
         Self {
             sections: Vec::new(),
             selected_index: None,
-            dxf_bytes: None,
             dxf_drawing: None,
             dxf_view_state: DxfViewState::default(),
         }
@@ -594,13 +590,10 @@ impl CrossSectionApp {
     fn update_dxf_preview(&mut self) {
         if let Some(idx) = self.selected_index {
             if let Some(section) = self.sections.get(idx) {
-                let dxf_bytes = generate_dxf(section);
-                if let Some(drawing) = parse_dxf(&dxf_bytes) {
-                    let (min_x, min_y, max_x, max_y) = calc_dxf_bounds(&drawing);
-                    self.dxf_view_state.fit_to_dxf(min_x, min_y, max_x, max_y);
-                    self.dxf_drawing = Some(drawing);
-                }
-                self.dxf_bytes = Some(dxf_bytes);
+                let drawing = generate_drawing(section);
+                let (min_x, min_y, max_x, max_y) = calc_dxf_bounds(&drawing);
+                self.dxf_view_state.fit_to_dxf(min_x, min_y, max_x, max_y);
+                self.dxf_drawing = Some(drawing);
             }
         }
     }
@@ -620,7 +613,7 @@ impl eframe::App for CrossSectionApp {
                 if ui.button("Download DXF").clicked() {
                     if let Some(idx) = self.selected_index {
                         if let Some(section) = self.sections.get(idx) {
-                            let dxf_content = generate_dxf(section);
+                            let dxf_content = generate_dxf_bytes(section);
                             let filename = format!("{}.dxf", section.survey_point_name);
                             download_file(&filename, &dxf_content);
                         }
