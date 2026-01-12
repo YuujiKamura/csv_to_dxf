@@ -1286,6 +1286,21 @@ impl eframe::App for CrossSectionApp {
                             }
                         }
 
+                        // AllGridモード時の列数調整（モバイル）
+                        if self.view_mode == ViewMode::AllGrid {
+                            ui.horizontal(|ui| {
+                                ui.label(format!("{}列", self.grid_columns));
+                                if ui.small_button("+").clicked() && self.grid_columns < 5 {
+                                    self.grid_columns += 1;
+                                    self.update_dxf_preview();
+                                }
+                                if ui.small_button("-").clicked() && self.grid_columns > 1 {
+                                    self.grid_columns -= 1;
+                                    self.update_dxf_preview();
+                                }
+                            });
+                        }
+
                         // DXFダウンロード
                         match self.view_mode {
                             ViewMode::AllGrid => {
