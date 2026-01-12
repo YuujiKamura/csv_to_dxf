@@ -72,31 +72,20 @@ fn add_text_rotated(
     t.value = text.to_string();
     t.rotation = rotation;
 
-    match align {
-        TextAlign::Left => {
-            t.horizontal_text_justification = HorizontalTextJustification::Left;
-        }
-        TextAlign::Center => {
-            t.horizontal_text_justification = HorizontalTextJustification::Center;
-            t.second_alignment_point = Point::new(x, y, 0.0);
-        }
-        TextAlign::Right => {
-            t.horizontal_text_justification = HorizontalTextJustification::Right;
-            t.second_alignment_point = Point::new(x, y, 0.0);
-        }
+    t.horizontal_text_justification = match align {
+        TextAlign::Left => HorizontalTextJustification::Left,
+        TextAlign::Center => HorizontalTextJustification::Center,
+        TextAlign::Right => HorizontalTextJustification::Right,
+    };
+    if matches!(align, TextAlign::Center | TextAlign::Right) {
+        t.second_alignment_point = Point::new(x, y, 0.0);
     }
 
-    match v_align {
-        VerticalAlign::Top => {
-            t.vertical_text_justification = VerticalTextJustification::Top;
-        }
-        VerticalAlign::Middle => {
-            t.vertical_text_justification = VerticalTextJustification::Middle;
-        }
-        VerticalAlign::Bottom => {
-            t.vertical_text_justification = VerticalTextJustification::Bottom;
-        }
-    }
+    t.vertical_text_justification = match v_align {
+        VerticalAlign::Top => VerticalTextJustification::Top,
+        VerticalAlign::Middle => VerticalTextJustification::Middle,
+        VerticalAlign::Bottom => VerticalTextJustification::Bottom,
+    };
 
     let mut entity = Entity::new(EntityType::Text(t));
     entity.common.layer = layer.to_string();
@@ -674,38 +663,17 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
                 cell_text_height, 7, "TEXT", TextAlign::Center, VerticalAlign::Middle, 90.0);
         }
 
-        // 計画高(FH): 90°回転、中央配置（row_height / 2.0）
-        {
-            let y = table_top - 3.0 * row_height - row_height / 2.0;
-            add_text_rotated(&mut drawing, x, y, &format!("{:.3}", fh),
-                cell_text_height, 7, "TEXT", TextAlign::Center, VerticalAlign::Middle, 90.0);
-        }
-
-        // 地盤高(GH): 90°回転、中央配置（row_height / 2.0）
-        {
-            let y = table_top - 4.0 * row_height - row_height / 2.0;
-            add_text_rotated(&mut drawing, x, y, &format!("{:.3}", gh),
-                cell_text_height, 7, "TEXT", TextAlign::Center, VerticalAlign::Middle, 90.0);
-        }
-
-        // 追加距離: 90°回転、中央配置（row_height / 2.0）
-        {
-            let y = table_top - 5.0 * row_height - row_height / 2.0;
-            add_text_rotated(&mut drawing, x, y, &format!("{:.3}", cum_dist),
-                cell_text_height, 7, "TEXT", TextAlign::Center, VerticalAlign::Middle, 90.0);
-        }
-
-        // 単距離: 90°回転、中央配置（row_height / 2.0）
-        {
-            let y = table_top - 6.0 * row_height - row_height / 2.0;
-            add_text_rotated(&mut drawing, x, y, &format!("{:.3}", unit_dist),
-                cell_text_height, 7, "TEXT", TextAlign::Center, VerticalAlign::Middle, 90.0);
-        }
-
-        // 測点名: 90°回転、中央配置（row_height / 2.0）
-        {
-            let y = table_top - 7.0 * row_height - row_height / 2.0;
-            add_text_rotated(&mut drawing, x, y, name,
+        // FH/GH/追加距離/単距離/測点名: 90°回転、中央配置
+        let row_data: [(usize, String); 5] = [
+            (3, format!("{:.3}", fh)),      // 計画高(FH)
+            (4, format!("{:.3}", gh)),      // 地盤高(GH)
+            (5, format!("{:.3}", cum_dist)), // 追加距離
+            (6, format!("{:.3}", unit_dist)), // 単距離
+            (7, name.to_string()),          // 測点名
+        ];
+        for (row_idx, text) in row_data {
+            let y = table_top - row_idx as f64 * row_height - row_height / 2.0;
+            add_text_rotated(&mut drawing, x, y, &text,
                 cell_text_height, 7, "TEXT", TextAlign::Center, VerticalAlign::Middle, 90.0);
         }
 
