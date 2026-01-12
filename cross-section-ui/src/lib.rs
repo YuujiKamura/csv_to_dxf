@@ -1353,19 +1353,25 @@ impl CrossSectionData {
     }
 
     pub fn all_samples() -> Vec<Self> {
+        // JSONから読み込み（計画.xlsxからの変換データ）
+        const SECTIONS_JSON: &str = include_str!("../static/sections.json");
+        match serde_json::from_str::<Vec<Self>>(SECTIONS_JSON) {
+            Ok(sections) => sections,
+            Err(e) => {
+                // フォールバック: 元のサンプルデータ
+                eprintln!("JSON parse error: {e}, using fallback samples");
+                Self::fallback_samples()
+            }
+        }
+    }
+
+    fn fallback_samples() -> Vec<Self> {
         let cut = 0.05;
         // 現地盤高(GH)と計画高(FH)に差をつけて切土・盛土を表現
         vec![
             Self::from_3point("No.0",  2.75, 2.70,  9.620, 9.610, 9.547,  9.500, 9.490, 9.427,  9.0, cut),  // 切土
             Self::from_3point("No.2",  2.60, 2.52,  11.762, 11.813, 11.736,  11.862, 11.913, 11.836,  11.0, cut),  // 盛土
             Self::from_3point("No.4",  2.56, 2.54,  14.733, 14.800, 14.744,  14.633, 14.700, 14.644,  14.0, cut),  // 切土
-            Self::from_3point("No.6",  2.53, 2.59,  17.317, 17.367, 17.303,  17.417, 17.467, 17.403,  17.0, cut),  // 盛土
-            Self::from_3point("No.8",  2.53, 2.57,  19.946, 20.027, 19.955,  19.846, 19.927, 19.855,  19.0, cut),  // 切土
-            Self::from_3point("No.10", 2.58, 2.55,  20.405, 20.476, 20.425,  20.505, 20.576, 20.525,  20.0, cut),  // 盛土
-            Self::from_3point("No.12", 2.56, 2.56,  21.067, 21.126, 21.073,  20.967, 21.026, 20.973,  20.0, cut),  // 切土
-            Self::from_3point("No.14", 2.55, 2.60,  22.260, 22.305, 22.254,  22.360, 22.405, 22.354,  22.0, cut),  // 盛土
-            Self::from_3point("No.16", 2.61, 2.59,  25.235, 25.274, 25.211,  25.135, 25.174, 25.111,  25.0, cut),  // 切土
-            Self::from_3point("No.18", 2.55, 2.62,  27.495, 27.635, 27.649,  27.595, 27.735, 27.749,  27.0, cut),  // 盛土
         ]
     }
 
