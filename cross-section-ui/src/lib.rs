@@ -264,19 +264,41 @@ pub fn generate_dxf_bytes(section: &CrossSectionData) -> Vec<u8> {
 }
 
 // ============================================================================
-// Multi-Section Grid Layout
+// Multi-Section Layout (展開図形式)
 // ============================================================================
 
-/// 複数横断図をグリッド配置したDrawingを生成
-pub fn generate_multi_drawing(sections: &[CrossSectionData], columns: usize) -> Drawing {
+/// 測点名から累積距離を抽出（例: "No.2" → 40.0m, "No.10+5" → 205.0m）
+fn parse_station_distance(name: &str) -> f64 {
+    let name = name.trim();
+    // "No.X" または "No.X+Y" 形式をパース
+    if let Some(rest) = name.strip_prefix("No.") {
+        if let Some(plus_pos) = rest.find('+') {
+            // "No.X+Y" 形式
+            let main_part = &rest[..plus_pos];
+            let sub_part = &rest[plus_pos + 1..];
+            let main: f64 = main_part.parse().unwrap_or(0.0);
+            let sub: f64 = sub_part.parse().unwrap_or(0.0);
+            return main * 20.0 + sub;  // 20m間隔
+        } else {
+            // "No.X" 形式
+            let num: f64 = rest.parse().unwrap_or(0.0);
+            return num * 20.0;  // 20m間隔
+        }
+    }
+    0.0
+}
+
+/// 複数横断図を展開図形式で配置したDrawingを生成
+/// Pythonコード準拠: X=累積距離, Y=幅員(上がwl, 下がwr), 連続線で接続
+pub fn generate_multi_drawing(sections: &[CrossSectionData], _columns: usize) -> Drawing {
     let scale = 1000.0;
+    let text_height = 350.0;
 
     let mut drawing = Drawing::new();
     drawing.header.version = dxf::enums::AcadVersion::R2010;
 
     for (name, color_idx) in [
-        ("GROUND", 7), ("PLAN", 1), ("TEXT", 7),
-        ("DIMENSION", 8), ("CUTTING", 5), ("FRAME", 9)
+        ("0", 7), ("WIDTH", 7), ("TEXT", 5), ("DIMENSION", 7)
     ] {
         drawing.add_layer(dxf::tables::Layer {
             name: name.to_string(),
@@ -287,96 +309,97 @@ pub fn generate_multi_drawing(sections: &[CrossSectionData], columns: usize) -> 
 
     if sections.is_empty() { return drawing; }
 
-    let mut max_width: f64 = 0.0;
-    let mut max_height: f64 = 0.0;
+    // 測点データを累積距離順にソート
+    let mut sorted_sections: Vec<(f64, &CrossSectionData)> = sections.iter()
+        .map(|s| (parse_station_distance(&s.survey_point_name), s))
+        .collect();
+    sorted_sections.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
 
-    for section in sections {
-        if section.survey_data.len() < 2 { continue; }
+    let mut prev_x = 0.0;
+    let mut prev_wl = 0.0;
+    let mut prev_wr = 0.0;
+    let mut is_first = true;
+
+    for (station_dist, section) in &sorted_sections {
         let data = &section.survey_data;
-        let total_width = (data.last().unwrap().cumulative_distance
-                         - data.first().unwrap().cumulative_distance).abs();
-        max_width = max_width.max(total_width);
-        let max_elev = data.iter().map(|d| d.elevation.max(d.planned_height)).fold(f64::MIN, f64::max);
-        max_height = max_height.max(max_elev - section.dl + 1.5);
+        if data.len() < 2 { continue; }
+
+        // 幅員を計算（L端からCLまで、CLからR端まで）
+        let l_data = &data[0];
+        let cl_data = &data[section.cl_index.min(data.len() - 1)];
+        let r_data = &data[data.len() - 1];
+
+        let wl = (cl_data.cumulative_distance - l_data.cumulative_distance).abs();
+        let wr = (r_data.cumulative_distance - cl_data.cumulative_distance).abs();
+
+        let x = *station_dist;
+        let x_scaled = x * scale;
+        let wl_scaled = wl * scale;
+        let wr_scaled = wr * scale;
+
+        // 幅員の縦線（左側: 上向き、右側: 下向き）
+        add_line(&mut drawing, x_scaled, 0.0, x_scaled, wl_scaled, 7, "WIDTH");
+        add_line(&mut drawing, x_scaled, 0.0, x_scaled, -wr_scaled, 7, "WIDTH");
+
+        // 前の測点との接続線
+        if !is_first {
+            let prev_x_scaled = prev_x * scale;
+            // センターライン（Y=0）
+            add_line(&mut drawing, prev_x_scaled, 0.0, x_scaled, 0.0, 7, "0");
+            // 上側外形線（wl同士）
+            if wl > 0.0 || prev_wl > 0.0 {
+                add_line(&mut drawing, prev_x_scaled, prev_wl * scale, x_scaled, wl_scaled, 7, "WIDTH");
+            }
+            // 下側外形線（wr同士）
+            if wr > 0.0 || prev_wr > 0.0 {
+                add_line(&mut drawing, prev_x_scaled, -prev_wr * scale, x_scaled, -wr_scaled, 7, "WIDTH");
+            }
+        }
+
+        // 延長寸法テキスト（前測点との間）
+        if !is_first {
+            let tankyori = x - prev_x;
+            let mid_x = (prev_x + x) / 2.0 * scale;
+            add_text(&mut drawing, mid_x, 0.0, &format!("{:.2}", tankyori), text_height, 7, "DIMENSION", TextAlign::Center);
+        }
+
+        // 幅員テキスト（左側）
+        let text_offset = 500.0;
+        if wl > 0.0 {
+            add_rotated_text(&mut drawing, x_scaled, wl_scaled + text_offset, &format!("{:.2}", wl), text_height, 7, "TEXT");
+        }
+        // 幅員テキスト（右側）
+        if wr > 0.0 {
+            add_rotated_text(&mut drawing, x_scaled, -wr_scaled - text_offset, &format!("{:.2}", wr), text_height, 7, "TEXT");
+        }
+
+        // 測点名テキスト（上側、回転-90度、青色）
+        let name_y = if wl > 0.0 { wl_scaled + 2000.0 } else { 2000.0 };
+        add_rotated_text(&mut drawing, x_scaled, name_y, &section.survey_point_name, text_height, 5, "TEXT");
+
+        prev_x = x;
+        prev_wl = wl;
+        prev_wr = wr;
+        is_first = false;
     }
 
-    let cell_width = (max_width + 2.0) * scale;
-    let cell_height = (max_height + 1.0) * scale;
-
-    for (idx, section) in sections.iter().enumerate() {
-        if section.survey_data.len() < 2 { continue; }
-        let col = idx % columns;
-        let row = idx / columns;
-        let offset_x = col as f64 * cell_width;
-        let offset_y = -(row as f64) * cell_height;
-        draw_section_at_offset(&mut drawing, section, offset_x, offset_y, scale);
-
-        let frame_x1 = offset_x - 0.5 * scale;
-        let frame_x2 = offset_x + (max_width + 1.5) * scale;
-        let frame_y1 = offset_y - 0.5 * scale;
-        let frame_y2 = offset_y + max_height * scale;
-        add_line(&mut drawing, frame_x1, frame_y1, frame_x2, frame_y1, 9, "FRAME");
-        add_line(&mut drawing, frame_x2, frame_y1, frame_x2, frame_y2, 9, "FRAME");
-        add_line(&mut drawing, frame_x2, frame_y2, frame_x1, frame_y2, 9, "FRAME");
-        add_line(&mut drawing, frame_x1, frame_y2, frame_x1, frame_y1, 9, "FRAME");
-    }
     drawing
 }
 
-fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
-                          offset_x: f64, offset_y: f64, scale: f64) {
-    let data = &section.survey_data;
-    let dl = section.dl;
-    let to_dxf_x = |d: f64| offset_x + d * scale;
-    let to_dxf_y = |h: f64| offset_y + (h - dl) * scale;
-
-    let l_data = &data[0];
-    let cl_data = &data[section.cl_index.min(data.len() - 1)];
-    let r_data = &data[data.len() - 1];
-
-    let left_dist = (cl_data.cumulative_distance - l_data.cumulative_distance).abs();
-    let right_dist = (r_data.cumulative_distance - cl_data.cumulative_distance).abs();
-    let left_slope = if left_dist > 0.0 { ((l_data.planned_height - cl_data.planned_height) / left_dist) * 100.0 } else { 0.0 };
-    let right_slope = if right_dist > 0.0 { ((r_data.planned_height - cl_data.planned_height) / right_dist) * 100.0 } else { 0.0 };
-
-    for i in 0..data.len() - 1 {
-        add_line(drawing, to_dxf_x(data[i].cumulative_distance), to_dxf_y(data[i].elevation),
-            to_dxf_x(data[i + 1].cumulative_distance), to_dxf_y(data[i + 1].elevation), 7, "GROUND");
-        add_line(drawing, to_dxf_x(data[i].cumulative_distance), to_dxf_y(data[i].planned_height),
-            to_dxf_x(data[i + 1].cumulative_distance), to_dxf_y(data[i + 1].planned_height), 1, "PLAN");
-        add_line(drawing, to_dxf_x(data[i].cumulative_distance), to_dxf_y(data[i].cutting_bottom),
-            to_dxf_x(data[i + 1].cumulative_distance), to_dxf_y(data[i + 1].cutting_bottom), 5, "CUTTING");
-    }
-
-    let text_height = 150.0;
-    let cl_ground_y = to_dxf_y(cl_data.elevation);
-    let flag_y = cl_ground_y + 800.0;
-    let l_x = to_dxf_x(l_data.cumulative_distance);
-    let cl_x = to_dxf_x(cl_data.cumulative_distance);
-    let r_x = to_dxf_x(r_data.cumulative_distance);
-
-    add_text(drawing, cl_x, flag_y + 500.0, &section.survey_point_name, text_height * 1.5, 7, "TEXT", TextAlign::Center);
-    add_text(drawing, cl_x, flag_y + 300.0, &format!("GH={:.3}", cl_data.elevation), text_height, 7, "TEXT", TextAlign::Center);
-    add_text(drawing, cl_x, flag_y + 100.0, &format!("FH={:.3}", cl_data.planned_height), text_height, 1, "PLAN", TextAlign::Center);
-
-    let l_ground_y = to_dxf_y(l_data.elevation);
-    add_text(drawing, l_x, l_ground_y + 300.0, &format!("GH={:.3}", l_data.elevation), text_height, 7, "TEXT", TextAlign::Left);
-    add_text(drawing, l_x, l_ground_y + 100.0, &format!("FH={:.3}", l_data.planned_height), text_height, 1, "PLAN", TextAlign::Left);
-
-    let r_ground_y = to_dxf_y(r_data.elevation);
-    add_text(drawing, r_x, r_ground_y + 300.0, &format!("GH={:.3}", r_data.elevation), text_height, 7, "TEXT", TextAlign::Right);
-    add_text(drawing, r_x, r_ground_y + 100.0, &format!("FH={:.3}", r_data.planned_height), text_height, 1, "PLAN", TextAlign::Right);
-
-    let mid_l_x = (l_x + cl_x) / 2.0;
-    let mid_r_x = (cl_x + r_x) / 2.0;
-    add_text(drawing, mid_l_x, flag_y - text_height - 50.0, &format!("il={:.1}%", left_slope), text_height, 7, "TEXT", TextAlign::Center);
-    add_text(drawing, mid_r_x, flag_y - text_height - 50.0, &format!("ir={:.1}%", right_slope), text_height, 7, "TEXT", TextAlign::Center);
-
-    add_text(drawing, cl_x, to_dxf_y(dl) - 200.0, &format!("DL={:.3}", dl), text_height, 7, "TEXT", TextAlign::Left);
-
-    let cl_cumulative = cl_data.cumulative_distance;
-    add_line(drawing, to_dxf_x(cl_cumulative - 3.0), to_dxf_y(dl), to_dxf_x(cl_cumulative + 3.0), to_dxf_y(dl), 8, "DIMENSION");
-    add_line(drawing, to_dxf_x(cl_cumulative), to_dxf_y(dl), to_dxf_x(cl_cumulative), to_dxf_y(dl + 1.0), 8, "DIMENSION");
+/// 回転テキスト追加（-90度回転）
+fn add_rotated_text(drawing: &mut Drawing, x: f64, y: f64, text: &str, height: f64, color: i16, layer: &str) {
+    let mut t = Text::default();
+    t.location = Point::new(x, y, 0.0);
+    t.text_height = height;
+    t.value = text.to_string();
+    t.rotation = -90.0;
+    t.horizontal_text_justification = HorizontalTextJustification::Center;
+    t.vertical_text_justification = VerticalTextJustification::Middle;
+    t.second_alignment_point = Point::new(x, y, 0.0);
+    let mut entity = Entity::new(EntityType::Text(t));
+    entity.common.layer = layer.to_string();
+    entity.common.color = Color::from_index(color as u8);
+    drawing.add_entity(entity);
 }
 
 pub fn generate_multi_dxf_bytes(sections: &[CrossSectionData], columns: usize) -> Vec<u8> {
