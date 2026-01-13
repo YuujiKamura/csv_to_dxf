@@ -1352,9 +1352,6 @@ impl CrossSectionData {
         }
     }
 
-    pub fn all_samples() -> Vec<Self> {
-        Vec::new() // fetch完了まで空
-    }
 
     pub fn from_json(json: &str) -> Result<Vec<Self>, String> {
         serde_json::from_str(json).map_err(|e| format!("JSON parse error: {e}"))
@@ -1619,15 +1616,8 @@ impl CrossSectionApp {
         cc.egui_ctx.set_fonts(fonts);
 
         let mut app = Self::default();
-        app.load_samples();
+        app.status_message = Some("読み込み中...".to_string());
         app
-    }
-
-    fn load_samples(&mut self) {
-        self.sections = CrossSectionData::all_samples();
-        self.selected_index = if self.sections.is_empty() { None } else { Some(0) };
-        self.status_message = Some("読み込み中...".to_string());
-        self.update_dxf_preview();
     }
 
     fn handle_csv_loaded(&mut self, csv_text: &str) {
@@ -1761,9 +1751,6 @@ impl eframe::App for CrossSectionApp {
                             self.update_dxf_preview();
                         }
 
-                        if ui.button("Load").clicked() {
-                            self.load_samples();
-                        }
                     });
 
                     ui.horizontal_wrapped(|ui| {
@@ -1858,9 +1845,6 @@ impl eframe::App for CrossSectionApp {
                 ui.heading("Cross Section");
                 ui.separator();
 
-                if ui.button("Load Sample").clicked() {
-                    self.load_samples();
-                }
                 #[cfg(target_arch = "wasm32")]
                 if ui.button("CSVを読み込む").clicked() {
                     trigger_csv_dialog();
@@ -2036,7 +2020,7 @@ impl eframe::App for CrossSectionApp {
                 painter.text(
                     response.rect.center(),
                     egui::Align2::CENTER_CENTER,
-                    if is_mobile { "Tap 'Load'" } else { "Click 'Load Sample' to start" },
+                    "データを読み込み中...",
                     egui::FontId::proportional(16.0),
                     Color32::GRAY
                 );
