@@ -1579,6 +1579,7 @@ pub struct CrossSectionApp {
     grid_columns: usize,     // グリッドの列数
     status_message: Option<String>,
     needs_fit: bool,         // canvas_rect更新後にfit_to_dxfを呼ぶフラグ
+    is_first_frame: bool,    // 初回フレームフラグ（モバイル判定用）
 }
 
 impl Default for CrossSectionApp {
@@ -1588,10 +1589,11 @@ impl Default for CrossSectionApp {
             selected_index: None,
             dxf_drawing: None,
             dxf_view_state: DxfViewState::default(),
-            view_mode: ViewMode::Combo, // デフォルトで縦断図＋全横断図
+            view_mode: ViewMode::Single, // デフォルトで単一横断図（モバイル向け）
             grid_columns: 3,
             status_message: None,
             needs_fit: false,
+            is_first_frame: true,
         }
     }
 }
@@ -1717,31 +1719,44 @@ impl eframe::App for CrossSectionApp {
         let screen_width = ctx.screen_rect().width();
         let is_mobile = screen_width < 600.0;
 
+        // 初回フレームでデスクトップならComboモードに設定
+        if self.is_first_frame {
+            self.is_first_frame = false;
+            if !is_mobile {
+                self.view_mode = ViewMode::Combo;
+                self.update_dxf_preview();
+            }
+        }
+
         if is_mobile {
             // モバイル: トップバー + フルスクリーン図面
             egui::TopBottomPanel::top("mobile_top").show(ctx, |ui| {
                 ui.vertical(|ui| {
                     ui.horizontal_wrapped(|ui| {
-                        // 測点プルダウン
+                        // 測点プルダウン（タッチ操作しやすいよう幅を確保）
                         let current_name = self.selected_index
                             .and_then(|i| self.sections.get(i))
                             .map(|s| s.survey_point_name.as_str())
                             .unwrap_or("--");
 
-                        let mut new_selection = None;
-                        egui::ComboBox::from_id_salt("station_select")
+                        let response = egui::ComboBox::from_id_salt("station_select")
                             .selected_text(current_name)
+                            .width(150.0)
                             .show_ui(ui, |ui| {
+                                ui.set_min_width(140.0);
+                                let mut selected = None;
                                 for (i, section) in self.sections.iter().enumerate() {
-                                    if ui.selectable_label(
+                                    let response = ui.selectable_label(
                                         self.selected_index == Some(i),
                                         &section.survey_point_name
-                                    ).clicked() {
-                                        new_selection = Some(i);
+                                    );
+                                    if response.clicked() {
+                                        selected = Some(i);
                                     }
                                 }
+                                selected
                             });
-                        if let Some(idx) = new_selection {
+                        if let Some(idx) = response.inner.flatten() {
                             self.selected_index = Some(idx);
                             self.update_dxf_preview();
                         }
@@ -1752,31 +1767,34 @@ impl eframe::App for CrossSectionApp {
                     });
 
                     ui.horizontal_wrapped(|ui| {
-                        // 表示モード切替（モバイルではComboBoxで確実に切替）
+                        // 表示モード切替（タッチ操作しやすいよう幅を確保）
                         let mode_text = match self.view_mode {
                             ViewMode::Combo => "コンボ",
                             ViewMode::Single => "単一",
                             ViewMode::AllGrid => "全横断",
                             ViewMode::Longitudinal => "縦断",
                         };
-                        let mut new_view_mode = None;
-                        egui::ComboBox::from_id_salt("view_mode_select")
+                        let response = egui::ComboBox::from_id_salt("view_mode_select")
                             .selected_text(mode_text)
+                            .width(120.0)
                             .show_ui(ui, |ui| {
-                                if ui.selectable_label(self.view_mode == ViewMode::Combo, "コンボ (縦断+全横断)").clicked() {
-                                    new_view_mode = Some(ViewMode::Combo);
-                                }
+                                ui.set_min_width(160.0);
+                                let mut selected = None;
                                 if ui.selectable_label(self.view_mode == ViewMode::Single, "単一横断").clicked() {
-                                    new_view_mode = Some(ViewMode::Single);
+                                    selected = Some(ViewMode::Single);
+                                }
+                                if ui.selectable_label(self.view_mode == ViewMode::Combo, "コンボ (縦断+全横断)").clicked() {
+                                    selected = Some(ViewMode::Combo);
                                 }
                                 if ui.selectable_label(self.view_mode == ViewMode::AllGrid, "全横断").clicked() {
-                                    new_view_mode = Some(ViewMode::AllGrid);
+                                    selected = Some(ViewMode::AllGrid);
                                 }
                                 if ui.selectable_label(self.view_mode == ViewMode::Longitudinal, "縦断図").clicked() {
-                                    new_view_mode = Some(ViewMode::Longitudinal);
+                                    selected = Some(ViewMode::Longitudinal);
                                 }
+                                selected
                             });
-                        if let Some(mode) = new_view_mode {
+                        if let Some(mode) = response.inner.flatten() {
                             if self.view_mode != mode {
                                 self.view_mode = mode;
                                 self.update_dxf_preview();
