@@ -334,12 +334,14 @@
 
             // Zoom buttons
             document.getElementById('btnZoomIn').addEventListener('click', () => {
-                viewer.zoom(1.2, canvas.width / 2, canvas.height / 2);
+                const rect = canvas.getBoundingClientRect();
+                viewer.zoom(1.2, rect.width / 2, rect.height / 2);
                 render();
             });
 
             document.getElementById('btnZoomOut').addEventListener('click', () => {
-                viewer.zoom(0.8, canvas.width / 2, canvas.height / 2);
+                const rect = canvas.getBoundingClientRect();
+                viewer.zoom(0.8, rect.width / 2, rect.height / 2);
                 render();
             });
 
@@ -432,8 +434,9 @@
 
                     if (lastTouchDistance > 0) {
                         const factor = distance / lastTouchDistance;
-                        // Zoom centered at screen center
-                        viewer.zoom(factor, canvas.width / 2, canvas.height / 2);
+                        // Zoom centered at screen center (use getBoundingClientRect for accurate size)
+                        const rect = canvas.getBoundingClientRect();
+                        viewer.zoom(factor, rect.width / 2, rect.height / 2);
                         render();
                     }
                     lastTouchDistance = distance;
