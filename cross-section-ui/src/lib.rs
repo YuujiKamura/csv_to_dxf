@@ -747,7 +747,7 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
             }
         }
 
-        let cell_text_height = text_height * 0.9;
+        let cell_text_height = text_height * 0.8;
 
         // 各フィールドの左上を基準に配置
         // -90°回転テキストでは、TextAlign::Left = テキストが上から下に伸びる
