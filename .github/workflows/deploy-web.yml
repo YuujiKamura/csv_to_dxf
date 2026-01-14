@@ -5,6 +5,7 @@ on:
     branches: [main, master]
     paths:
       - 'cross-section-ui/**'
+      - 'data/sections.json'
       - '.github/workflows/deploy-web.yml'
   workflow_dispatch:
 
