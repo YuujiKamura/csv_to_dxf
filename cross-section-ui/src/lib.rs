@@ -113,7 +113,7 @@ fn add_dimension_as_lines(
 
     // 中央にテキスト
     let mid_x = (x1 + x2) / 2.0;
-    add_text(drawing, mid_x, y + 50.0, text, text_height, color, layer, TextAlign::Center);
+    add_text(drawing, mid_x, y + 100.0, text, text_height, color, layer, TextAlign::Center);
 }
 
 /// DL値を1m刻みに丸める（最小標高との差が0.2以下なら1m下げる）
