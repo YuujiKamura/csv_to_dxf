@@ -239,17 +239,17 @@ pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
     // ========== L側 GH, FH ==========
     let l_ground_y = to_dxf_y(l_data.elevation);
     let l_flag_y = l_ground_y + flag_height_mm;
-    add_text(&mut drawing, l_x, l_flag_y + 300.0,
-        &format!("GH={:.3}", l_data.elevation), text_height, 7, "TEXT", TextAlign::Left);
     add_text(&mut drawing, l_x, l_flag_y + 100.0,
+        &format!("GH={:.3}", l_data.elevation), text_height, 7, "TEXT", TextAlign::Left);
+    add_text(&mut drawing, l_x, l_flag_y + 50.0,
         &format!("FH={:.3}", l_data.planned_height), text_height, 1, "PLAN", TextAlign::Left);
 
     // ========== R側 GH, FH ==========
     let r_ground_y = to_dxf_y(r_data.elevation);
     let r_flag_y = r_ground_y + flag_height_mm;
-    add_text(&mut drawing, r_x, r_flag_y + 300.0,
-        &format!("GH={:.3}", r_data.elevation), text_height, 7, "TEXT", TextAlign::Right);
     add_text(&mut drawing, r_x, r_flag_y + 100.0,
+        &format!("GH={:.3}", r_data.elevation), text_height, 7, "TEXT", TextAlign::Right);
+    add_text(&mut drawing, r_x, r_flag_y + 50.0,
         &format!("FH={:.3}", r_data.planned_height), text_height, 1, "PLAN", TextAlign::Right);
 
     // ========== 寸法線による旗揚げ（幅員）==========
@@ -413,13 +413,13 @@ fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
 
     let l_ground_y = to_dxf_y(l_data.elevation);
     let l_flag_y = l_ground_y + 800.0;
-    add_text(drawing, l_x, l_flag_y + 300.0, &format!("GH={:.3}", l_data.elevation), text_height, 7, "TEXT", TextAlign::Left);
-    add_text(drawing, l_x, l_flag_y + 100.0, &format!("FH={:.3}", l_data.planned_height), text_height, 1, "PLAN", TextAlign::Left);
+    add_text(drawing, l_x, l_flag_y + 100.0, &format!("GH={:.3}", l_data.elevation), text_height, 7, "TEXT", TextAlign::Left);
+    add_text(drawing, l_x, l_flag_y + 50.0, &format!("FH={:.3}", l_data.planned_height), text_height, 1, "PLAN", TextAlign::Left);
 
     let r_ground_y = to_dxf_y(r_data.elevation);
     let r_flag_y = r_ground_y + 800.0;
-    add_text(drawing, r_x, r_flag_y + 300.0, &format!("GH={:.3}", r_data.elevation), text_height, 7, "TEXT", TextAlign::Right);
-    add_text(drawing, r_x, r_flag_y + 100.0, &format!("FH={:.3}", r_data.planned_height), text_height, 1, "PLAN", TextAlign::Right);
+    add_text(drawing, r_x, r_flag_y + 100.0, &format!("GH={:.3}", r_data.elevation), text_height, 7, "TEXT", TextAlign::Right);
+    add_text(drawing, r_x, r_flag_y + 50.0, &format!("FH={:.3}", r_data.planned_height), text_height, 1, "PLAN", TextAlign::Right);
 
     let mid_l_x = (l_x + cl_x) / 2.0;
     let mid_r_x = (cl_x + r_x) / 2.0;
