@@ -99,7 +99,7 @@ pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
     let data = &section.survey_data;
 
     let mut drawing = Drawing::new();
-    drawing.header.version = dxf::enums::AcadVersion::R2010;  // サブクラスマーカー出力のため
+    drawing.header.version = dxf::enums::AcadVersion::R2000;  // サブクラスマーカー出力のため
 
     // レイヤー作成
     drawing.add_layer(dxf::tables::Layer {
@@ -329,7 +329,7 @@ pub fn generate_multi_drawing(sections: &[CrossSectionData], columns: usize) -> 
     let scale = 1000.0;
 
     let mut drawing = Drawing::new();
-    drawing.header.version = dxf::enums::AcadVersion::R2010;
+    drawing.header.version = dxf::enums::AcadVersion::R2000;
 
     for (name, color_idx) in [
         ("GROUND", 7), ("PLAN", 1), ("TEXT", 7),
@@ -534,7 +534,7 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
     let title_height = 0.0; // タイトルなし（ピッチリ）
 
     let mut drawing = Drawing::new();
-    drawing.header.version = dxf::enums::AcadVersion::R2010;
+    drawing.header.version = dxf::enums::AcadVersion::R2000;
 
     // レイヤー作成
     for (name, color_idx) in [
@@ -851,7 +851,7 @@ pub fn generate_combo_drawing(sections: &[CrossSectionData], _columns: usize) ->
 
     // 新しいDrawingを作成
     let mut drawing = Drawing::new();
-    drawing.header.version = dxf::enums::AcadVersion::R2010;
+    drawing.header.version = dxf::enums::AcadVersion::R2000;
 
     // 両方のレイヤーをマージ
     for layer in longitudinal.layers() {
