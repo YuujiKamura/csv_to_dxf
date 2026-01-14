@@ -128,6 +128,74 @@ fn round_dl(dl: f64) -> f64 {
     }
 }
 
+/// アライメントテスト用DXF生成
+/// 回転テキスト(-90°)の全アライメント組み合わせを表示
+pub fn generate_alignment_test_drawing() -> Drawing {
+    let mut drawing = Drawing::new();
+    drawing.header.version = dxf::enums::AcadVersion::R2000;
+
+    let mut layer = dxf::tables::Layer::default();
+    layer.name = "TEST".to_string();
+    layer.color = Color::from_index(7);
+    drawing.add_layer(layer);
+
+    let text_height = 100.0;
+    let cell_width = 600.0;
+    let cell_height = 400.0;
+
+    let h_aligns = [
+        (TextAlign::Left, "H:Left"),
+        (TextAlign::Center, "H:Center"),
+        (TextAlign::Right, "H:Right"),
+    ];
+    let v_aligns = [
+        (VerticalAlign::Top, "V:Top"),
+        (VerticalAlign::Middle, "V:Mid"),
+        (VerticalAlign::Bottom, "V:Bot"),
+    ];
+
+    // グリッド描画
+    for col in 0..=3 {
+        let x = col as f64 * cell_width;
+        add_line(&mut drawing, x, 0.0, x, -3.0 * cell_height, 8, "TEST");
+    }
+    for row in 0..=3 {
+        let y = -(row as f64) * cell_height;
+        add_line(&mut drawing, 0.0, y, 3.0 * cell_width, y, 8, "TEST");
+    }
+
+    // 各セルにテスト表示
+    for (col, (h_align, h_name)) in h_aligns.iter().enumerate() {
+        for (row, (v_align, v_name)) in v_aligns.iter().enumerate() {
+            let x = col as f64 * cell_width + cell_width / 2.0;
+            let y = -(row as f64) * cell_height - cell_height / 2.0;
+
+            // アンカーポイントにマーカー（赤十字）
+            add_line(&mut drawing, x - 30.0, y, x + 30.0, y, 1, "TEST");
+            add_line(&mut drawing, x, y - 30.0, x, y + 30.0, 1, "TEST");
+
+            // テスト文字列（-90°回転）
+            let label = format!("{} {}", h_name, v_name);
+            add_text_rotated(&mut drawing, x, y, &label,
+                text_height, 7, "TEST", *h_align, *v_align, -90.0);
+        }
+    }
+
+    // 説明テキスト
+    add_text(&mut drawing, 0.0, 200.0, "Alignment Test: -90deg rotation", text_height, 7, "TEST", TextAlign::Left);
+    add_text(&mut drawing, 0.0, 50.0, "Red cross = anchor point", text_height * 0.8, 1, "TEST", TextAlign::Left);
+
+    drawing
+}
+
+/// アライメントテストDXFをバイト列で返す
+pub fn generate_alignment_test_dxf_bytes() -> Vec<u8> {
+    let drawing = generate_alignment_test_drawing();
+    let mut buf = Vec::new();
+    drawing.save(&mut buf).unwrap();
+    buf
+}
+
 /// Drawingオブジェクトを生成する
 pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
     let scale = 1000.0; // mm単位
@@ -1577,6 +1645,7 @@ enum ViewMode {
     AllGrid,     // 全横断図グリッド
     Longitudinal, // 縦断図
     Combo,       // 縦断図＋全横断図
+    AlignTest,   // アライメントテスト
 }
 
 pub struct CrossSectionApp {
@@ -1658,6 +1727,9 @@ impl CrossSectionApp {
 
     fn update_dxf_preview(&mut self) {
         let drawing = match self.view_mode {
+            ViewMode::AlignTest => {
+                generate_alignment_test_drawing()
+            }
             ViewMode::Combo if !self.sections.is_empty() => {
                 generate_combo_drawing(&self.sections, self.grid_columns)
             }
@@ -1772,6 +1844,7 @@ impl eframe::App for CrossSectionApp {
                             ViewMode::Single => "単一",
                             ViewMode::AllGrid => "全横断",
                             ViewMode::Longitudinal => "縦断",
+                            ViewMode::AlignTest => "テスト",
                         };
                         let response = egui::ComboBox::from_id_salt("view_mode_select")
                             .selected_text(mode_text)
@@ -1790,6 +1863,9 @@ impl eframe::App for CrossSectionApp {
                                 }
                                 if ui.selectable_label(self.view_mode == ViewMode::Longitudinal, "縦断図").clicked() {
                                     selected = Some(ViewMode::Longitudinal);
+                                }
+                                if ui.selectable_label(self.view_mode == ViewMode::AlignTest, "アライメントテスト").clicked() {
+                                    selected = Some(ViewMode::AlignTest);
                                 }
                                 selected
                             });
@@ -1847,6 +1923,12 @@ impl eframe::App for CrossSectionApp {
                                     }
                                 }
                             }
+                            ViewMode::AlignTest => {
+                                if ui.button("DXF").clicked() {
+                                    let dxf_content = generate_alignment_test_dxf_bytes();
+                                    download_file("alignment_test.dxf", &dxf_content);
+                                }
+                            }
                         }
                     });
                 });
@@ -1902,34 +1984,39 @@ impl eframe::App for CrossSectionApp {
                 }
 
                 // DXFダウンロード
-                if !self.sections.is_empty() {
-                    match self.view_mode {
-                        ViewMode::Combo => {
-                            if ui.button("Download Combo DXF").clicked() {
-                                let dxf_content = generate_combo_dxf_bytes(&self.sections, self.grid_columns);
-                                download_file("combo.dxf", &dxf_content);
-                            }
+                match self.view_mode {
+                    ViewMode::AlignTest => {
+                        if ui.button("Download Test DXF").clicked() {
+                            let dxf_content = generate_alignment_test_dxf_bytes();
+                            download_file("alignment_test.dxf", &dxf_content);
                         }
-                        ViewMode::AllGrid => {
-                            if ui.button("Download All DXF").clicked() {
-                                let dxf_content = generate_multi_dxf_bytes(&self.sections, self.grid_columns);
-                                download_file("cross_sections_all.dxf", &dxf_content);
-                            }
+                    }
+                    _ if self.sections.is_empty() => {}
+                    ViewMode::Combo => {
+                        if ui.button("Download Combo DXF").clicked() {
+                            let dxf_content = generate_combo_dxf_bytes(&self.sections, self.grid_columns);
+                            download_file("combo.dxf", &dxf_content);
                         }
-                        ViewMode::Longitudinal => {
-                            if ui.button("Download 縦断 DXF").clicked() {
-                                let dxf_content = generate_longitudinal_dxf_bytes(&self.sections);
-                                download_file("longitudinal.dxf", &dxf_content);
-                            }
+                    }
+                    ViewMode::AllGrid => {
+                        if ui.button("Download All DXF").clicked() {
+                            let dxf_content = generate_multi_dxf_bytes(&self.sections, self.grid_columns);
+                            download_file("cross_sections_all.dxf", &dxf_content);
                         }
-                        ViewMode::Single => {
-                            if let Some(idx) = self.selected_index {
-                                if let Some(section) = self.sections.get(idx) {
-                                    if ui.button("Download DXF").clicked() {
-                                        let dxf_content = generate_dxf_bytes(section);
-                                        let filename = format!("{}.dxf", section.survey_point_name);
-                                        download_file(&filename, &dxf_content);
-                                    }
+                    }
+                    ViewMode::Longitudinal => {
+                        if ui.button("Download 縦断 DXF").clicked() {
+                            let dxf_content = generate_longitudinal_dxf_bytes(&self.sections);
+                            download_file("longitudinal.dxf", &dxf_content);
+                        }
+                    }
+                    ViewMode::Single => {
+                        if let Some(idx) = self.selected_index {
+                            if let Some(section) = self.sections.get(idx) {
+                                if ui.button("Download DXF").clicked() {
+                                    let dxf_content = generate_dxf_bytes(section);
+                                    let filename = format!("{}.dxf", section.survey_point_name);
+                                    download_file(&filename, &dxf_content);
                                 }
                             }
                         }
