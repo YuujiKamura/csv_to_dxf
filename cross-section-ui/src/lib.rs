@@ -768,23 +768,24 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
                 cell_text_height, 7, "TEXT", TextAlign::Center, VerticalAlign::Middle, -90.0);
         }
 
-        // FH/GH/追加距離/単距離: 90°回転、中央配置
+        // FH/GH/追加距離/単距離: 90°回転、下揃え（セル下端基準）
         let row_data: [(usize, String); 4] = [
             (3, format!("{:.3}", fh)),      // 計画高(FH)
             (4, format!("{:.3}", gh)),      // 地盤高(GH)
             (5, format!("{:.3}", cum_dist)), // 追加距離
             (6, format!("{:.3}", unit_dist)), // 単距離
         ];
+        let margin = 30.0;  // セル下端からのマージン
         for (row_idx, text) in row_data {
-            let y = table_top - row_idx as f64 * row_height - row_height / 2.0;
+            let y = table_top - (row_idx + 1) as f64 * row_height + margin;
             add_text_rotated(&mut drawing, x, y, &text,
-                cell_text_height, 7, "TEXT", TextAlign::Center, VerticalAlign::Middle, -90.0);
+                cell_text_height, 7, "TEXT", TextAlign::Left, VerticalAlign::Middle, -90.0);
         }
 
-        // 測点名: 90°回転、中央配置（独立した行高さ）
-        let station_y = normal_rows_bottom - station_row_height / 2.0;
+        // 測点名: 90°回転、下揃え（独立した行高さ）
+        let station_y = table_bottom + margin;
         add_text_rotated(&mut drawing, x, station_y, name,
-            cell_text_height, 7, "TEXT", TextAlign::Center, VerticalAlign::Middle, -90.0);
+            cell_text_height, 7, "TEXT", TextAlign::Left, VerticalAlign::Middle, -90.0);
 
         prev_dist = *dist;
     }
