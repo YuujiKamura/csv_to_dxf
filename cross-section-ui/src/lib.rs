@@ -279,12 +279,10 @@ pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
 
     // ========== 切削厚表示（DLライン上部） ==========
     let cutting_text_height = text_height * 1.6;
-    let cutting_y = to_dxf_y(dl) + 100.0;  // DLラインの少し上
+    let cutting_y = to_dxf_y(dl) + 50.0;
     for (i, pt) in data.iter().enumerate() {
         let x = to_dxf_x(pt.cumulative_distance);
-        // 切削厚 = 現地盤高 - 切削底 (mm単位)
         let cutting_thickness_mm = (pt.elevation - pt.cutting_bottom) * 1000.0;
-        // テキスト配置（端は寄せ、中間は中央揃え）
         let align = if i == 0 {
             TextAlign::Left
         } else if i == data.len() - 1 {
@@ -445,7 +443,7 @@ fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
 
     // ========== 切削厚表示（DLライン上部） ==========
     let cutting_text_height = text_height * 1.6;
-    let cutting_y = to_dxf_y(dl) + 100.0;
+    let cutting_y = to_dxf_y(dl) + 50.0;
     for (i, pt) in data.iter().enumerate() {
         let x = to_dxf_x(pt.cumulative_distance);
         let cutting_thickness_mm = (pt.elevation - pt.cutting_bottom) * 1000.0;
