@@ -610,9 +610,9 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
     let min_elev = points.iter().map(|p| p.1.min(p.2)).fold(f64::MAX, f64::min);
     let max_elev = points.iter().map(|p| p.1.max(p.2)).fold(f64::MIN, f64::max);
 
-    // DL（基準高）を1m単位で切り下げ（最小限のマージン）
-    let dl = (min_elev - 0.1).floor();
-    let graph_top = (max_elev + 0.1).ceil();
+    // DL（基準高）を1m単位で切り下げ（上下2mマージン）
+    let dl = (min_elev - 2.0).floor();
+    let graph_top = (max_elev + 2.0).ceil();
 
     // 左右マージンなし（ピッチリ）
     let margin_x = 0.0;
@@ -652,17 +652,18 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
     while elev <= graph_top {
         let y = to_dxf_y(elev);
         add_line(&mut drawing, label_width, y, label_width + graph_width, y, 8, "GRID");
-        // 標高ラベル（左側）- DL行は特別表示
+        // 標高ラベル（左側）- DL行は特別表示、ボトムアライメント
         let label_text = if (elev - dl).abs() < 0.01 {
             format!("DL={:.0}", elev)
         } else {
             format!("{:.0}", elev)
         };
-        add_text(&mut drawing, label_width - 80.0, y, &label_text, text_height * 0.9, 7, "TEXT", TextAlign::Right);
+        add_text_rotated(&mut drawing, label_width - 80.0, y, &label_text,
+            text_height * 0.9, 7, "TEXT", TextAlign::Right, VerticalAlign::Bottom, 0.0);
 
         // 標高ラベル（右側）
-        add_text(&mut drawing, label_width + graph_width + 80.0, y, &format!("{:.0}", elev),
-            text_height * 0.9, 7, "TEXT", TextAlign::Left);
+        add_text_rotated(&mut drawing, label_width + graph_width + 80.0, y, &format!("{:.0}", elev),
+            text_height * 0.9, 7, "TEXT", TextAlign::Left, VerticalAlign::Bottom, 0.0);
         elev += grid_step;
     }
 
@@ -686,84 +687,6 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
             to_dxf_x(points[i].0), to_dxf_y(points[i].2),
             to_dxf_x(points[i + 1].0), to_dxf_y(points[i + 1].2),
             1, "PLAN");
-    }
-
-    // ===================
-    // 勾配変化点の注釈 (ΔV, i%, L)
-    // ===================
-    // 区間ごとの勾配を計算
-    let mut slopes: Vec<f64> = Vec::new();
-    for i in 0..points.len() - 1 {
-        let d_dist = points[i + 1].0 - points[i].0;
-        let d_elev = points[i + 1].2 - points[i].2;  // 計画高の差
-        if d_dist.abs() > 0.001 {
-            slopes.push((d_elev / d_dist) * 100.0);  // %表示
-        } else {
-            slopes.push(0.0);
-        }
-    }
-
-    // 各区間の中点に勾配・区間長を表示
-    for i in 0..points.len() - 1 {
-        let mid_x = (to_dxf_x(points[i].0) + to_dxf_x(points[i + 1].0)) / 2.0;
-        let mid_y = (to_dxf_y(points[i].2) + to_dxf_y(points[i + 1].2)) / 2.0;
-
-        let section_length = points[i + 1].0 - points[i].0;
-        let slope = slopes[i];
-
-        // 勾配表示 (i%)
-        let slope_text = format!("i={:.2}%", slope);
-        add_text(&mut drawing, mid_x, mid_y + text_height * 1.2, &slope_text,
-            text_height * 0.8, 5, "ANNOTATION", TextAlign::Center);
-
-        // 区間長表示 (L)
-        let length_text = format!("L={:.1}m", section_length);
-        add_text(&mut drawing, mid_x, mid_y + text_height * 0.3, &length_text,
-            text_height * 0.7, 5, "ANNOTATION", TextAlign::Center);
-    }
-
-    // 変曲点にΔV（勾配差）を表示
-    for i in 1..slopes.len() {
-        let delta_v = slopes[i] - slopes[i - 1];
-        if delta_v.abs() > 0.001 {  // 有意な勾配変化がある場合のみ
-            let x = to_dxf_x(points[i].0);
-            let y = to_dxf_y(points[i].2);
-
-            // ΔV表示
-            let delta_text = format!("ΔV={:.2}%", delta_v);
-            add_text(&mut drawing, x, y - text_height * 0.8, &delta_text,
-                text_height * 0.7, 5, "ANNOTATION", TextAlign::Center);
-
-            // 変曲点マーカー（小さな円の代わりに十字）
-            let marker_size = 50.0;
-            add_line(&mut drawing, x - marker_size, y, x + marker_size, y, 5, "ANNOTATION");
-            add_line(&mut drawing, x, y - marker_size, x, y + marker_size, 5, "ANNOTATION");
-        }
-    }
-
-    // ===================
-    // 始点・終点の標高マーカー
-    // ===================
-    if let Some(first) = points.first() {
-        let x = to_dxf_x(first.0);
-        // 地盤高マーカー
-        add_text(&mut drawing, x - text_height * 1.5, to_dxf_y(first.1),
-            &format!("GH={:.3}", first.1), text_height * 0.7, 7, "TEXT", TextAlign::Right);
-        // 計画高マーカー
-        add_text(&mut drawing, x - text_height * 1.5, to_dxf_y(first.2),
-            &format!("FH={:.3}", first.2), text_height * 0.7, 1, "PLAN", TextAlign::Right);
-    }
-    // 終点マーカーは複数点がある場合のみ（単一点で重複を防止）
-    if points.len() > 1 {
-        if let Some(last) = points.last() {
-            let x = to_dxf_x(last.0);
-            // 地盤高マーカー
-            add_text(&mut drawing, x + text_height * 1.0, to_dxf_y(last.1),
-                &format!("GH={:.3}", last.1), text_height * 0.7, 7, "TEXT", TextAlign::Left);
-            // 計画高マーカー
-            add_text(&mut drawing, x + text_height * 1.0, to_dxf_y(last.2),
-                &format!("FH={:.3}", last.2), text_height * 0.7, 1, "PLAN", TextAlign::Left);
-        }
     }
 
     // ===================
@@ -825,38 +748,42 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
 
         let cell_text_height = text_height * 0.9;
 
-        // 盛土: 90°回転、中央配置（row_height / 2.0）
+        // 各フィールドの左上を基準に配置
+        // -90°回転テキストでは、TextAlign::Left = テキストが上から下に伸びる
+        // VerticalAlign::Bottom = テキストの下端が挿入点
+        let top_margin = 30.0;  // セル上端からのマージン
+
+        // 盛土: 行1の上端基準
         if fill > 0.001 {
-            let y = table_top - 1.0 * row_height - row_height / 2.0;
+            let y = table_top - 1.0 * row_height - top_margin;
             add_text_rotated(&mut drawing, x, y, &format!("{:.3}", fill),
-                cell_text_height, 7, "TEXT", TextAlign::Center, VerticalAlign::Middle, -90.0);
+                cell_text_height, 7, "TEXT", TextAlign::Left, VerticalAlign::Bottom, -90.0);
         }
 
-        // 切土: 90°回転、中央配置（row_height / 2.0）
+        // 切土: 行2の上端基準
         if cut > 0.001 {
-            let y = table_top - 2.0 * row_height - row_height / 2.0;
+            let y = table_top - 2.0 * row_height - top_margin;
             add_text_rotated(&mut drawing, x, y, &format!("{:.3}", cut),
-                cell_text_height, 7, "TEXT", TextAlign::Center, VerticalAlign::Middle, -90.0);
+                cell_text_height, 7, "TEXT", TextAlign::Left, VerticalAlign::Bottom, -90.0);
         }
 
-        // FH/GH/追加距離/単距離: 90°回転、下揃え（セル下端基準）
+        // FH/GH/追加距離/単距離: 各行の上端基準
         let row_data: [(usize, String); 4] = [
             (3, format!("{:.3}", fh)),      // 計画高(FH)
             (4, format!("{:.3}", gh)),      // 地盤高(GH)
-            (5, format!("{:.3}", cum_dist)), // 追加距離
-            (6, format!("{:.3}", unit_dist)), // 単距離
+            (5, format!("{:.2}", cum_dist)), // 追加距離
+            (6, format!("{:.2}", unit_dist)), // 単距離
         ];
-        let margin = 30.0;  // セル下端からのマージン
         for (row_idx, text) in row_data {
-            let y = table_top - (row_idx + 1) as f64 * row_height + margin;
+            let y = table_top - row_idx as f64 * row_height - top_margin;
             add_text_rotated(&mut drawing, x, y, &text,
-                cell_text_height, 7, "TEXT", TextAlign::Left, VerticalAlign::Middle, -90.0);
+                cell_text_height, 7, "TEXT", TextAlign::Left, VerticalAlign::Bottom, -90.0);
         }
 
-        // 測点名: 90°回転、下揃え（独立した行高さ）
-        let station_y = table_bottom + margin;
+        // 測点名: 測点名行の上端基準
+        let station_y = normal_rows_bottom - top_margin;
         add_text_rotated(&mut drawing, x, station_y, name,
-            cell_text_height, 7, "TEXT", TextAlign::Left, VerticalAlign::Middle, -90.0);
+            cell_text_height, 7, "TEXT", TextAlign::Left, VerticalAlign::Bottom, -90.0);
 
         prev_dist = *dist;
     }
