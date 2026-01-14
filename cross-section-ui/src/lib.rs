@@ -603,7 +603,7 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
     let row_height = 600.0;
     // 測点名行の高さ（最大文字数に基づいて計算）
     let max_name_len = points.iter().map(|p| p.3.chars().count()).max().unwrap_or(6);
-    let station_row_height = (max_name_len as f64 * text_height * 0.7).max(row_height);
+    let station_row_height = (max_name_len as f64 * text_height * 1.0).max(row_height);
 
     // 範囲計算
     let min_dist = points.first().map(|p| p.0).unwrap_or(0.0);
