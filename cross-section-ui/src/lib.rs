@@ -116,9 +116,16 @@ fn add_dimension_as_lines(
     add_text(drawing, mid_x, y + 50.0, text, text_height, color, layer, TextAlign::Center);
 }
 
-/// DL値を1m刻みに切り上げる
+/// DL値を1m刻みに丸める（最小標高との差が0.2以下なら1m下げる）
 fn round_dl(dl: f64) -> f64 {
-    dl.ceil()
+    let min_elevation = dl + 1.0;  // 元の最小標高（DL = min - 1.0 で計算されている）
+    let rounded = dl.ceil();
+    let diff = min_elevation - rounded;
+    if diff < 0.2 {
+        rounded - 1.0
+    } else {
+        rounded
+    }
 }
 
 /// Drawingオブジェクトを生成する
