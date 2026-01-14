@@ -1617,7 +1617,7 @@ impl CrossSectionApp {
         fonts.font_data.insert(
             "NotoSansJP".to_owned(),
             egui::FontData::from_static(
-                include_bytes!("../static/NotoSansJP-Regular.ttf")
+                include_bytes!("../static/NotoSansJP-Subset.ttf")
             )
         );
         fonts.families
