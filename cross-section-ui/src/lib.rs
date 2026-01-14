@@ -116,6 +116,11 @@ fn add_dimension_as_lines(
     add_text(drawing, mid_x, y + 50.0, text, text_height, color, layer, TextAlign::Center);
 }
 
+/// DL値を0.5m刻みに切り捨てる
+fn round_dl(dl: f64) -> f64 {
+    (dl * 2.0).floor() / 2.0
+}
+
 /// Drawingオブジェクトを生成する
 pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
     let scale = 1000.0; // mm単位
@@ -155,7 +160,7 @@ pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
         return drawing;
     }
 
-    let dl = section.dl;
+    let dl = round_dl(section.dl);
 
     let to_dxf_x = |cumulative_distance: f64| -> f64 {
         cumulative_distance * scale
@@ -366,7 +371,7 @@ pub fn generate_multi_drawing(sections: &[CrossSectionData], columns: usize) -> 
 fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
                           offset_x: f64, offset_y: f64, scale: f64) {
     let data = &section.survey_data;
-    let dl = section.dl;
+    let dl = round_dl(section.dl);
     let to_dxf_x = |d: f64| offset_x + d * scale;
     let to_dxf_y = |h: f64| offset_y + (h - dl) * scale;
 
