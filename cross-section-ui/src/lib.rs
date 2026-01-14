@@ -36,19 +36,13 @@ fn add_text(drawing: &mut Drawing, x: f64, y: f64, text: &str, height: f64, colo
     t.location = Point::new(x, y, 0.0);
     t.text_height = height;
     t.value = text.to_string();
-    match align {
-        TextAlign::Left => {
-            t.horizontal_text_justification = HorizontalTextJustification::Left;
-        }
-        TextAlign::Center => {
-            t.horizontal_text_justification = HorizontalTextJustification::Center;
-            t.second_alignment_point = Point::new(x, y, 0.0);
-        }
-        TextAlign::Right => {
-            t.horizontal_text_justification = HorizontalTextJustification::Right;
-            t.second_alignment_point = Point::new(x, y, 0.0);
-        }
-    }
+    t.horizontal_text_justification = match align {
+        TextAlign::Left => HorizontalTextJustification::Left,
+        TextAlign::Center => HorizontalTextJustification::Center,
+        TextAlign::Right => HorizontalTextJustification::Right,
+    };
+    // 垂直配置がMiddleの場合、second_alignment_pointが必要
+    t.second_alignment_point = Point::new(x, y, 0.0);
     t.vertical_text_justification = VerticalTextJustification::Middle;
     let mut entity = Entity::new(EntityType::Text(t));
     entity.common.layer = layer.to_string();
@@ -77,9 +71,8 @@ fn add_text_rotated(
         TextAlign::Center => HorizontalTextJustification::Center,
         TextAlign::Right => HorizontalTextJustification::Right,
     };
-    if matches!(align, TextAlign::Center | TextAlign::Right) {
-        t.second_alignment_point = Point::new(x, y, 0.0);
-    }
+    // 垂直配置がBaseline以外の場合、second_alignment_pointが必要
+    t.second_alignment_point = Point::new(x, y, 0.0);
 
     t.vertical_text_justification = match v_align {
         VerticalAlign::Top => VerticalTextJustification::Top,
