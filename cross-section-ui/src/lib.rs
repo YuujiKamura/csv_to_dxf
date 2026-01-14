@@ -401,24 +401,28 @@ pub fn generate_multi_drawing(sections: &[CrossSectionData], columns: usize) -> 
 
     if sections.is_empty() { return drawing; }
 
-    let mut max_width: f64 = 0.0;
+    let mut max_left_extent: f64 = 0.0;   // CLから左方向の最大延長
+    let mut max_right_extent: f64 = 0.0;  // CLから右方向の最大延長
     let mut max_height: f64 = 0.0;
 
     for section in sections {
         if section.survey_data.len() < 2 { continue; }
         let data = &section.survey_data;
-        let total_width = (data.last().unwrap().cumulative_distance
-                         - data.first().unwrap().cumulative_distance).abs();
-        max_width = max_width.max(total_width);
+        let min_dist = data.first().unwrap().cumulative_distance;
+        let max_dist = data.last().unwrap().cumulative_distance;
+        // min_distは負の値（CLの左側）、max_distは正の値（CLの右側）
+        max_left_extent = max_left_extent.max(min_dist.abs());
+        max_right_extent = max_right_extent.max(max_dist);
         let max_elev = data.iter().map(|d| d.elevation.max(d.planned_height)).fold(f64::MIN, f64::max);
         max_height = max_height.max(max_elev - section.dl + 1.5);
     }
 
-    let cell_width = (max_width + 2.0) * scale;
+    // セル幅をCLからの左右最大延長に基づいて計算（これにより列間隔が一定になる）
+    let cell_width = (max_left_extent + max_right_extent + 2.0) * scale;
     let cell_height = (max_height + 1.0) * scale;
 
-    // 左端マージン（横断面の幅の半分を確保）
-    let left_margin = max_width * scale / 2.0;
+    // 左端マージン: 最大左延長分 + 余白
+    let left_margin = (max_left_extent + 1.0) * scale;
 
     // 道路工事の配置: 左下起点、列ごとに下から上
     let rows_per_column = (sections.len() + columns - 1) / columns;  // ceil division
@@ -428,17 +432,10 @@ pub fn generate_multi_drawing(sections: &[CrossSectionData], columns: usize) -> 
         let col = idx / rows_per_column;           // 列番号（左から右）
         let row_in_col = idx % rows_per_column;    // 列内の行番号（下から上）
 
-        // 断面の実際の幅を計算
-        let data = &section.survey_data;
-        let min_dist = data.first().unwrap().cumulative_distance;
-        let max_dist = data.last().unwrap().cumulative_distance;
-        let section_width = (max_dist - min_dist).abs();
-
-        // セルの左端を基準に、断面をセル内でセンタリング
-        let cell_left_x = left_margin + col as f64 * cell_width;
-        // (cell_width - section_width*scale)/2 = セル内の左余白
-        // - min_dist*scale = 断面の左端（負の値）を補正
-        let offset_x = cell_left_x + (cell_width - section_width * scale) / 2.0 - min_dist * scale;
+        // CLを配置: 仮想的な左端から max_left_extent 分右にCLを配置
+        // これにより、すべてのセクションの仮想境界が一定間隔になり、列間ギャップが一定になる
+        // 実際のセクション幅に関わらず、仮想的には全セクションが同じ幅を持つかのように配置される
+        let offset_x = left_margin + col as f64 * cell_width + max_left_extent * scale;
         let offset_y = row_in_col as f64 * cell_height;
 
         draw_section_at_offset(&mut drawing, section, offset_x, offset_y, scale);
