@@ -5,6 +5,7 @@
 """
 
 import json
+import math
 import re
 import sys
 from dataclasses import dataclass, asdict
@@ -166,8 +167,8 @@ def parse_cross_section_sheet(ws, sheet_name: str, cutting_depth: float = 0.05) 
         # 左端からCLまでの距離
         l_to_cl = abs(distances[0]) if distances else 0.0
 
-        # DL（最小標高 - 1）
-        dl = min(elevations) - 1.0
+        # DL（最小標高の小数点以下切り捨て）
+        dl = math.floor(min(elevations))
 
         # SurveyRowを作成（計画高は現況と同じ、あとで上書き可能）
         survey_data = []
