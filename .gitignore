@@ -52,5 +52,5 @@ desktop.ini
 *.json
 # Keep specific config files if needed
 !app_config.json
-!cross-section-ui/static/sections.json
+!data/sections.json
 tmp/
