@@ -600,7 +600,7 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
     if points.is_empty() { return drawing; }
 
     // 通常行の高さ（固定）
-    let row_height = 500.0;
+    let row_height = 600.0;
     // 測点名行の高さ（最大文字数に基づいて計算）
     let max_name_len = points.iter().map(|p| p.3.chars().count()).max().unwrap_or(6);
     let station_row_height = (max_name_len as f64 * text_height * 0.7).max(row_height);
@@ -747,7 +747,7 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
             }
         }
 
-        let cell_text_height = text_height * 0.7;
+        let cell_text_height = text_height * 0.9;
 
         // 各フィールドの左上を基準に配置
         // -90°回転テキストでは、TextAlign::Left = テキストが上から下に伸びる
