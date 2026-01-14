@@ -238,16 +238,18 @@ pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
 
     // ========== L側 GH, FH ==========
     let l_ground_y = to_dxf_y(l_data.elevation);
-    add_text(&mut drawing, l_x, l_ground_y + 300.0,
+    let l_flag_y = l_ground_y + flag_height_mm;
+    add_text(&mut drawing, l_x, l_flag_y + 300.0,
         &format!("GH={:.3}", l_data.elevation), text_height, 7, "TEXT", TextAlign::Left);
-    add_text(&mut drawing, l_x, l_ground_y + 100.0,
+    add_text(&mut drawing, l_x, l_flag_y + 100.0,
         &format!("FH={:.3}", l_data.planned_height), text_height, 1, "PLAN", TextAlign::Left);
 
     // ========== R側 GH, FH ==========
     let r_ground_y = to_dxf_y(r_data.elevation);
-    add_text(&mut drawing, r_x, r_ground_y + 300.0,
+    let r_flag_y = r_ground_y + flag_height_mm;
+    add_text(&mut drawing, r_x, r_flag_y + 300.0,
         &format!("GH={:.3}", r_data.elevation), text_height, 7, "TEXT", TextAlign::Right);
-    add_text(&mut drawing, r_x, r_ground_y + 100.0,
+    add_text(&mut drawing, r_x, r_flag_y + 100.0,
         &format!("FH={:.3}", r_data.planned_height), text_height, 1, "PLAN", TextAlign::Right);
 
     // ========== 寸法線による旗揚げ（幅員）==========
@@ -258,12 +260,12 @@ pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
     // 左幅員の寸法（線とテキストで描画）
     let left_width = (cl_x - l_x).abs() / scale;  // メートル単位
     add_dimension_as_lines(&mut drawing, l_x, cl_x, dim_base_y,
-        &format!("{:.2}", left_width), text_height * 0.8, 8, "DIMENSION");
+        &format!("{:.2}", left_width), text_height, 7, "DIMENSION");
 
     // 右幅員の寸法（線とテキストで描画）
     let right_width = (r_x - cl_x).abs() / scale;  // メートル単位
     add_dimension_as_lines(&mut drawing, cl_x, r_x, dim_base_y,
-        &format!("{:.2}", right_width), text_height * 0.8, 8, "DIMENSION");
+        &format!("{:.2}", right_width), text_height, 7, "DIMENSION");
 
     // ========== 勾配テキスト ==========
     add_text(&mut drawing, mid_l_x, flag_y - text_height - 50.0,
@@ -412,12 +414,14 @@ fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
     add_text(drawing, cl_x, flag_y + 100.0, &format!("FH={:.3}", cl_data.planned_height), text_height, 1, "PLAN", TextAlign::Center);
 
     let l_ground_y = to_dxf_y(l_data.elevation);
-    add_text(drawing, l_x, l_ground_y + 300.0, &format!("GH={:.3}", l_data.elevation), text_height, 7, "TEXT", TextAlign::Left);
-    add_text(drawing, l_x, l_ground_y + 100.0, &format!("FH={:.3}", l_data.planned_height), text_height, 1, "PLAN", TextAlign::Left);
+    let l_flag_y = l_ground_y + 800.0;
+    add_text(drawing, l_x, l_flag_y + 300.0, &format!("GH={:.3}", l_data.elevation), text_height, 7, "TEXT", TextAlign::Left);
+    add_text(drawing, l_x, l_flag_y + 100.0, &format!("FH={:.3}", l_data.planned_height), text_height, 1, "PLAN", TextAlign::Left);
 
     let r_ground_y = to_dxf_y(r_data.elevation);
-    add_text(drawing, r_x, r_ground_y + 300.0, &format!("GH={:.3}", r_data.elevation), text_height, 7, "TEXT", TextAlign::Right);
-    add_text(drawing, r_x, r_ground_y + 100.0, &format!("FH={:.3}", r_data.planned_height), text_height, 1, "PLAN", TextAlign::Right);
+    let r_flag_y = r_ground_y + 800.0;
+    add_text(drawing, r_x, r_flag_y + 300.0, &format!("GH={:.3}", r_data.elevation), text_height, 7, "TEXT", TextAlign::Right);
+    add_text(drawing, r_x, r_flag_y + 100.0, &format!("FH={:.3}", r_data.planned_height), text_height, 1, "PLAN", TextAlign::Right);
 
     let mid_l_x = (l_x + cl_x) / 2.0;
     let mid_r_x = (cl_x + r_x) / 2.0;
@@ -430,12 +434,12 @@ fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
     // 左幅員の寸法（線とテキストで描画）
     let left_width = (cl_data.cumulative_distance - l_data.cumulative_distance).abs();
     add_dimension_as_lines(drawing, l_x, cl_x, dim_base_y,
-        &format!("{:.2}", left_width), text_height * 0.8, 8, "DIMENSION");
+        &format!("{:.2}", left_width), text_height, 7, "DIMENSION");
 
     // 右幅員の寸法（線とテキストで描画）
     let right_width = (r_data.cumulative_distance - cl_data.cumulative_distance).abs();
     add_dimension_as_lines(drawing, cl_x, r_x, dim_base_y,
-        &format!("{:.2}", right_width), text_height * 0.8, 8, "DIMENSION");
+        &format!("{:.2}", right_width), text_height, 7, "DIMENSION");
 
     add_text(drawing, cl_x, to_dxf_y(dl) - 200.0, &format!("DL={:.3}", dl), text_height, 7, "TEXT", TextAlign::Left);
 
