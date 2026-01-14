@@ -116,9 +116,9 @@ fn add_dimension_as_lines(
     add_text(drawing, mid_x, y + 50.0, text, text_height, color, layer, TextAlign::Center);
 }
 
-/// DL値を0.5m刻みに切り捨てる
+/// DL値を1m刻みに切り捨てる
 fn round_dl(dl: f64) -> f64 {
-    (dl * 2.0).floor() / 2.0
+    dl.floor()
 }
 
 /// Drawingオブジェクトを生成する
