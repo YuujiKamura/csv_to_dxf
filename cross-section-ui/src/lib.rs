@@ -428,15 +428,17 @@ pub fn generate_multi_drawing(sections: &[CrossSectionData], columns: usize) -> 
         let col = idx / rows_per_column;           // 列番号（左から右）
         let row_in_col = idx % rows_per_column;    // 列内の行番号（下から上）
 
-        // 断面の幅の中心を計算してセンタリング
+        // 断面の実際の幅を計算
         let data = &section.survey_data;
         let min_dist = data.first().unwrap().cumulative_distance;
         let max_dist = data.last().unwrap().cumulative_distance;
-        let section_center = (min_dist + max_dist) / 2.0;
+        let section_width = (max_dist - min_dist).abs();
 
-        // セルの中心にセクションの中心を合わせる（左端マージン付き）
-        let cell_center_x = left_margin + col as f64 * cell_width + cell_width / 2.0;
-        let offset_x = cell_center_x - section_center * scale;
+        // セルの左端を基準に、断面をセル内でセンタリング
+        let cell_left_x = left_margin + col as f64 * cell_width;
+        // (cell_width - section_width*scale)/2 = セル内の左余白
+        // - min_dist*scale = 断面の左端（負の値）を補正
+        let offset_x = cell_left_x + (cell_width - section_width * scale) / 2.0 - min_dist * scale;
         let offset_y = row_in_col as f64 * cell_height;
 
         draw_section_at_offset(&mut drawing, section, offset_x, offset_y, scale);
