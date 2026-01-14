@@ -274,6 +274,25 @@ pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
     add_text(&mut drawing, cl_x, to_dxf_y(dl) - 200.0,
         &format!("DL={:.3}", dl), text_height, 7, "TEXT", TextAlign::Left);
 
+    // ========== 切削厚表示（DLライン上部） ==========
+    let cutting_text_height = text_height * 0.8;
+    let cutting_y = to_dxf_y(dl) + 100.0;  // DLラインの少し上
+    for (i, pt) in data.iter().enumerate() {
+        let x = to_dxf_x(pt.cumulative_distance);
+        // 切削厚 = 現地盤高 - 切削底 (mm単位)
+        let cutting_thickness_mm = (pt.elevation - pt.cutting_bottom) * 1000.0;
+        // テキスト配置（端は寄せ、中間は中央揃え）
+        let align = if i == 0 {
+            TextAlign::Left
+        } else if i == data.len() - 1 {
+            TextAlign::Right
+        } else {
+            TextAlign::Center
+        };
+        add_text(&mut drawing, x, cutting_y,
+            &format!("{:.0}", cutting_thickness_mm), cutting_text_height, 5, "CUTTING", align);
+    }
+
     // ========== ガイド線 ==========
     let guide_h_length_mm = 6000.0;
     let guide_v_length_mm = 1000.0;
@@ -452,6 +471,23 @@ fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
     }
 
     add_text(drawing, cl_x, to_dxf_y(dl) - 200.0, &format!("DL={:.3}", dl), text_height, 7, "TEXT", TextAlign::Left);
+
+    // ========== 切削厚表示（DLライン上部） ==========
+    let cutting_text_height = text_height * 0.8;
+    let cutting_y = to_dxf_y(dl) + 100.0;
+    for (i, pt) in data.iter().enumerate() {
+        let x = to_dxf_x(pt.cumulative_distance);
+        let cutting_thickness_mm = (pt.elevation - pt.cutting_bottom) * 1000.0;
+        let align = if i == 0 {
+            TextAlign::Left
+        } else if i == data.len() - 1 {
+            TextAlign::Right
+        } else {
+            TextAlign::Center
+        };
+        add_text(drawing, x, cutting_y,
+            &format!("{:.0}", cutting_thickness_mm), cutting_text_height, 5, "CUTTING", align);
+    }
 
     let cl_cumulative = cl_data.cumulative_distance;
     add_line(drawing, to_dxf_x(cl_cumulative - 3.0), to_dxf_y(dl), to_dxf_x(cl_cumulative + 3.0), to_dxf_y(dl), 8, "DIMENSION");
