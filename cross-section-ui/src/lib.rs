@@ -424,8 +424,18 @@ pub fn generate_multi_drawing(sections: &[CrossSectionData], columns: usize) -> 
         if section.survey_data.len() < 2 { continue; }
         let col = idx / rows_per_column;           // 列番号（左から右）
         let row_in_col = idx % rows_per_column;    // 列内の行番号（下から上）
-        let offset_x = col as f64 * cell_width;
-        let offset_y = row_in_col as f64 * cell_height;  // 正の方向（下から上）
+
+        // 断面の幅の中心を計算してセンタリング
+        let data = &section.survey_data;
+        let min_dist = data.first().unwrap().cumulative_distance;
+        let max_dist = data.last().unwrap().cumulative_distance;
+        let section_center = (min_dist + max_dist) / 2.0;
+
+        // セルの中心にセクションの中心を合わせる
+        let cell_center_x = col as f64 * cell_width + cell_width / 2.0;
+        let offset_x = cell_center_x - section_center * scale;
+        let offset_y = row_in_col as f64 * cell_height;
+
         draw_section_at_offset(&mut drawing, section, offset_x, offset_y, scale);
     }
     drawing
