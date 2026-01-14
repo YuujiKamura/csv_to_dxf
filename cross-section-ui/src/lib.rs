@@ -93,16 +93,17 @@ fn add_dimension_as_lines(
     text: &str, text_height: f64,
     color: i16, layer: &str,
 ) {
-    let tick_height = 100.0; // 端点マークの高さ
+    let tick_up = 50.0;    // 端点マークの上方向
+    let tick_down = 200.0; // 端点マークの下方向（アシを長く）
 
     // 水平線（寸法線本体）
     add_line(drawing, x1, y, x2, y, color, layer);
 
     // 左端の縦線（端点マーク）
-    add_line(drawing, x1, y - tick_height / 2.0, x1, y + tick_height / 2.0, color, layer);
+    add_line(drawing, x1, y - tick_down, x1, y + tick_up, color, layer);
 
     // 右端の縦線（端点マーク）
-    add_line(drawing, x2, y - tick_height / 2.0, x2, y + tick_height / 2.0, color, layer);
+    add_line(drawing, x2, y - tick_down, x2, y + tick_up, color, layer);
 
     // 中央にテキスト
     let mid_x = (x1 + x2) / 2.0;
