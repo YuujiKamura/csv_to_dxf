@@ -417,6 +417,9 @@ pub fn generate_multi_drawing(sections: &[CrossSectionData], columns: usize) -> 
     let cell_width = (max_width + 2.0) * scale;
     let cell_height = (max_height + 1.0) * scale;
 
+    // 左端マージン（横断面の幅の半分を確保）
+    let left_margin = max_width * scale / 2.0;
+
     // 道路工事の配置: 左下起点、列ごとに下から上
     let rows_per_column = (sections.len() + columns - 1) / columns;  // ceil division
 
@@ -431,8 +434,8 @@ pub fn generate_multi_drawing(sections: &[CrossSectionData], columns: usize) -> 
         let max_dist = data.last().unwrap().cumulative_distance;
         let section_center = (min_dist + max_dist) / 2.0;
 
-        // セルの中心にセクションの中心を合わせる
-        let cell_center_x = col as f64 * cell_width + cell_width / 2.0;
+        // セルの中心にセクションの中心を合わせる（左端マージン付き）
+        let cell_center_x = left_margin + col as f64 * cell_width + cell_width / 2.0;
         let offset_x = cell_center_x - section_center * scale;
         let offset_y = row_in_col as f64 * cell_height;
 
