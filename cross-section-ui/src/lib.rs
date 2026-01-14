@@ -566,7 +566,7 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
     let scale_x = 100.0;     // 横方向スケール（1m = 100単位）
     let scale_y = 200.0;     // 縦方向スケール（1m = 200単位）縦横比 2:1
     let text_height = 120.0; // 基本テキスト高さ
-    let label_width = 500.0; // 左側のラベル幅
+    let label_width = 600.0; // 左側のラベル幅
     let title_height = 0.0; // タイトルなし（ピッチリ）
 
     let mut drawing = Drawing::new();
