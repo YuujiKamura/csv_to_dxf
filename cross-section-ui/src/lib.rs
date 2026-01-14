@@ -288,13 +288,13 @@ pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
     let r_x = to_dxf_x(r_data.cumulative_distance);
 
     // ========== 測点名（CL上）==========
-    add_text(&mut drawing, cl_x, flag_y + 500.0,
+    add_text(&mut drawing, cl_x, flag_y + 600.0,
         &section.survey_point_name, text_height * 1.5, 7, "TEXT", TextAlign::Center);
 
     // ========== CL GH, FH ==========
-    add_text(&mut drawing, cl_x, flag_y + 300.0,
+    add_text(&mut drawing, cl_x, flag_y + 400.0,
         &format!("GH={:.3}", cl_data.elevation), text_height, 7, "TEXT", TextAlign::Center);
-    add_text(&mut drawing, cl_x, flag_y + 100.0,
+    add_text(&mut drawing, cl_x, flag_y + 200.0,
         &format!("FH={:.3}", cl_data.planned_height), text_height, 1, "PLAN", TextAlign::Center);
 
     // ========== L側 GH, FH ==========
@@ -354,14 +354,11 @@ pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
     }
 
     // ========== ガイド線 ==========
-    let guide_h_length_mm = 6000.0;
     let guide_v_length_mm = 1000.0;
     let cl_cumulative = cl_data.cumulative_distance;
 
-    add_line(&mut drawing,
-        to_dxf_x(cl_cumulative - guide_h_length_mm / 2000.0), to_dxf_y(dl),
-        to_dxf_x(cl_cumulative + guide_h_length_mm / 2000.0), to_dxf_y(dl),
-        8, "DIMENSION");
+    // DLライン（幅員と同じ長さ）
+    add_line(&mut drawing, l_x, to_dxf_y(dl), r_x, to_dxf_y(dl), 8, "DIMENSION");
 
     add_line(&mut drawing,
         to_dxf_x(cl_cumulative), to_dxf_y(dl),
@@ -466,9 +463,9 @@ fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
     let cl_x = to_dxf_x(cl_data.cumulative_distance);
     let r_x = to_dxf_x(r_data.cumulative_distance);
 
-    add_text(drawing, cl_x, flag_y + 500.0, &section.survey_point_name, text_height * 1.5, 7, "TEXT", TextAlign::Center);
-    add_text(drawing, cl_x, flag_y + 300.0, &format!("GH={:.3}", cl_data.elevation), text_height, 7, "TEXT", TextAlign::Center);
-    add_text(drawing, cl_x, flag_y + 100.0, &format!("FH={:.3}", cl_data.planned_height), text_height, 1, "PLAN", TextAlign::Center);
+    add_text(drawing, cl_x, flag_y + 600.0, &section.survey_point_name, text_height * 1.5, 7, "TEXT", TextAlign::Center);
+    add_text(drawing, cl_x, flag_y + 400.0, &format!("GH={:.3}", cl_data.elevation), text_height, 7, "TEXT", TextAlign::Center);
+    add_text(drawing, cl_x, flag_y + 200.0, &format!("FH={:.3}", cl_data.planned_height), text_height, 1, "PLAN", TextAlign::Center);
 
     let l_ground_y = to_dxf_y(l_data.elevation);
     add_text(drawing, l_x, l_ground_y + 400.0, &format!("GH={:.3}", l_data.elevation), text_height, 7, "TEXT", TextAlign::Left);
@@ -515,8 +512,9 @@ fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
             &format!("{:.0}", cutting_thickness_mm), cutting_text_height, 5, "CUTTING", align);
     }
 
+    // DLライン（幅員と同じ長さ）
+    add_line(drawing, l_x, to_dxf_y(dl), r_x, to_dxf_y(dl), 8, "DIMENSION");
     let cl_cumulative = cl_data.cumulative_distance;
-    add_line(drawing, to_dxf_x(cl_cumulative - 3.0), to_dxf_y(dl), to_dxf_x(cl_cumulative + 3.0), to_dxf_y(dl), 8, "DIMENSION");
     add_line(drawing, to_dxf_x(cl_cumulative), to_dxf_y(dl), to_dxf_x(cl_cumulative), to_dxf_y(dl + 1.0), 8, "DIMENSION");
 }
 
