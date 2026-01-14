@@ -527,9 +527,11 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
 
     if points.is_empty() { return drawing; }
 
-    // 測点名の最大文字数に基づいて行高さを計算（回転テキスト用）
+    // 通常行の高さ（固定）
+    let row_height = 350.0;
+    // 測点名行の高さ（最大文字数に基づいて計算）
     let max_name_len = points.iter().map(|p| p.3.chars().count()).max().unwrap_or(6);
-    let row_height = (max_name_len as f64 * text_height * 0.7).max(250.0);
+    let station_row_height = (max_name_len as f64 * text_height * 0.7).max(350.0);
 
     // 範囲計算
     let min_dist = points.first().map(|p| p.0).unwrap_or(0.0);
@@ -552,6 +554,7 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
     let graph_height = (graph_top - dl) * scale_y;
 
     // データ表の行定義（上から下へ）
+    // 行0-6は通常高さ、行7（測点名）は独立した高さ
     let table_rows = [
         ("勾配", 0),
         ("盛土", 1),
@@ -563,7 +566,8 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
         ("測点名", 7),
     ];
     let table_top = 0.0;
-    let table_bottom = table_top - (table_rows.len() as f64) * row_height;
+    let normal_rows_bottom = table_top - 7.0 * row_height;  // 行0-6
+    let table_bottom = normal_rows_bottom - station_row_height;  // 行7（測点名）
 
     // タイトルは描画しない（ピッチリ）
 
@@ -695,19 +699,25 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
     // データ表の描画
     // ===================
 
-    // 表の横線
-    for i in 0..=table_rows.len() {
+    // 表の横線（行0-6は通常高さ、行7は測点名行の高さ）
+    for i in 0..=7 {
         let y = table_top - (i as f64) * row_height;
         add_line(&mut drawing, 0.0, y, label_width + graph_width, y, 7, "TABLE");
     }
+    // 最下行（測点名行の下端）
+    add_line(&mut drawing, 0.0, table_bottom, label_width + graph_width, table_bottom, 7, "TABLE");
 
     // 左端・ラベル列の縦線
     add_line(&mut drawing, 0.0, table_top, 0.0, table_bottom, 7, "TABLE");
     add_line(&mut drawing, label_width, table_top, label_width, table_bottom, 7, "TABLE");
 
-    // 行ラベル
+    // 行ラベル（行7は測点名行の高さを使用）
     for (label, idx) in &table_rows {
-        let y = table_top - (*idx as f64) * row_height - row_height / 2.0;
+        let y = if *idx < 7 {
+            table_top - (*idx as f64) * row_height - row_height / 2.0
+        } else {
+            normal_rows_bottom - station_row_height / 2.0
+        };
         add_text(&mut drawing, label_width / 2.0, y, label, text_height, 7, "TEXT", TextAlign::Center);
     }
 
@@ -758,19 +768,23 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
                 cell_text_height, 7, "TEXT", TextAlign::Center, VerticalAlign::Middle, -90.0);
         }
 
-        // FH/GH/追加距離/単距離/測点名: 90°回転、右揃え（上端基準）
-        let row_data: [(usize, String); 5] = [
+        // FH/GH/追加距離/単距離: 90°回転、中央配置
+        let row_data: [(usize, String); 4] = [
             (3, format!("{:.3}", fh)),      // 計画高(FH)
             (4, format!("{:.3}", gh)),      // 地盤高(GH)
             (5, format!("{:.3}", cum_dist)), // 追加距離
             (6, format!("{:.3}", unit_dist)), // 単距離
-            (7, name.to_string()),          // 測点名
         ];
         for (row_idx, text) in row_data {
-            let y = table_top - row_idx as f64 * row_height - row_height * 0.1;
+            let y = table_top - row_idx as f64 * row_height - row_height / 2.0;
             add_text_rotated(&mut drawing, x, y, &text,
-                cell_text_height, 7, "TEXT", TextAlign::Right, VerticalAlign::Middle, -90.0);
+                cell_text_height, 7, "TEXT", TextAlign::Center, VerticalAlign::Middle, -90.0);
         }
+
+        // 測点名: 90°回転、中央配置（独立した行高さ）
+        let station_y = normal_rows_bottom - station_row_height / 2.0;
+        add_text_rotated(&mut drawing, x, station_y, name,
+            cell_text_height, 7, "TEXT", TextAlign::Center, VerticalAlign::Middle, -90.0);
 
         prev_dist = *dist;
     }
