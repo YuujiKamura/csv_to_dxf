@@ -1588,6 +1588,8 @@ pub struct CrossSectionApp {
     status_message: Option<String>,
     needs_fit: bool,         // canvas_rect更新後にfit_to_dxfを呼ぶフラグ
     is_first_frame: bool,    // 初回フレームフラグ（モバイル判定用）
+    loading_frame: usize,    // ローディングアニメーション用フレームカウンタ
+    loading_stage: String,   // ローディング進捗メッセージ
 }
 
 impl Default for CrossSectionApp {
@@ -1602,6 +1604,8 @@ impl Default for CrossSectionApp {
             status_message: None,
             needs_fit: false,
             is_first_frame: true,
+            loading_frame: 0,
+            loading_stage: "JSONデータを取得中".to_string(),
         }
     }
 }
@@ -1690,8 +1694,10 @@ impl eframe::App for CrossSectionApp {
 
         // JSONのfetch結果を処理
         if let Some(json_text) = take_pending_json() {
+            self.loading_stage = "JSONをパース中".to_string();
             match CrossSectionData::from_json(&json_text) {
                 Ok(sections) => {
+                    self.loading_stage = format!("{}測点のデータを処理中", sections.len());
                     let dump = if sections.is_empty() {
                         "JSONデータなし".to_string()
                     } else {
@@ -1708,6 +1714,7 @@ impl eframe::App for CrossSectionApp {
                     };
                     self.sections = sections;
                     self.selected_index = Some(0);
+                    self.loading_stage = "DXFプレビューを生成中".to_string();
                     self.status_message = Some(dump);
                     self.update_dxf_preview();
                 }
@@ -2046,13 +2053,30 @@ impl eframe::App for CrossSectionApp {
             if let Some(ref drawing) = self.dxf_drawing {
                 render_dxf(&painter, drawing, &self.dxf_view_state);
             } else {
+                // ローディングアニメーション
+                self.loading_frame += 1;
+                let dots = match (self.loading_frame / 15) % 4 {
+                    0 => "",
+                    1 => ".",
+                    2 => "..",
+                    _ => "...",
+                };
+                let spinner = match (self.loading_frame / 5) % 4 {
+                    0 => "◐",
+                    1 => "◓",
+                    2 => "◑",
+                    _ => "◒",
+                };
+                let loading_text = format!("{} {} {}", spinner, self.loading_stage, dots);
                 painter.text(
                     response.rect.center(),
                     egui::Align2::CENTER_CENTER,
-                    "データを読み込み中...",
-                    egui::FontId::proportional(16.0),
-                    Color32::GRAY
+                    &loading_text,
+                    egui::FontId::proportional(18.0),
+                    Color32::from_rgb(100, 100, 100)
                 );
+                // 再描画をリクエスト（アニメーション継続）
+                ctx.request_repaint();
             }
         });
     }
