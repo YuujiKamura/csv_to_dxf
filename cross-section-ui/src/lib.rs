@@ -275,7 +275,7 @@ pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
         &format!("DL={:.3}", dl), text_height, 7, "TEXT", TextAlign::Left);
 
     // ========== 切削厚表示（DLライン上部） ==========
-    let cutting_text_height = text_height * 0.8;
+    let cutting_text_height = text_height * 1.6;
     let cutting_y = to_dxf_y(dl) + 100.0;  // DLラインの少し上
     for (i, pt) in data.iter().enumerate() {
         let x = to_dxf_x(pt.cumulative_distance);
@@ -473,7 +473,7 @@ fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
     add_text(drawing, cl_x, to_dxf_y(dl) - 200.0, &format!("DL={:.3}", dl), text_height, 7, "TEXT", TextAlign::Left);
 
     // ========== 切削厚表示（DLライン上部） ==========
-    let cutting_text_height = text_height * 0.8;
+    let cutting_text_height = text_height * 1.6;
     let cutting_y = to_dxf_y(dl) + 100.0;
     for (i, pt) in data.iter().enumerate() {
         let x = to_dxf_x(pt.cumulative_distance);
