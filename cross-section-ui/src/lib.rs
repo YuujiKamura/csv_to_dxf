@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 
 // dxf crate for proper DXF file generation
 use dxf::Drawing;
-use dxf::entities::{Entity, EntityType, Line, Text, RotatedDimension, DimensionBase};
-use dxf::enums::{HorizontalTextJustification, VerticalTextJustification, DimensionType};
+use dxf::entities::{Entity, EntityType, Line, Text};
+use dxf::enums::{HorizontalTextJustification, VerticalTextJustification};
 use dxf::{Color, Point};
 
 // ============================================================================
@@ -91,6 +91,29 @@ fn add_text_rotated(
     entity.common.layer = layer.to_string();
     entity.common.color = Color::from_index(color as u8);
     drawing.add_entity(entity);
+}
+
+/// 寸法線を線とテキストで描画（Dimensionエンティティを使わない）
+fn add_dimension_as_lines(
+    drawing: &mut Drawing,
+    x1: f64, x2: f64, y: f64,
+    text: &str, text_height: f64,
+    color: i16, layer: &str,
+) {
+    let tick_height = 100.0; // 端点マークの高さ
+
+    // 水平線（寸法線本体）
+    add_line(drawing, x1, y, x2, y, color, layer);
+
+    // 左端の縦線（端点マーク）
+    add_line(drawing, x1, y - tick_height / 2.0, x1, y + tick_height / 2.0, color, layer);
+
+    // 右端の縦線（端点マーク）
+    add_line(drawing, x2, y - tick_height / 2.0, x2, y + tick_height / 2.0, color, layer);
+
+    // 中央にテキスト
+    let mid_x = (x1 + x2) / 2.0;
+    add_text(drawing, mid_x, y + 50.0, text, text_height, color, layer, TextAlign::Center);
 }
 
 /// Drawingオブジェクトを生成する
@@ -220,49 +243,15 @@ pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
     let mid_l_x = (l_x + cl_x) / 2.0;
     let mid_r_x = (cl_x + r_x) / 2.0;
 
-    // 左幅員の寸法
-    {
-        let mut dim_base = DimensionBase::default();
-        dim_base.definition_point_1 = Point::new(cl_x, dim_base_y, 0.0);
-        dim_base.text_mid_point = Point::new(mid_l_x, dim_base_y + 50.0, 0.0);
-        dim_base.dimension_type = DimensionType::Aligned;
-        dim_base.text = "".to_string();
-        dim_base.dimension_style_name = "Standard".to_string();
+    // 左幅員の寸法（線とテキストで描画）
+    let left_width = (cl_x - l_x).abs() / scale;  // メートル単位
+    add_dimension_as_lines(&mut drawing, l_x, cl_x, dim_base_y,
+        &format!("{:.2}", left_width), text_height * 0.8, 8, "DIMENSION");
 
-        let mut rot_dim = RotatedDimension::default();
-        rot_dim.dimension_base = dim_base;
-        rot_dim.insertion_point = Point::new(l_x, dim_base_y, 0.0);
-        rot_dim.definition_point_2 = Point::new(l_x, cl_ground_y, 0.0);
-        rot_dim.definition_point_3 = Point::new(cl_x, cl_ground_y, 0.0);
-        rot_dim.rotation_angle = 0.0;
-
-        let mut entity = Entity::new(EntityType::RotatedDimension(rot_dim));
-        entity.common.layer = "DIMENSION".to_string();
-        entity.common.color = Color::from_index(8);
-        drawing.add_entity(entity);
-    }
-
-    // 右幅員の寸法
-    {
-        let mut dim_base = DimensionBase::default();
-        dim_base.definition_point_1 = Point::new(r_x, dim_base_y, 0.0);
-        dim_base.text_mid_point = Point::new(mid_r_x, dim_base_y + 50.0, 0.0);
-        dim_base.dimension_type = DimensionType::Aligned;
-        dim_base.text = "".to_string();
-        dim_base.dimension_style_name = "Standard".to_string();
-
-        let mut rot_dim = RotatedDimension::default();
-        rot_dim.dimension_base = dim_base;
-        rot_dim.insertion_point = Point::new(cl_x, dim_base_y, 0.0);
-        rot_dim.definition_point_2 = Point::new(cl_x, cl_ground_y, 0.0);
-        rot_dim.definition_point_3 = Point::new(r_x, cl_ground_y, 0.0);
-        rot_dim.rotation_angle = 0.0;
-
-        let mut entity = Entity::new(EntityType::RotatedDimension(rot_dim));
-        entity.common.layer = "DIMENSION".to_string();
-        entity.common.color = Color::from_index(8);
-        drawing.add_entity(entity);
-    }
+    // 右幅員の寸法（線とテキストで描画）
+    let right_width = (r_x - cl_x).abs() / scale;  // メートル単位
+    add_dimension_as_lines(&mut drawing, cl_x, r_x, dim_base_y,
+        &format!("{:.2}", right_width), text_height * 0.8, 8, "DIMENSION");
 
     // ========== 勾配テキスト ==========
     add_text(&mut drawing, mid_l_x, flag_y - text_height - 50.0,
@@ -423,52 +412,18 @@ fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
     add_text(drawing, mid_l_x, flag_y - text_height - 50.0, &format!("il={:.1}%", left_slope), text_height, 7, "TEXT", TextAlign::Center);
     add_text(drawing, mid_r_x, flag_y - text_height - 50.0, &format!("ir={:.1}%", right_slope), text_height, 7, "TEXT", TextAlign::Center);
 
-    // 寸法線（幅員）
+    // 寸法線（幅員）- 線とテキストで描画
     let dim_base_y = flag_y;
 
-    // 左幅員の寸法
-    {
-        let mut dim_base = DimensionBase::default();
-        dim_base.definition_point_1 = Point::new(cl_x, dim_base_y, 0.0);
-        dim_base.text_mid_point = Point::new(mid_l_x, dim_base_y + 50.0, 0.0);
-        dim_base.dimension_type = DimensionType::Aligned;
-        dim_base.text = "".to_string();
-        dim_base.dimension_style_name = "Standard".to_string();
+    // 左幅員の寸法（線とテキストで描画）
+    let left_width = (cl_data.cumulative_distance - l_data.cumulative_distance).abs();
+    add_dimension_as_lines(drawing, l_x, cl_x, dim_base_y,
+        &format!("{:.2}", left_width), text_height * 0.8, 8, "DIMENSION");
 
-        let mut rot_dim = RotatedDimension::default();
-        rot_dim.dimension_base = dim_base;
-        rot_dim.insertion_point = Point::new(l_x, dim_base_y, 0.0);
-        rot_dim.definition_point_2 = Point::new(l_x, cl_ground_y, 0.0);
-        rot_dim.definition_point_3 = Point::new(cl_x, cl_ground_y, 0.0);
-        rot_dim.rotation_angle = 0.0;
-
-        let mut entity = Entity::new(EntityType::RotatedDimension(rot_dim));
-        entity.common.layer = "DIMENSION".to_string();
-        entity.common.color = Color::from_index(8);
-        drawing.add_entity(entity);
-    }
-
-    // 右幅員の寸法
-    {
-        let mut dim_base = DimensionBase::default();
-        dim_base.definition_point_1 = Point::new(r_x, dim_base_y, 0.0);
-        dim_base.text_mid_point = Point::new(mid_r_x, dim_base_y + 50.0, 0.0);
-        dim_base.dimension_type = DimensionType::Aligned;
-        dim_base.text = "".to_string();
-        dim_base.dimension_style_name = "Standard".to_string();
-
-        let mut rot_dim = RotatedDimension::default();
-        rot_dim.dimension_base = dim_base;
-        rot_dim.insertion_point = Point::new(cl_x, dim_base_y, 0.0);
-        rot_dim.definition_point_2 = Point::new(cl_x, cl_ground_y, 0.0);
-        rot_dim.definition_point_3 = Point::new(r_x, cl_ground_y, 0.0);
-        rot_dim.rotation_angle = 0.0;
-
-        let mut entity = Entity::new(EntityType::RotatedDimension(rot_dim));
-        entity.common.layer = "DIMENSION".to_string();
-        entity.common.color = Color::from_index(8);
-        drawing.add_entity(entity);
-    }
+    // 右幅員の寸法（線とテキストで描画）
+    let right_width = (r_data.cumulative_distance - cl_data.cumulative_distance).abs();
+    add_dimension_as_lines(drawing, cl_x, r_x, dim_base_y,
+        &format!("{:.2}", right_width), text_height * 0.8, 8, "DIMENSION");
 
     add_text(drawing, cl_x, to_dxf_y(dl) - 200.0, &format!("DL={:.3}", dl), text_height, 7, "TEXT", TextAlign::Left);
 
