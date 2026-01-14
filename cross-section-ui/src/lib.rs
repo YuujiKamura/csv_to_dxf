@@ -866,25 +866,6 @@ pub fn generate_combo_drawing(sections: &[CrossSectionData], _columns: usize) ->
         drawing.add_entity(shifted_entity);
     }
 
-    // === デバッグ用：バウンディングボックスを描画 ===
-    // 縦断図のバウンディングボックス（マゼンタ）
-    let (long_min_x, long_min_y, long_max_x, long_max_y) = calc_dxf_bounds(&longitudinal);
-    web_sys::console::log_1(&format!("longitudinal bounds: ({}, {}) - ({}, {})", long_min_x, long_min_y, long_max_x, long_max_y).into());
-    add_line(&mut drawing, long_min_x as f64, long_min_y as f64, long_max_x as f64, long_min_y as f64, 6, "DEBUG");
-    add_line(&mut drawing, long_max_x as f64, long_min_y as f64, long_max_x as f64, long_max_y as f64, 6, "DEBUG");
-    add_line(&mut drawing, long_max_x as f64, long_max_y as f64, long_min_x as f64, long_max_y as f64, 6, "DEBUG");
-    add_line(&mut drawing, long_min_x as f64, long_max_y as f64, long_min_x as f64, long_min_y as f64, 6, "DEBUG");
-
-    // 横断図グリッドのバウンディングボックス（シアン）
-    let shifted_multi_min_x = multi_min_x + multi_x_offset;
-    let shifted_multi_max_x = multi_max_x + multi_x_offset;
-    let shifted_multi_min_y = multi_y_offset;
-    let shifted_multi_max_y = multi_y_offset + multi_height;
-    add_line(&mut drawing, shifted_multi_min_x as f64, shifted_multi_min_y as f64, shifted_multi_max_x as f64, shifted_multi_min_y as f64, 4, "DEBUG");
-    add_line(&mut drawing, shifted_multi_max_x as f64, shifted_multi_min_y as f64, shifted_multi_max_x as f64, shifted_multi_max_y as f64, 4, "DEBUG");
-    add_line(&mut drawing, shifted_multi_max_x as f64, shifted_multi_max_y as f64, shifted_multi_min_x as f64, shifted_multi_max_y as f64, 4, "DEBUG");
-    add_line(&mut drawing, shifted_multi_min_x as f64, shifted_multi_max_y as f64, shifted_multi_min_x as f64, shifted_multi_min_y as f64, 4, "DEBUG");
-
     drawing
 }
 
