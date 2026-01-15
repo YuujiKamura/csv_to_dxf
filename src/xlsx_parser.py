@@ -105,18 +105,25 @@ def parse_longitudinal_sheet(ws, sheet_name: str) -> LongitudinalSection:
 
 
 def parse_cross_section_sheet(ws, sheet_name: str, cutting_depth: float = 0.05) -> list[CrossSectionData]:
-    """横断シートをパースする"""
+    """横断シートをパースする
+
+    Excel構造:
+    - col2 = 測点名
+    - col3 = L標高（左端）
+    - col4 = C標高（センター）
+    - col5 = マンホール標高（オプション）
+    - col6 = R標高（右端）
+    - col8 = L距離（CLからの左幅）
+    - col9 = R距離（CLからの右幅）
+    - col10 = マンホール距離（オプション）
+    """
     sections = []
 
-    # 行3がヘッダー: L, 6, 4, 2, C, マンホール, 2, 4, 6, 8, R
-    # 横断位置（CLからの距離）を定義
-    # 列: C(3), D(4)=-6, E(5)=-4, F(6)=-2, G(7)=C, H(8)=マンホール, I(9)=2, J(10)=4, K(11)=6, L(12)=8, M(13)=R
+    # 前回の距離を保持（欠損時のフォールバック用）
+    prev_l_dist = 3.0
+    prev_r_dist = 3.0
 
-    # 列Oが左端距離、列Pが右端距離
-    L_DIST_COL = 15  # O列
-    R_DIST_COL = 16  # P列
-
-    # 行5から開始、2行ごとに1測点（奇数行=標高、偶数行=勾配）
+    # 行5から開始、2行ごとに1測点
     row_idx = 5
     while row_idx <= ws.max_row:
         station_name = ws.cell(row=row_idx, column=2).value
@@ -124,33 +131,59 @@ def parse_cross_section_sheet(ws, sheet_name: str, cutting_depth: float = 0.05) 
             row_idx += 2
             continue
 
-        # 左端・右端の距離を取得
-        l_dist = ws.cell(row=row_idx, column=L_DIST_COL).value or 3.0
-        r_dist = ws.cell(row=row_idx, column=R_DIST_COL).value or 3.0
+        # 標高データを取得
+        l_elev = ws.cell(row=row_idx, column=3).value   # L（左端）
+        c_elev = ws.cell(row=row_idx, column=4).value   # C（センター）
+        mh_elev = ws.cell(row=row_idx, column=5).value  # マンホール（オプション）
+        r_elev = ws.cell(row=row_idx, column=6).value   # R（右端）
 
-        # 各列の標高を取得
-        # 列C=L(左端), F=-2m, G=CL, H=マンホール, I=2m, J=4m, M=R(右端)
-        col_mapping = [
-            (3, -l_dist),   # L（左端）
-            (6, -2.0),      # -2m
-            (7, 0.0),       # CL
-            (9, 2.0),       # +2m
-            (10, 4.0),      # +4m
-            (13, r_dist),   # R（右端）
-        ]
+        # 距離データを取得
+        l_dist_val = ws.cell(row=row_idx, column=8).value   # L距離
+        r_dist_val = ws.cell(row=row_idx, column=9).value   # R距離
+        mh_dist_val = ws.cell(row=row_idx, column=10).value # マンホール距離
 
-        # データを収集（None以外）
-        elevations = []
-        distances = []
-        for col, dist in col_mapping:
-            val = ws.cell(row=row_idx, column=col).value
-            if val is not None:
-                elevations.append(float(val))
-                distances.append(dist)
+        # 距離が欠損の場合は前回値を使用
+        if l_dist_val is not None:
+            l_dist = float(l_dist_val)
+            prev_l_dist = l_dist
+        else:
+            l_dist = prev_l_dist
 
-        if len(elevations) < 2:
+        if r_dist_val is not None:
+            r_dist = float(r_dist_val)
+            prev_r_dist = r_dist
+        else:
+            r_dist = prev_r_dist
+
+        # データポイントを構築（左から右の順）
+        points = []
+
+        # L（左端）: 距離は負値
+        if l_elev is not None:
+            points.append((-l_dist, float(l_elev)))
+
+        # C（センター）: 距離は0
+        if c_elev is not None:
+            points.append((0.0, float(c_elev)))
+
+        # マンホール: 距離は正値
+        if mh_elev is not None and mh_dist_val is not None:
+            points.append((float(mh_dist_val), float(mh_elev)))
+
+        # R（右端）: 距離は正値
+        if r_elev is not None:
+            points.append((r_dist, float(r_elev)))
+
+        # 距離でソート
+        points.sort(key=lambda p: p[0])
+
+        if len(points) < 2:
             row_idx += 2
             continue
+
+        # 距離と標高を分離
+        distances = [p[0] for p in points]
+        elevations = [p[1] for p in points]
 
         # CLのインデックスを見つける
         cl_index = 0
@@ -170,7 +203,7 @@ def parse_cross_section_sheet(ws, sheet_name: str, cutting_depth: float = 0.05) 
         # DL（最小標高の小数点以下切り捨て）
         dl = math.floor(min(elevations))
 
-        # SurveyRowを作成（計画高は現況と同じ、あとで上書き可能）
+        # SurveyRowを作成
         survey_data = []
         for i in range(len(elevations)):
             planned = elevations[i]  # 現況シートの場合は同じ値
