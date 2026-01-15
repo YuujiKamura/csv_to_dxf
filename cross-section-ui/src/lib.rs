@@ -402,41 +402,49 @@ pub fn generate_multi_drawing(sections: &[CrossSectionData], columns: usize, col
 
     if sections.is_empty() { return drawing; }
 
-    let mut max_left_extent: f64 = 0.0;   // CLから左方向の最大延長
-    let mut max_right_extent: f64 = 0.0;  // CLから右方向の最大延長
+    // 道路工事の配置: 左下起点、列ごとに下から上
+    let rows_per_column = (sections.len() + columns - 1) / columns;  // ceil division
+
+    // 列ごとの最大幅と全体の最大高さを計算
+    let mut col_max_left: Vec<f64> = vec![0.0; columns];
+    let mut col_max_right: Vec<f64> = vec![0.0; columns];
     let mut max_height: f64 = 0.0;
 
-    for section in sections {
+    for (idx, section) in sections.iter().enumerate() {
         if section.survey_data.len() < 2 { continue; }
+        let col = idx / rows_per_column;
         let data = &section.survey_data;
         let min_dist = data.first().unwrap().cumulative_distance;
         let max_dist = data.last().unwrap().cumulative_distance;
-        // min_distは負の値（CLの左側）、max_distは正の値（CLの右側）
-        max_left_extent = max_left_extent.max(min_dist.abs());
-        max_right_extent = max_right_extent.max(max_dist);
+        col_max_left[col] = col_max_left[col].max(min_dist.abs());
+        col_max_right[col] = col_max_right[col].max(max_dist);
         let max_elev = data.iter().map(|d| d.elevation.max(d.planned_height)).fold(f64::MIN, f64::max);
         max_height = max_height.max(max_elev - section.dl + 1.5);
     }
 
-    // セル幅をCLからの左右最大延長に基づいて計算（column_gapで列間隔を調整）
-    let cell_width = (max_left_extent + max_right_extent + column_gap) * scale;
+    // 列ごとのセル幅と累積X位置を計算
+    let mut col_widths: Vec<f64> = Vec::with_capacity(columns);
+    let mut col_x_offsets: Vec<f64> = Vec::with_capacity(columns);
+    let mut cumulative_x = 0.0;
+
+    for col in 0..columns {
+        let cell_width = (col_max_left[col] + col_max_right[col] + column_gap) * scale;
+        col_widths.push(cell_width);
+        // この列のCL位置: 累積X + 列内の左マージン
+        let cl_x = cumulative_x + (col_max_left[col] + column_gap / 2.0) * scale;
+        col_x_offsets.push(cl_x);
+        cumulative_x += cell_width;
+    }
+
     let cell_height = (max_height + 1.0) * scale;
 
-    // 左端マージン: 最大左延長分 + 余白の半分
-    let left_margin = (max_left_extent + column_gap / 2.0) * scale;
-
-    // 道路工事の配置: 左下起点、列ごとに下から上
-    let rows_per_column = (sections.len() + columns - 1) / columns;  // ceil division
-
+    // セクションを描画
     for (idx, section) in sections.iter().enumerate() {
         if section.survey_data.len() < 2 { continue; }
-        let col = idx / rows_per_column;           // 列番号（左から右）
-        let row_in_col = idx % rows_per_column;    // 列内の行番号（下から上）
+        let col = idx / rows_per_column;
+        let row_in_col = idx % rows_per_column;
 
-        // CLを配置: 仮想的な左端から max_left_extent 分右にCLを配置
-        // これにより、すべてのセクションの仮想境界が一定間隔になり、列間ギャップが一定になる
-        // 実際のセクション幅に関わらず、仮想的には全セクションが同じ幅を持つかのように配置される
-        let offset_x = left_margin + col as f64 * cell_width + max_left_extent * scale;
+        let offset_x = col_x_offsets[col];
         let offset_y = row_in_col as f64 * cell_height;
 
         draw_section_at_offset(&mut drawing, section, offset_x, offset_y, scale);
