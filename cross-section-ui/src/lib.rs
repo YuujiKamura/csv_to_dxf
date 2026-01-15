@@ -805,7 +805,7 @@ pub fn generate_longitudinal_dxf_bytes(sections: &[CrossSectionData]) -> Vec<u8>
 /// コンボビュー（縦断図＋全横断図）を生成
 /// 縦断図を上部に、全横断図グリッドを下部に配置（横断図は2行で横長配置）
 /// レイアウトマネージャ：センタリング揃え＋適切な間隔
-pub fn generate_combo_drawing(sections: &[CrossSectionData], _columns: usize) -> Drawing {
+pub fn generate_combo_drawing(sections: &[CrossSectionData], columns: usize) -> Drawing {
     if sections.is_empty() {
         return Drawing::new();
     }
@@ -813,12 +813,11 @@ pub fn generate_combo_drawing(sections: &[CrossSectionData], _columns: usize) ->
     // 縦断図を生成し、バウンディングボックスを取得
     let longitudinal = generate_longitudinal_drawing(sections);
     let (long_min_x, long_min_y, long_max_x, _long_max_y) = calc_dxf_bounds(&longitudinal);
-    let long_width = long_max_x - long_min_x;
+    let _long_width = long_max_x - long_min_x;
     let long_center_x = (long_min_x + long_max_x) / 2.0;
 
-    // 横断図は2行で横長配置（列数を自動計算）
-    let combo_columns = (sections.len() + 1) / 2;
-    let multi = generate_multi_drawing(sections, combo_columns);
+    // 横断図グリッド（指定列数を使用）
+    let multi = generate_multi_drawing(sections, columns);
     let (multi_min_x, multi_min_y, multi_max_x, multi_max_y) = calc_dxf_bounds(&multi);
     let multi_width = multi_max_x - multi_min_x;
     let multi_height = multi_max_y - multi_min_y;
@@ -1871,30 +1870,32 @@ impl eframe::App for CrossSectionApp {
                     }
 
                     ui.horizontal_wrapped(|ui| {
-                        // DXFダウンロード
+                        // DXFダウンロード（フィルター済みセクションを使用）
+                        let filtered_for_dxf: Vec<CrossSectionData> = self.filtered_sections()
+                            .into_iter().cloned().collect();
                         match self.view_mode {
-                            ViewMode::Combo => {
+                            ViewMode::Combo if !filtered_for_dxf.is_empty() => {
                                 if ui.button("DXF").clicked() {
-                                    let dxf_content = generate_combo_dxf_bytes(&self.sections, self.grid_columns);
+                                    let dxf_content = generate_combo_dxf_bytes(&filtered_for_dxf, self.grid_columns);
                                     download_file("combo.dxf", &dxf_content);
                                 }
                             }
-                            ViewMode::AllGrid => {
+                            ViewMode::AllGrid if !filtered_for_dxf.is_empty() => {
                                 if ui.button("DXF").clicked() {
-                                    let dxf_content = generate_multi_dxf_bytes(&self.sections, self.grid_columns);
+                                    let dxf_content = generate_multi_dxf_bytes(&filtered_for_dxf, self.grid_columns);
                                     download_file("cross_sections_all.dxf", &dxf_content);
                                 }
                             }
-                            ViewMode::Longitudinal => {
+                            ViewMode::Longitudinal if !filtered_for_dxf.is_empty() => {
                                 if ui.button("DXF").clicked() {
-                                    let dxf_content = generate_longitudinal_dxf_bytes(&self.sections);
+                                    let dxf_content = generate_longitudinal_dxf_bytes(&filtered_for_dxf);
                                     download_file("longitudinal.dxf", &dxf_content);
                                 }
                             }
                             ViewMode::Single => {
                                 if self.selected_index.is_some() && ui.button("DXF").clicked() {
                                     if let Some(idx) = self.selected_index {
-                                        if let Some(section) = self.sections.get(idx) {
+                                        if let Some(section) = filtered_for_dxf.get(idx) {
                                             let dxf_content = generate_dxf_bytes(section);
                                             let filename = format!("{}.dxf", section.survey_point_name);
                                             download_file(&filename, &dxf_content);
@@ -1908,6 +1909,7 @@ impl eframe::App for CrossSectionApp {
                                     download_file("alignment_test.dxf", &dxf_content);
                                 }
                             }
+                            _ => {}
                         }
                     });
                 });
