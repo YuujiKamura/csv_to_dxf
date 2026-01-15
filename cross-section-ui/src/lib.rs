@@ -1301,6 +1301,13 @@ pub struct CrossSectionData {
     pub survey_data: Vec<SurveyRow>,
     /// 路線距離（m）- 測点の絶対位置。指定されていればparse_station_distanceより優先
     pub route_distance: Option<f64>,
+    /// ルートID（route_1, route_2など）
+    #[serde(default = "default_route_id")]
+    pub route_id: String,
+}
+
+fn default_route_id() -> String {
+    "route_1".to_string()
 }
 
 impl CrossSectionData {
@@ -1341,6 +1348,7 @@ impl CrossSectionData {
             survey_point_name: name.to_string(),
             dl, cl_index, l_to_cl_distance: l_to_cl, survey_data,
             route_distance: None, // 測点名からパースされる
+            route_id: default_route_id(),
         }
     }
 
@@ -1390,6 +1398,7 @@ impl CrossSectionData {
             l_to_cl_distance: l_to_cl,
             survey_data,
             route_distance: None,
+            route_id: default_route_id(),
         })
     }
 }
@@ -1572,6 +1581,8 @@ pub struct CrossSectionApp {
     is_first_frame: bool,    // 初回フレームフラグ（モバイル判定用）
     loading_frame: usize,    // ローディングアニメーション用フレームカウンタ
     loading_stage: String,   // ローディング進捗メッセージ
+    routes: Vec<String>,     // 利用可能なルートのリスト
+    selected_route: String,  // 選択中のルート
 }
 
 impl Default for CrossSectionApp {
@@ -1588,6 +1599,8 @@ impl Default for CrossSectionApp {
             is_first_frame: true,
             loading_frame: 0,
             loading_stage: "JSONデータを取得中".to_string(),
+            routes: vec!["route_1".to_string()],
+            selected_route: "route_1".to_string(),
         }
     }
 }
@@ -1641,23 +1654,33 @@ impl CrossSectionApp {
         }
     }
 
+    /// 選択中のルートでフィルターされたセクションを返す
+    fn filtered_sections(&self) -> Vec<&CrossSectionData> {
+        self.sections.iter()
+            .filter(|s| s.route_id == self.selected_route)
+            .collect()
+    }
+
     fn update_dxf_preview(&mut self) {
+        let filtered: Vec<CrossSectionData> = self.filtered_sections()
+            .into_iter().cloned().collect();
+
         let drawing = match self.view_mode {
             ViewMode::AlignTest => {
                 generate_alignment_test_drawing()
             }
-            ViewMode::Combo if !self.sections.is_empty() => {
-                generate_combo_drawing(&self.sections, self.grid_columns)
+            ViewMode::Combo if !filtered.is_empty() => {
+                generate_combo_drawing(&filtered, self.grid_columns)
             }
-            ViewMode::AllGrid if !self.sections.is_empty() => {
-                generate_multi_drawing(&self.sections, self.grid_columns)
+            ViewMode::AllGrid if !filtered.is_empty() => {
+                generate_multi_drawing(&filtered, self.grid_columns)
             }
-            ViewMode::Longitudinal if !self.sections.is_empty() => {
-                generate_longitudinal_drawing(&self.sections)
+            ViewMode::Longitudinal if !filtered.is_empty() => {
+                generate_longitudinal_drawing(&filtered)
             }
             _ => {
                 if let Some(idx) = self.selected_index {
-                    if let Some(section) = self.sections.get(idx) {
+                    if let Some(section) = filtered.get(idx) {
                         generate_drawing(section)
                     } else { return; }
                 } else { return; }
@@ -1694,6 +1717,18 @@ impl eframe::App for CrossSectionApp {
                             first.survey_data.len()
                         )
                     };
+                    // ルート一覧を抽出
+                    let mut route_set: std::collections::HashSet<String> = std::collections::HashSet::new();
+                    for s in &sections {
+                        route_set.insert(s.route_id.clone());
+                    }
+                    let mut routes: Vec<String> = route_set.into_iter().collect();
+                    routes.sort();
+                    self.routes = routes;
+                    if !self.routes.is_empty() {
+                        self.selected_route = self.routes[0].clone();
+                    }
+
                     self.sections = sections;
                     self.selected_index = Some(0);
                     self.loading_stage = "DXFプレビューを生成中".to_string();
@@ -1726,9 +1761,34 @@ impl eframe::App for CrossSectionApp {
             egui::TopBottomPanel::top("mobile_top").show(ctx, |ui| {
                 ui.vertical(|ui| {
                     ui.horizontal_wrapped(|ui| {
-                        // 測点プルダウン（タッチ操作しやすいよう幅を確保）
+                        // ルート選択（複数ルートがある場合のみ表示）
+                        if self.routes.len() > 1 {
+                            let response = egui::ComboBox::from_id_salt("route_select_mobile")
+                                .selected_text(&self.selected_route)
+                                .width(100.0)
+                                .show_ui(ui, |ui| {
+                                    let mut selected = None;
+                                    for route in &self.routes {
+                                        if ui.selectable_label(
+                                            self.selected_route == *route,
+                                            route
+                                        ).clicked() {
+                                            selected = Some(route.clone());
+                                        }
+                                    }
+                                    selected
+                                });
+                            if let Some(route) = response.inner.flatten() {
+                                self.selected_route = route;
+                                self.selected_index = Some(0);
+                                self.update_dxf_preview();
+                            }
+                        }
+
+                        // 測点プルダウン（フィルター済みセクションから選択）
+                        let filtered: Vec<_> = self.filtered_sections();
                         let current_name = self.selected_index
-                            .and_then(|i| self.sections.get(i))
+                            .and_then(|i| filtered.get(i))
                             .map(|s| s.survey_point_name.as_str())
                             .unwrap_or("--");
 
@@ -1738,7 +1798,7 @@ impl eframe::App for CrossSectionApp {
                             .show_ui(ui, |ui| {
                                 ui.set_min_width(140.0);
                                 let mut selected = None;
-                                for (i, section) in self.sections.iter().enumerate() {
+                                for (i, section) in filtered.iter().enumerate() {
                                     let response = ui.selectable_label(
                                         self.selected_index == Some(i),
                                         &section.survey_point_name
@@ -1866,6 +1926,32 @@ impl eframe::App for CrossSectionApp {
                     ui.label(message);
                 }
 
+                // ルート選択（複数ルートがある場合のみ表示）
+                if self.routes.len() > 1 {
+                    ui.horizontal(|ui| {
+                        ui.label("路線:");
+                        let response = egui::ComboBox::from_id_salt("route_select_desktop")
+                            .selected_text(&self.selected_route)
+                            .show_ui(ui, |ui| {
+                                let mut selected = None;
+                                for route in &self.routes {
+                                    if ui.selectable_label(
+                                        self.selected_route == *route,
+                                        route
+                                    ).clicked() {
+                                        selected = Some(route.clone());
+                                    }
+                                }
+                                selected
+                            });
+                        if let Some(route) = response.inner.flatten() {
+                            self.selected_route = route;
+                            self.selected_index = Some(0);
+                            self.update_dxf_preview();
+                        }
+                    });
+                }
+
                 // 表示モード切替
                 ui.horizontal(|ui| {
                     ui.label("表示:");
@@ -1902,7 +1988,10 @@ impl eframe::App for CrossSectionApp {
                     });
                 }
 
-                // DXFダウンロード
+                // DXFダウンロード（フィルター済みセクションを使用）
+                let filtered_for_download: Vec<CrossSectionData> = self.filtered_sections()
+                    .into_iter().cloned().collect();
+
                 match self.view_mode {
                     ViewMode::AlignTest => {
                         if ui.button("Download Test DXF").clicked() {
@@ -1910,28 +1999,28 @@ impl eframe::App for CrossSectionApp {
                             download_file("alignment_test.dxf", &dxf_content);
                         }
                     }
-                    _ if self.sections.is_empty() => {}
+                    _ if filtered_for_download.is_empty() => {}
                     ViewMode::Combo => {
                         if ui.button("Download Combo DXF").clicked() {
-                            let dxf_content = generate_combo_dxf_bytes(&self.sections, self.grid_columns);
+                            let dxf_content = generate_combo_dxf_bytes(&filtered_for_download, self.grid_columns);
                             download_file("combo.dxf", &dxf_content);
                         }
                     }
                     ViewMode::AllGrid => {
                         if ui.button("Download All DXF").clicked() {
-                            let dxf_content = generate_multi_dxf_bytes(&self.sections, self.grid_columns);
+                            let dxf_content = generate_multi_dxf_bytes(&filtered_for_download, self.grid_columns);
                             download_file("cross_sections_all.dxf", &dxf_content);
                         }
                     }
                     ViewMode::Longitudinal => {
                         if ui.button("Download 縦断 DXF").clicked() {
-                            let dxf_content = generate_longitudinal_dxf_bytes(&self.sections);
+                            let dxf_content = generate_longitudinal_dxf_bytes(&filtered_for_download);
                             download_file("longitudinal.dxf", &dxf_content);
                         }
                     }
                     ViewMode::Single => {
                         if let Some(idx) = self.selected_index {
-                            if let Some(section) = self.sections.get(idx) {
+                            if let Some(section) = filtered_for_download.get(idx) {
                                 if ui.button("Download DXF").clicked() {
                                     let dxf_content = generate_dxf_bytes(section);
                                     let filename = format!("{}.dxf", section.survey_point_name);
@@ -1943,14 +2032,19 @@ impl eframe::App for CrossSectionApp {
                 }
                 ui.separator();
 
-                // 単一横断図モード時のみ測点リストを表示
+                // 単一横断図モード時のみ測点リストを表示（フィルター済み）
+                // 借用の問題を避けるため、表示に必要なデータを先にコピー
+                let filtered_names: Vec<String> = self.filtered_sections()
+                    .iter().map(|s| s.survey_point_name.clone()).collect();
+                let filtered_count = filtered_names.len();
+
                 if self.view_mode == ViewMode::Single {
                     ui.label("Stations:");
                     let mut new_selection = None;
                     egui::ScrollArea::vertical().max_height(200.0).show(ui, |ui| {
-                        for (i, section) in self.sections.iter().enumerate() {
+                        for (i, name) in filtered_names.iter().enumerate() {
                             let selected = self.selected_index == Some(i);
-                            if ui.selectable_label(selected, &section.survey_point_name).clicked() {
+                            if ui.selectable_label(selected, name).clicked() {
                                 new_selection = Some(i);
                             }
                         }
@@ -1961,16 +2055,18 @@ impl eframe::App for CrossSectionApp {
                     }
 
                     ui.separator();
+                    // 選択情報表示のため再度フィルタリング
+                    let filtered_list: Vec<_> = self.filtered_sections();
                     if let Some(idx) = self.selected_index {
-                        if let Some(section) = self.sections.get(idx) {
+                        if let Some(section) = filtered_list.get(idx) {
                             ui.label(format!("DL: {:.3}", section.dl));
                             ui.label(format!("L->CL: {:.2}m", section.l_to_cl_distance));
                         }
                     }
                 } else if self.view_mode == ViewMode::AllGrid {
-                    ui.label(format!("全{}測点をグリッド表示", self.sections.len()));
+                    ui.label(format!("全{}測点をグリッド表示", filtered_count));
                 } else if self.view_mode == ViewMode::Combo {
-                    ui.label(format!("縦断図＋全横断図 ({}測点)", self.sections.len()));
+                    ui.label(format!("縦断図＋全横断図 ({}測点)", filtered_count));
                 } else {
                     ui.label("縦断図: 全測点のCL高を接続");
                 }
