@@ -573,9 +573,9 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
     // スケール設定（DXF単位）
     let scale_x = 100.0;     // 横方向スケール（1m = 100単位）
     let scale_y = 200.0;     // 縦方向スケール（1m = 200単位）縦横比 2:1
-    let text_height = 120.0; // 基本テキスト高さ
-    let label_width = 600.0; // 左側のラベル幅
-    let title_height = 0.0; // タイトルなし（ピッチリ）
+    let text_height = 150.0; // 基本テキスト高さ（横断図と同じ）
+    let label_width = 750.0; // 左側のラベル幅
+    let _title_height = 0.0; // タイトルなし（ピッチリ）
 
     let mut drawing = Drawing::new();
     drawing.header.version = dxf::enums::AcadVersion::R2000;
@@ -608,7 +608,7 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
     if points.is_empty() { return drawing; }
 
     // 通常行の高さ（固定）
-    let row_height = 600.0;
+    let row_height = 750.0;
     // 測点名行の高さ（最大文字数に基づいて計算）
     let max_name_len = points.iter().map(|p| p.3.chars().count()).max().unwrap_or(6);
     let station_row_height = (max_name_len as f64 * text_height * 1.0).max(row_height);
