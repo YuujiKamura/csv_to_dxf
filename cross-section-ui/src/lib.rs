@@ -1812,6 +1812,7 @@ impl eframe::App for CrossSectionApp {
                             });
                         if let Some(idx) = response.inner.flatten() {
                             self.selected_index = Some(idx);
+                            self.view_mode = ViewMode::Single;  // 単一モードに切り替え
                             self.update_dxf_preview();
                         }
 
@@ -2056,30 +2057,50 @@ impl eframe::App for CrossSectionApp {
                 }
                 ui.separator();
 
-                // 単一横断図モード時のみ測点リストを表示（フィルター済み）
+                // 測点リスト（全モードで表示、選択時は単一モードに切替）
                 // 借用の問題を避けるため、表示に必要なデータを先にコピー
                 let filtered_names: Vec<String> = self.filtered_sections()
                     .iter().map(|s| s.survey_point_name.clone()).collect();
                 let filtered_count = filtered_names.len();
 
-                if self.view_mode == ViewMode::Single {
-                    ui.label("Stations:");
-                    let mut new_selection = None;
-                    egui::ScrollArea::vertical().max_height(200.0).show(ui, |ui| {
-                        for (i, name) in filtered_names.iter().enumerate() {
-                            let selected = self.selected_index == Some(i);
-                            if ui.selectable_label(selected, name).clicked() {
-                                new_selection = Some(i);
-                            }
-                        }
-                    });
-                    if let Some(idx) = new_selection {
-                        self.selected_index = Some(idx);
-                        self.update_dxf_preview();
+                // モード別の情報表示
+                match self.view_mode {
+                    ViewMode::Single => {
+                        ui.label(format!("単一横断 ({}測点)", filtered_count));
                     }
+                    ViewMode::AllGrid => {
+                        ui.label(format!("全横断グリッド ({}測点)", filtered_count));
+                    }
+                    ViewMode::Combo => {
+                        ui.label(format!("縦断+全横断 ({}測点)", filtered_count));
+                    }
+                    ViewMode::Longitudinal => {
+                        ui.label(format!("縦断図 ({}測点)", filtered_count));
+                    }
+                    ViewMode::AlignTest => {
+                        ui.label("アライメントテスト");
+                    }
+                }
 
+                ui.label("Stations:");
+                let mut new_selection = None;
+                egui::ScrollArea::vertical().max_height(200.0).show(ui, |ui| {
+                    for (i, name) in filtered_names.iter().enumerate() {
+                        let selected = self.selected_index == Some(i);
+                        if ui.selectable_label(selected, name).clicked() {
+                            new_selection = Some(i);
+                        }
+                    }
+                });
+                if let Some(idx) = new_selection {
+                    self.selected_index = Some(idx);
+                    self.view_mode = ViewMode::Single;  // 単一モードに切り替え
+                    self.update_dxf_preview();
+                }
+
+                // 単一モード時のみ詳細情報を表示
+                if self.view_mode == ViewMode::Single {
                     ui.separator();
-                    // 選択情報表示のため再度フィルタリング
                     let filtered_list: Vec<_> = self.filtered_sections();
                     if let Some(idx) = self.selected_index {
                         if let Some(section) = filtered_list.get(idx) {
@@ -2087,12 +2108,6 @@ impl eframe::App for CrossSectionApp {
                             ui.label(format!("L->CL: {:.2}m", section.l_to_cl_distance));
                         }
                     }
-                } else if self.view_mode == ViewMode::AllGrid {
-                    ui.label(format!("全{}測点をグリッド表示", filtered_count));
-                } else if self.view_mode == ViewMode::Combo {
-                    ui.label(format!("縦断図＋全横断図 ({}測点)", filtered_count));
-                } else {
-                    ui.label("縦断図: 全測点のCL高を接続");
                 }
 
                 ui.separator();
