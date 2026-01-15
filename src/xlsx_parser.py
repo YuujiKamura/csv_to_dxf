@@ -231,6 +231,153 @@ def parse_cross_section_sheet(ws, sheet_name: str, cutting_depth: float = 0.05) 
     return sections
 
 
+def parse_keikaku_matome_sheet(ws, cutting_depth: float = 0.05) -> list[CrossSectionData]:
+    """計画まとめシートをパースする
+
+    Excel構造（行1がヘッダー）:
+    - col2 = 測点名（現地盤高の行のみ）
+    - col3 = 行種別（現地盤高/計画高/切削高/切削厚）
+    - col4 = L標高, col5 = -4m, col6 = -2m, col7 = C, col8 = +2m, col9 = +4m, col10 = +6m, col11 = +8m, col12 = R
+    - col14 = 左幅員, col15 = 右幅員
+    - col17 = 左勾配, col18 = 右勾配
+
+    5行で1測点（現地盤高, 計画高, 切削高, 切削厚, 空行）
+    """
+    sections = []
+    seen_names = set()  # 重複検出用
+
+    # 距離マッピング（col4-12の相対位置、後で実際の幅員で調整）
+    # L=-幅員, -4, -2, C=0, +2, +4, +6, +8, R=+幅員
+    dist_offsets = {
+        4: None,   # L（左幅員で決まる）
+        5: -4.0,
+        6: -2.0,
+        7: 0.0,    # C
+        8: 2.0,
+        9: 4.0,
+        10: 6.0,
+        11: 8.0,
+        12: None,  # R（右幅員で決まる）
+    }
+
+    row_idx = 2  # 行2から開始（行1はヘッダー）
+    while row_idx <= ws.max_row:
+        station_name = ws.cell(row=row_idx, column=2).value
+        row_type = ws.cell(row=row_idx, column=3).value
+
+        if not station_name or row_type != "現地盤高":
+            row_idx += 1
+            continue
+
+        # 重複チェック（2番目のルートに入ったら終了）
+        name_str = str(station_name)
+        if name_str in seen_names:
+            break
+        seen_names.add(name_str)
+
+        # 幅員を取得
+        l_width = ws.cell(row=row_idx, column=14).value
+        r_width = ws.cell(row=row_idx, column=15).value
+
+        if l_width is None or r_width is None:
+            row_idx += 5
+            continue
+
+        l_width = float(l_width)
+        r_width = float(r_width)
+
+        # 現地盤高の行から標高を取得
+        ground_elevations = {}
+        for col in range(4, 13):
+            val = ws.cell(row=row_idx, column=col).value
+            if val is not None:
+                ground_elevations[col] = float(val)
+
+        # 計画高の行（次の行）から標高を取得
+        planned_elevations = {}
+        plan_row = row_idx + 1
+        if ws.cell(row=plan_row, column=3).value == "計画高":
+            for col in range(4, 13):
+                val = ws.cell(row=plan_row, column=col).value
+                if val is not None:
+                    planned_elevations[col] = float(val)
+
+        # データポイントを構築
+        points = []
+        for col, offset in dist_offsets.items():
+            if col not in ground_elevations:
+                continue
+
+            # 距離を決定
+            if col == 4:  # L
+                dist = -l_width
+            elif col == 12:  # R
+                dist = r_width
+            else:
+                dist = offset
+                # 幅員より外の点はスキップ
+                if dist < -l_width or dist > r_width:
+                    continue
+
+            ground = ground_elevations[col]
+            planned = planned_elevations.get(col, ground)
+
+            points.append({
+                'dist': dist,
+                'ground': ground,
+                'planned': planned,
+            })
+
+        # 距離でソート
+        points.sort(key=lambda p: p['dist'])
+
+        if len(points) < 2:
+            row_idx += 5
+            continue
+
+        # CLのインデックスを見つける
+        cl_index = 0
+        for i, p in enumerate(points):
+            if abs(p['dist']) < 0.001:
+                cl_index = i
+                break
+
+        # 単延長を計算
+        distances = [p['dist'] for p in points]
+        unit_distances = [0.0]
+        for i in range(1, len(distances)):
+            unit_distances.append(distances[i] - distances[i-1])
+
+        # DL（最小標高の小数点以下切り捨て）
+        dl = math.floor(min(p['ground'] for p in points))
+
+        # SurveyRowを作成
+        survey_data = []
+        for i, p in enumerate(points):
+            survey_data.append(SurveyRow(
+                unit_distance=unit_distances[i],
+                elevation=p['ground'],
+                planned_height=p['planned'],
+                cumulative_distance=p['dist'],
+                cutting_bottom=p['planned'] - cutting_depth,
+            ))
+
+        route_distance = parse_station_distance(str(station_name))
+
+        sections.append(CrossSectionData(
+            survey_point_name=str(station_name),
+            dl=dl,
+            cl_index=cl_index,
+            l_to_cl_distance=l_width,
+            survey_data=survey_data,
+            route_distance=route_distance,
+        ))
+
+        row_idx += 5  # 次の測点へ
+
+    return sections
+
+
 def parse_xlsx(xlsx_path: str) -> dict:
     """Excelファイルをパースして辞書形式で返す"""
     wb = openpyxl.load_workbook(xlsx_path, data_only=True)
@@ -253,32 +400,37 @@ def parse_xlsx(xlsx_path: str) -> dict:
             parse_longitudinal_sheet(wb["縦断 (計画)"], "縦断(計画)")
         )
 
-    # 横断データ
-    if "横断(現況)" in wb.sheetnames:
-        sections = parse_cross_section_sheet(wb["横断(現況)"], "横断(現況)")
-        result["cross_sections_current"] = [asdict(s) for s in sections]
+    # 横断データ - 計画まとめシートを優先使用
+    if "計画まとめ" in wb.sheetnames:
+        sections = parse_keikaku_matome_sheet(wb["計画まとめ"])
+        result["cross_sections_merged"] = [asdict(s) for s in sections]
+    else:
+        # フォールバック: 横断(現況)と横断(計画)を使用
+        if "横断(現況)" in wb.sheetnames:
+            sections = parse_cross_section_sheet(wb["横断(現況)"], "横断(現況)")
+            result["cross_sections_current"] = [asdict(s) for s in sections]
 
-    if "横断(計画)" in wb.sheetnames:
-        sections = parse_cross_section_sheet(wb["横断(計画)"], "横断(計画)")
-        result["cross_sections_planned"] = [asdict(s) for s in sections]
+        if "横断(計画)" in wb.sheetnames:
+            sections = parse_cross_section_sheet(wb["横断(計画)"], "横断(計画)")
+            result["cross_sections_planned"] = [asdict(s) for s in sections]
 
-    # 現況と計画をマージ（計画高を上書き）
-    if result["cross_sections_current"] and result["cross_sections_planned"]:
-        current_map = {s["survey_point_name"]: s for s in result["cross_sections_current"]}
-        planned_map = {s["survey_point_name"]: s for s in result["cross_sections_planned"]}
+        # 現況と計画をマージ（計画高を上書き）
+        if result["cross_sections_current"] and result["cross_sections_planned"]:
+            current_map = {s["survey_point_name"]: s for s in result["cross_sections_current"]}
+            planned_map = {s["survey_point_name"]: s for s in result["cross_sections_planned"]}
 
-        merged = []
-        for name, current in current_map.items():
-            if name in planned_map:
-                planned = planned_map[name]
-                # 計画高を上書き
-                for i, row in enumerate(current["survey_data"]):
-                    if i < len(planned["survey_data"]):
-                        row["planned_height"] = planned["survey_data"][i]["elevation"]
-                        row["cutting_bottom"] = row["planned_height"] - 0.05
-            merged.append(current)
+            merged = []
+            for name, current in current_map.items():
+                if name in planned_map:
+                    planned = planned_map[name]
+                    # 計画高を上書き
+                    for i, row in enumerate(current["survey_data"]):
+                        if i < len(planned["survey_data"]):
+                            row["planned_height"] = planned["survey_data"][i]["elevation"]
+                            row["cutting_bottom"] = row["planned_height"] - 0.05
+                merged.append(current)
 
-        result["cross_sections_merged"] = merged
+            result["cross_sections_merged"] = merged
 
     return result
 
