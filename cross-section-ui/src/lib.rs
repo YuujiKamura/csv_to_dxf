@@ -383,7 +383,7 @@ pub fn generate_dxf_bytes(section: &CrossSectionData) -> Vec<u8> {
 
 /// 複数横断図をグリッド配置したDrawingを生成
 /// 道路工事の配置ルール: 左下起点、列ごとに下から上へ、左から右へ
-pub fn generate_multi_drawing(sections: &[CrossSectionData], columns: usize) -> Drawing {
+pub fn generate_multi_drawing(sections: &[CrossSectionData], columns: usize, column_gap: f64) -> Drawing {
     let scale = 1000.0;
 
     let mut drawing = Drawing::new();
@@ -418,12 +418,12 @@ pub fn generate_multi_drawing(sections: &[CrossSectionData], columns: usize) -> 
         max_height = max_height.max(max_elev - section.dl + 1.5);
     }
 
-    // セル幅をCLからの左右最大延長に基づいて計算（これにより列間隔が一定になる）
-    let cell_width = (max_left_extent + max_right_extent + 2.0) * scale;
+    // セル幅をCLからの左右最大延長に基づいて計算（column_gapで列間隔を調整）
+    let cell_width = (max_left_extent + max_right_extent + column_gap) * scale;
     let cell_height = (max_height + 1.0) * scale;
 
-    // 左端マージン: 最大左延長分 + 余白
-    let left_margin = (max_left_extent + 1.0) * scale;
+    // 左端マージン: 最大左延長分 + 余白の半分
+    let left_margin = (max_left_extent + column_gap / 2.0) * scale;
 
     // 道路工事の配置: 左下起点、列ごとに下から上
     let rows_per_column = (sections.len() + columns - 1) / columns;  // ceil division
@@ -531,8 +531,8 @@ fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
     add_line(drawing, to_dxf_x(cl_cumulative), to_dxf_y(dl), to_dxf_x(cl_cumulative), to_dxf_y(dl + 1.0), 8, "DIMENSION");
 }
 
-pub fn generate_multi_dxf_bytes(sections: &[CrossSectionData], columns: usize) -> Vec<u8> {
-    let drawing = generate_multi_drawing(sections, columns);
+pub fn generate_multi_dxf_bytes(sections: &[CrossSectionData], columns: usize, column_gap: f64) -> Vec<u8> {
+    let drawing = generate_multi_drawing(sections, columns, column_gap);
     let mut output: Vec<u8> = Vec::new();
     drawing.save(&mut output).expect("Failed to save DXF");
     output
@@ -805,7 +805,7 @@ pub fn generate_longitudinal_dxf_bytes(sections: &[CrossSectionData]) -> Vec<u8>
 /// コンボビュー（縦断図＋全横断図）を生成
 /// 縦断図を上部に、全横断図グリッドを下部に配置（横断図は2行で横長配置）
 /// レイアウトマネージャ：センタリング揃え＋適切な間隔
-pub fn generate_combo_drawing(sections: &[CrossSectionData], columns: usize) -> Drawing {
+pub fn generate_combo_drawing(sections: &[CrossSectionData], columns: usize, column_gap: f64) -> Drawing {
     if sections.is_empty() {
         return Drawing::new();
     }
@@ -816,8 +816,8 @@ pub fn generate_combo_drawing(sections: &[CrossSectionData], columns: usize) -> 
     let _long_width = long_max_x - long_min_x;
     let long_center_x = (long_min_x + long_max_x) / 2.0;
 
-    // 横断図グリッド（指定列数を使用）
-    let multi = generate_multi_drawing(sections, columns);
+    // 横断図グリッド（指定列数・間隔を使用）
+    let multi = generate_multi_drawing(sections, columns, column_gap);
     let (multi_min_x, multi_min_y, multi_max_x, multi_max_y) = calc_dxf_bounds(&multi);
     let multi_width = multi_max_x - multi_min_x;
     let multi_height = multi_max_y - multi_min_y;
@@ -960,8 +960,8 @@ fn shift_entity_y(entity: &mut dxf::entities::Entity, offset: f64) {
     }
 }
 
-pub fn generate_combo_dxf_bytes(sections: &[CrossSectionData], columns: usize) -> Vec<u8> {
-    let drawing = generate_combo_drawing(sections, columns);
+pub fn generate_combo_dxf_bytes(sections: &[CrossSectionData], columns: usize, column_gap: f64) -> Vec<u8> {
+    let drawing = generate_combo_drawing(sections, columns, column_gap);
     let mut output: Vec<u8> = Vec::new();
     drawing.save(&mut output).expect("Failed to save DXF");
     output
@@ -1575,6 +1575,7 @@ pub struct CrossSectionApp {
     dxf_view_state: DxfViewState,
     view_mode: ViewMode,
     grid_columns: usize,     // グリッドの列数
+    column_gap: f64,         // 列間隔（メートル単位）
     status_message: Option<String>,
     needs_fit: bool,         // canvas_rect更新後にfit_to_dxfを呼ぶフラグ
     is_first_frame: bool,    // 初回フレームフラグ（モバイル判定用）
@@ -1593,6 +1594,7 @@ impl Default for CrossSectionApp {
             dxf_view_state: DxfViewState::default(),
             view_mode: ViewMode::Single, // デフォルトで単一横断図（モバイル向け）
             grid_columns: 3,
+            column_gap: 1.0,  // 列間隔1メートル
             status_message: None,
             needs_fit: false,
             is_first_frame: true,
@@ -1669,10 +1671,10 @@ impl CrossSectionApp {
                 generate_alignment_test_drawing()
             }
             ViewMode::Combo if !filtered.is_empty() => {
-                generate_combo_drawing(&filtered, self.grid_columns)
+                generate_combo_drawing(&filtered, self.grid_columns, self.column_gap)
             }
             ViewMode::AllGrid if !filtered.is_empty() => {
-                generate_multi_drawing(&filtered, self.grid_columns)
+                generate_multi_drawing(&filtered, self.grid_columns, self.column_gap)
             }
             ViewMode::Longitudinal if !filtered.is_empty() => {
                 generate_longitudinal_drawing(&filtered)
@@ -1866,6 +1868,15 @@ impl eframe::App for CrossSectionApp {
                                 self.grid_columns -= 1;
                                 self.update_dxf_preview();
                             }
+                            ui.label(format!("間隔{:.1}m", self.column_gap));
+                            if ui.small_button("+").clicked() && self.column_gap < 5.0 {
+                                self.column_gap += 0.5;
+                                self.update_dxf_preview();
+                            }
+                            if ui.small_button("-").clicked() && self.column_gap > 0.0 {
+                                self.column_gap -= 0.5;
+                                self.update_dxf_preview();
+                            }
                         });
                     }
 
@@ -1876,13 +1887,13 @@ impl eframe::App for CrossSectionApp {
                         match self.view_mode {
                             ViewMode::Combo if !filtered_for_dxf.is_empty() => {
                                 if ui.button("DXF").clicked() {
-                                    let dxf_content = generate_combo_dxf_bytes(&filtered_for_dxf, self.grid_columns);
+                                    let dxf_content = generate_combo_dxf_bytes(&filtered_for_dxf, self.grid_columns, self.column_gap);
                                     download_file("combo.dxf", &dxf_content);
                                 }
                             }
                             ViewMode::AllGrid if !filtered_for_dxf.is_empty() => {
                                 if ui.button("DXF").clicked() {
-                                    let dxf_content = generate_multi_dxf_bytes(&filtered_for_dxf, self.grid_columns);
+                                    let dxf_content = generate_multi_dxf_bytes(&filtered_for_dxf, self.grid_columns, self.column_gap);
                                     download_file("cross_sections_all.dxf", &dxf_content);
                                 }
                             }
@@ -1975,7 +1986,7 @@ impl eframe::App for CrossSectionApp {
                     }
                 });
 
-                // AllGrid/Comboモード時の列数調整
+                // AllGrid/Comboモード時の列数・間隔調整
                 if self.view_mode == ViewMode::AllGrid || self.view_mode == ViewMode::Combo {
                     ui.horizontal(|ui| {
                         ui.label(format!("{}列", self.grid_columns));
@@ -1985,6 +1996,17 @@ impl eframe::App for CrossSectionApp {
                         }
                         if ui.small_button("-").clicked() && self.grid_columns > 1 {
                             self.grid_columns -= 1;
+                            self.update_dxf_preview();
+                        }
+                    });
+                    ui.horizontal(|ui| {
+                        ui.label(format!("間隔{:.1}m", self.column_gap));
+                        if ui.small_button("+").clicked() && self.column_gap < 5.0 {
+                            self.column_gap += 0.5;
+                            self.update_dxf_preview();
+                        }
+                        if ui.small_button("-").clicked() && self.column_gap > 0.0 {
+                            self.column_gap -= 0.5;
                             self.update_dxf_preview();
                         }
                     });
@@ -2004,13 +2026,13 @@ impl eframe::App for CrossSectionApp {
                     _ if filtered_for_download.is_empty() => {}
                     ViewMode::Combo => {
                         if ui.button("Download Combo DXF").clicked() {
-                            let dxf_content = generate_combo_dxf_bytes(&filtered_for_download, self.grid_columns);
+                            let dxf_content = generate_combo_dxf_bytes(&filtered_for_download, self.grid_columns, self.column_gap);
                             download_file("combo.dxf", &dxf_content);
                         }
                     }
                     ViewMode::AllGrid => {
                         if ui.button("Download All DXF").clicked() {
-                            let dxf_content = generate_multi_dxf_bytes(&filtered_for_download, self.grid_columns);
+                            let dxf_content = generate_multi_dxf_bytes(&filtered_for_download, self.grid_columns, self.column_gap);
                             download_file("cross_sections_all.dxf", &dxf_content);
                         }
                     }
