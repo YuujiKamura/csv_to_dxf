@@ -1873,7 +1873,7 @@ impl eframe::App for CrossSectionApp {
                                 self.column_gap += 0.5;
                                 self.update_dxf_preview();
                             }
-                            if ui.small_button("-").clicked() && self.column_gap > 0.0 {
+                            if ui.small_button("-").clicked() && self.column_gap > -5.0 {
                                 self.column_gap -= 0.5;
                                 self.update_dxf_preview();
                             }
@@ -2005,7 +2005,7 @@ impl eframe::App for CrossSectionApp {
                             self.column_gap += 0.5;
                             self.update_dxf_preview();
                         }
-                        if ui.small_button("-").clicked() && self.column_gap > 0.0 {
+                        if ui.small_button("-").clicked() && self.column_gap > -5.0 {
                             self.column_gap -= 0.5;
                             self.update_dxf_preview();
                         }
