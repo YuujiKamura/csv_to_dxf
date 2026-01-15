@@ -34,6 +34,7 @@ class CrossSectionData:
     l_to_cl_distance: float       # 左端からCLまでの距離
     survey_data: list[SurveyRow]  # 測量データ
     route_distance: Optional[float] = None  # 路線距離（m）
+    route_id: str = "route_1"     # ルートID
 
 
 @dataclass
@@ -242,9 +243,12 @@ def parse_keikaku_matome_sheet(ws, cutting_depth: float = 0.05) -> list[CrossSec
     - col17 = 左勾配, col18 = 右勾配
 
     5行で1測点（現地盤高, 計画高, 切削高, 切削厚, 空行）
+    空白行2つで次のルートに切り替わる
     """
     sections = []
-    seen_names = set()  # 重複検出用
+    seen_names = set()  # 重複検出用（ルートごとにリセット）
+    route_num = 1
+    blank_count = 0  # 連続空白行カウント
 
     # 距離マッピング（col4-12の相対位置、後で実際の幅員で調整）
     # L=-幅員, -4, -2, C=0, +2, +4, +6, +8, R=+幅員
@@ -265,14 +269,24 @@ def parse_keikaku_matome_sheet(ws, cutting_depth: float = 0.05) -> list[CrossSec
         station_name = ws.cell(row=row_idx, column=2).value
         row_type = ws.cell(row=row_idx, column=3).value
 
+        # 空白行の検出
+        if not station_name and not row_type:
+            blank_count += 1
+            row_idx += 1
+            continue
+
+        # 空白行2つ以上 + No.0で新ルート開始
+        if blank_count >= 2 and station_name and "No.0" in str(station_name):
+            route_num += 1
+            seen_names = set()  # リセット
+
+        blank_count = 0  # 空白行カウントリセット
+
         if not station_name or row_type != "現地盤高":
             row_idx += 1
             continue
 
-        # 重複チェック（2番目のルートに入ったら終了）
         name_str = str(station_name)
-        if name_str in seen_names:
-            break
         seen_names.add(name_str)
 
         # 幅員を取得
@@ -280,7 +294,7 @@ def parse_keikaku_matome_sheet(ws, cutting_depth: float = 0.05) -> list[CrossSec
         r_width = ws.cell(row=row_idx, column=15).value
 
         if l_width is None or r_width is None:
-            row_idx += 5
+            row_idx += 1
             continue
 
         l_width = float(l_width)
@@ -332,7 +346,7 @@ def parse_keikaku_matome_sheet(ws, cutting_depth: float = 0.05) -> list[CrossSec
         points.sort(key=lambda p: p['dist'])
 
         if len(points) < 2:
-            row_idx += 5
+            row_idx += 1
             continue
 
         # CLのインデックスを見つける
@@ -371,9 +385,10 @@ def parse_keikaku_matome_sheet(ws, cutting_depth: float = 0.05) -> list[CrossSec
             l_to_cl_distance=l_width,
             survey_data=survey_data,
             route_distance=route_distance,
+            route_id=f"route_{route_num}",
         ))
 
-        row_idx += 5  # 次の測点へ
+        row_idx += 1  # 次の行へ（5行ジャンプするとルート境界の空白行を見逃す）
 
     return sections
 
@@ -448,6 +463,7 @@ def to_cross_section_ui_format(data: dict) -> list[dict]:
             "l_to_cl_distance": s["l_to_cl_distance"],
             "survey_data": s["survey_data"],
             "route_distance": s["route_distance"],
+            "route_id": s.get("route_id", "route_1"),
         })
 
     return sections

@@ -48,7 +48,8 @@
         "cutting_bottom": 9.630999999999998
       }
     ],
-    "route_distance": 0.0
+    "route_distance": 0.0,
+    "route_id": "route_1"
   },
   {
     "survey_point_name": "No.0+10",
@@ -99,7 +100,8 @@
         "cutting_bottom": 9.693
       }
     ],
-    "route_distance": 10.0
+    "route_distance": 10.0,
+    "route_id": "route_1"
   },
   {
     "survey_point_name": "No.1",
@@ -150,7 +152,8 @@
         "cutting_bottom": 9.785
       }
     ],
-    "route_distance": 20.0
+    "route_distance": 20.0,
+    "route_id": "route_1"
   },
   {
     "survey_point_name": "No.1+10",
@@ -201,7 +204,8 @@
         "cutting_bottom": 9.828
       }
     ],
-    "route_distance": 30.0
+    "route_distance": 30.0,
+    "route_id": "route_1"
   },
   {
     "survey_point_name": "No.1+15.5マンホール",
@@ -252,7 +256,8 @@
         "cutting_bottom": 9.822999999999999
       }
     ],
-    "route_distance": 35.5
+    "route_distance": 35.5,
+    "route_id": "route_1"
   },
   {
     "survey_point_name": "No.2",
@@ -303,7 +308,8 @@
         "cutting_bottom": 9.833999999999998
       }
     ],
-    "route_distance": 40.0
+    "route_distance": 40.0,
+    "route_id": "route_1"
   },
   {
     "survey_point_name": "No.2+10",
@@ -354,7 +360,8 @@
         "cutting_bottom": 9.862
       }
     ],
-    "route_distance": 50.0
+    "route_distance": 50.0,
+    "route_id": "route_1"
   },
   {
     "survey_point_name": "No.3",
@@ -398,7 +405,8 @@
         "cutting_bottom": 9.905999999999999
       }
     ],
-    "route_distance": 60.0
+    "route_distance": 60.0,
+    "route_id": "route_1"
   },
   {
     "survey_point_name": "No.3+3.2マンホール",
@@ -442,7 +450,8 @@
         "cutting_bottom": 9.908999999999999
       }
     ],
-    "route_distance": 63.2
+    "route_distance": 63.2,
+    "route_id": "route_1"
   },
   {
     "survey_point_name": "No.3+10",
@@ -486,7 +495,8 @@
         "cutting_bottom": 9.918
       }
     ],
-    "route_distance": 70.0
+    "route_distance": 70.0,
+    "route_id": "route_1"
   },
   {
     "survey_point_name": "No.4",
@@ -530,7 +540,8 @@
         "cutting_bottom": 9.942
       }
     ],
-    "route_distance": 80.0
+    "route_distance": 80.0,
+    "route_id": "route_1"
   },
   {
     "survey_point_name": "No.4+10",
@@ -574,7 +585,8 @@
         "cutting_bottom": 9.949
       }
     ],
-    "route_distance": 90.0
+    "route_distance": 90.0,
+    "route_id": "route_1"
   },
   {
     "survey_point_name": "No.5",
@@ -618,7 +630,8 @@
         "cutting_bottom": 9.973999999999998
       }
     ],
-    "route_distance": 100.0
+    "route_distance": 100.0,
+    "route_id": "route_1"
   },
   {
     "survey_point_name": "No.5+10",
@@ -662,7 +675,8 @@
         "cutting_bottom": 9.985
       }
     ],
-    "route_distance": 110.0
+    "route_distance": 110.0,
+    "route_id": "route_1"
   },
   {
     "survey_point_name": "No.6",
@@ -706,7 +720,8 @@
         "cutting_bottom": 10.021999999999998
       }
     ],
-    "route_distance": 120.0
+    "route_distance": 120.0,
+    "route_id": "route_1"
   },
   {
     "survey_point_name": "No.6+4.2マンホール",
@@ -750,7 +765,8 @@
         "cutting_bottom": 10.02
       }
     ],
-    "route_distance": 124.2
+    "route_distance": 124.2,
+    "route_id": "route_1"
   },
   {
     "survey_point_name": "No.6+10",
@@ -794,7 +810,8 @@
         "cutting_bottom": 10.048
       }
     ],
-    "route_distance": 130.0
+    "route_distance": 130.0,
+    "route_id": "route_1"
   },
   {
     "survey_point_name": "No.7",
@@ -838,7 +855,8 @@
         "cutting_bottom": 10.091999999999999
       }
     ],
-    "route_distance": 140.0
+    "route_distance": 140.0,
+    "route_id": "route_1"
   },
   {
     "survey_point_name": "No.7+10",
@@ -882,7 +900,8 @@
         "cutting_bottom": 10.139999999999999
       }
     ],
-    "route_distance": 150.0
+    "route_distance": 150.0,
+    "route_id": "route_1"
   },
   {
     "survey_point_name": "No.8",
@@ -926,7 +945,8 @@
         "cutting_bottom": 10.184
       }
     ],
-    "route_distance": 160.0
+    "route_distance": 160.0,
+    "route_id": "route_1"
   },
   {
     "survey_point_name": "No.8+10",
@@ -970,7 +990,8 @@
         "cutting_bottom": 10.348999999999998
       }
     ],
-    "route_distance": 170.0
+    "route_distance": 170.0,
+    "route_id": "route_1"
   },
   {
     "survey_point_name": "No.8+12.4マンホール",
@@ -1014,7 +1035,8 @@
         "cutting_bottom": 10.335999999999999
       }
     ],
-    "route_distance": 172.4
+    "route_distance": 172.4,
+    "route_id": "route_1"
   },
   {
     "survey_point_name": "No.9",
@@ -1058,7 +1080,8 @@
         "cutting_bottom": 10.298
       }
     ],
-    "route_distance": 180.0
+    "route_distance": 180.0,
+    "route_id": "route_1"
   },
   {
     "survey_point_name": "No.9+10",
@@ -1102,7 +1125,8 @@
         "cutting_bottom": 10.369
       }
     ],
-    "route_distance": 190.0
+    "route_distance": 190.0,
+    "route_id": "route_1"
   },
   {
     "survey_point_name": "No.10",
@@ -1146,7 +1170,8 @@
         "cutting_bottom": 10.431999999999999
       }
     ],
-    "route_distance": 200.0
+    "route_distance": 200.0,
+    "route_id": "route_1"
   },
   {
     "survey_point_name": "No.10+4.8マンホール",
@@ -1190,7 +1215,8 @@
         "cutting_bottom": 10.460999999999999
       }
     ],
-    "route_distance": 204.8
+    "route_distance": 204.8,
+    "route_id": "route_1"
   },
   {
     "survey_point_name": "No.10+10",
@@ -1234,7 +1260,8 @@
         "cutting_bottom": 10.497
       }
     ],
-    "route_distance": 210.0
+    "route_distance": 210.0,
+    "route_id": "route_1"
   },
   {
     "survey_point_name": "No.11",
@@ -1278,7 +1305,8 @@
         "cutting_bottom": 10.568999999999999
       }
     ],
-    "route_distance": 220.0
+    "route_distance": 220.0,
+    "route_id": "route_1"
   },
   {
     "survey_point_name": "No.11+4.2",
@@ -1322,7 +1350,8 @@
         "cutting_bottom": 10.588999999999999
       }
     ],
-    "route_distance": 224.2
+    "route_distance": 224.2,
+    "route_id": "route_1"
   },
   {
     "survey_point_name": "No.11+10",
@@ -1380,7 +1409,8 @@
         "cutting_bottom": 10.593
       }
     ],
-    "route_distance": 230.0
+    "route_distance": 230.0,
+    "route_id": "route_1"
   },
   {
     "survey_point_name": "No.11+12.3",
@@ -1452,6 +1482,232 @@
         "cutting_bottom": 10.593
       }
     ],
-    "route_distance": 232.3
+    "route_distance": 232.3,
+    "route_id": "route_1"
+  },
+  {
+    "survey_point_name": "No.0",
+    "dl": 10,
+    "cl_index": 2,
+    "l_to_cl_distance": 3.26,
+    "survey_data": [
+      {
+        "unit_distance": 0.0,
+        "elevation": 10.64,
+        "planned_height": 10.64,
+        "cumulative_distance": -3.26,
+        "cutting_bottom": 10.59
+      },
+      {
+        "unit_distance": 1.2599999999999998,
+        "elevation": 10.663,
+        "planned_height": 10.663,
+        "cumulative_distance": -2.0,
+        "cutting_bottom": 10.613
+      },
+      {
+        "unit_distance": 2.0,
+        "elevation": 10.669,
+        "planned_height": 10.669,
+        "cumulative_distance": 0.0,
+        "cutting_bottom": 10.619
+      },
+      {
+        "unit_distance": 2.0,
+        "elevation": 10.608,
+        "planned_height": 10.608,
+        "cumulative_distance": 2.0,
+        "cutting_bottom": 10.558
+      },
+      {
+        "unit_distance": 1.0899999999999999,
+        "elevation": 10.56,
+        "planned_height": 10.56,
+        "cumulative_distance": 3.09,
+        "cutting_bottom": 10.51
+      }
+    ],
+    "route_distance": 0.0,
+    "route_id": "route_2"
+  },
+  {
+    "survey_point_name": "No.0+10",
+    "dl": 10,
+    "cl_index": 2,
+    "l_to_cl_distance": 3.1,
+    "survey_data": [
+      {
+        "unit_distance": 0.0,
+        "elevation": 10.675,
+        "planned_height": 10.675,
+        "cumulative_distance": -3.1,
+        "cutting_bottom": 10.625
+      },
+      {
+        "unit_distance": 1.1,
+        "elevation": 10.675,
+        "planned_height": 10.681000000000001,
+        "cumulative_distance": -2.0,
+        "cutting_bottom": 10.631
+      },
+      {
+        "unit_distance": 2.0,
+        "elevation": 10.677,
+        "planned_height": 10.691,
+        "cumulative_distance": 0.0,
+        "cutting_bottom": 10.641
+      },
+      {
+        "unit_distance": 2.0,
+        "elevation": 10.645,
+        "planned_height": 10.627,
+        "cumulative_distance": 2.0,
+        "cutting_bottom": 10.577
+      },
+      {
+        "unit_distance": 1.2000000000000002,
+        "elevation": 10.588,
+        "planned_height": 10.588,
+        "cumulative_distance": 3.2,
+        "cutting_bottom": 10.537999999999998
+      }
+    ],
+    "route_distance": 10.0,
+    "route_id": "route_2"
+  },
+  {
+    "survey_point_name": "No.0+15.1",
+    "dl": 10,
+    "cl_index": 2,
+    "l_to_cl_distance": 3.02,
+    "survey_data": [
+      {
+        "unit_distance": 0.0,
+        "elevation": 10.688,
+        "planned_height": 10.721,
+        "cumulative_distance": -3.02,
+        "cutting_bottom": 10.671
+      },
+      {
+        "unit_distance": 1.02,
+        "elevation": 10.69,
+        "planned_height": 10.692,
+        "cumulative_distance": -2.0,
+        "cutting_bottom": 10.642
+      },
+      {
+        "unit_distance": 2.0,
+        "elevation": 10.702,
+        "planned_height": 10.702,
+        "cumulative_distance": 0.0,
+        "cutting_bottom": 10.652
+      },
+      {
+        "unit_distance": 2.0,
+        "elevation": 10.645,
+        "planned_height": 10.638,
+        "cumulative_distance": 2.0,
+        "cutting_bottom": 10.588
+      },
+      {
+        "unit_distance": 1.13,
+        "elevation": 10.603,
+        "planned_height": 10.603,
+        "cumulative_distance": 3.13,
+        "cutting_bottom": 10.552999999999999
+      }
+    ],
+    "route_distance": 15.1,
+    "route_id": "route_2"
+  },
+  {
+    "survey_point_name": "No.1",
+    "dl": 10,
+    "cl_index": 2,
+    "l_to_cl_distance": 3.23,
+    "survey_data": [
+      {
+        "unit_distance": 0.0,
+        "elevation": 10.609,
+        "planned_height": 10.609,
+        "cumulative_distance": -3.23,
+        "cutting_bottom": 10.559
+      },
+      {
+        "unit_distance": 1.23,
+        "elevation": 10.636,
+        "planned_height": 10.636000000000001,
+        "cumulative_distance": -2.0,
+        "cutting_bottom": 10.586
+      },
+      {
+        "unit_distance": 2.0,
+        "elevation": 10.669,
+        "planned_height": 10.678,
+        "cumulative_distance": 0.0,
+        "cutting_bottom": 10.628
+      },
+      {
+        "unit_distance": 2.0,
+        "elevation": 10.652,
+        "planned_height": 10.632000000000001,
+        "cumulative_distance": 2.0,
+        "cutting_bottom": 10.582
+      },
+      {
+        "unit_distance": 1.15,
+        "elevation": 10.605,
+        "planned_height": 10.605,
+        "cumulative_distance": 3.15,
+        "cutting_bottom": 10.555
+      }
+    ],
+    "route_distance": 20.0,
+    "route_id": "route_2"
+  },
+  {
+    "survey_point_name": "No.1+7.2",
+    "dl": 10,
+    "cl_index": 2,
+    "l_to_cl_distance": 3.15,
+    "survey_data": [
+      {
+        "unit_distance": 0.0,
+        "elevation": 10.553,
+        "planned_height": 10.553,
+        "cumulative_distance": -3.15,
+        "cutting_bottom": 10.503
+      },
+      {
+        "unit_distance": 1.15,
+        "elevation": 10.592,
+        "planned_height": 10.592,
+        "cumulative_distance": -2.0,
+        "cutting_bottom": 10.542
+      },
+      {
+        "unit_distance": 2.0,
+        "elevation": 10.643,
+        "planned_height": 10.643,
+        "cumulative_distance": 0.0,
+        "cutting_bottom": 10.593
+      },
+      {
+        "unit_distance": 2.0,
+        "elevation": 10.615,
+        "planned_height": 10.615,
+        "cumulative_distance": 2.0,
+        "cutting_bottom": 10.565
+      },
+      {
+        "unit_distance": 1.1,
+        "elevation": 10.569,
+        "planned_height": 10.569,
+        "cumulative_distance": 3.1,
+        "cutting_bottom": 10.519
+      }
+    ],
+    "route_distance": 27.2,
+    "route_id": "route_2"
   }
 ]
