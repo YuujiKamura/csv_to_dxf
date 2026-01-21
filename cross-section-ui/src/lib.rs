@@ -1591,6 +1591,8 @@ pub struct CrossSectionApp {
     loading_stage: String,   // ローディング進捗メッセージ
     routes: Vec<String>,     // 利用可能なルートのリスト
     selected_route: String,  // 選択中のルート
+    api_key: String,         // セッションのみのAPIキー
+    api_key_set: bool,       // UI表示用フラグ
 }
 
 impl Default for CrossSectionApp {
@@ -1610,6 +1612,8 @@ impl Default for CrossSectionApp {
             loading_stage: "JSONデータを取得中".to_string(),
             routes: vec!["route_1".to_string()],
             selected_route: "route_1".to_string(),
+            api_key: String::new(),
+            api_key_set: false,
         }
     }
 }
@@ -1637,6 +1641,30 @@ impl CrossSectionApp {
         let mut app = Self::default();
         app.status_message = Some("読み込み中...".to_string());
         app
+    }
+
+    fn api_key_ui(&mut self, ui: &mut egui::Ui) {
+        ui.separator();
+        ui.label("Gemini API Key");
+        ui.horizontal(|ui| {
+            ui.add(
+                egui::TextEdit::singleline(&mut self.api_key)
+                    .password(true)
+                    .desired_width(160.0),
+            );
+            if ui.button("Set").clicked() {
+                self.api_key_set = !self.api_key.is_empty();
+            }
+            if ui.button("Clear").clicked() {
+                self.api_key.clear();
+                self.api_key_set = false;
+            }
+        });
+        ui.label(if self.api_key_set {
+            "APIキー設定済み（セッションのみ）"
+        } else {
+            "APIキー未設定"
+        });
     }
 
     fn handle_csv_loaded(&mut self, csv_text: &str) {
@@ -1932,6 +1960,10 @@ impl eframe::App for CrossSectionApp {
                             _ => {}
                         }
                     });
+
+                    ui.collapsing("API", |ui| {
+                        self.api_key_ui(ui);
+                    });
                 });
             });
         } else {
@@ -1947,6 +1979,9 @@ impl eframe::App for CrossSectionApp {
                 if let Some(message) = &self.status_message {
                     ui.label(message);
                 }
+                ui.collapsing("API", |ui| {
+                    self.api_key_ui(ui);
+                });
 
                 // ルート選択（複数ルートがある場合のみ表示）
                 if self.routes.len() > 1 {
