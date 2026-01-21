@@ -2,12 +2,18 @@
 """
 計画.xlsx パーサー
 縦断・横断データをJSON形式で出力する
+
+Geminiを使う場合は環境変数 GEMINI_API_KEY を設定する。
+--local-only でローカル解析に固定できる。
 """
 
 import json
 import math
+import os
 import re
 import sys
+import urllib.error
+import urllib.request
 from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Optional
@@ -68,6 +74,128 @@ def parse_station_distance(name: str) -> float:
     plus = float(match.group(2)) if match.group(2) else 0.0
     # No.1 = 20m間隔と仮定
     return no * 20.0 + plus
+
+
+def sheet_to_table(ws) -> list[dict]:
+    """シートを行配列に変換（空行は除外）"""
+    max_row = 0
+    max_col = 0
+    for r_idx, row in enumerate(ws.iter_rows(values_only=True), start=1):
+        if any(v is not None and str(v).strip() != "" for v in row):
+            max_row = r_idx
+            for c_idx, val in enumerate(row, start=1):
+                if val is not None and str(val).strip() != "":
+                    max_col = max(max_col, c_idx)
+
+    if max_row == 0 or max_col == 0:
+        return []
+
+    rows = []
+    for r_idx in range(1, max_row + 1):
+        values = []
+        for c_idx in range(1, max_col + 1):
+            val = ws.cell(row=r_idx, column=c_idx).value
+            values.append("" if val is None else str(val))
+        if any(v != "" for v in values):
+            rows.append({"row": r_idx, "values": values})
+    return rows
+
+
+def workbook_to_prompt_data(workbook) -> dict:
+    """Gemini用の入力データを作成"""
+    sheets = []
+    for ws in workbook.worksheets:
+        sheets.append({
+            "name": ws.title,
+            "rows": sheet_to_table(ws),
+        })
+    return {"sheets": sheets}
+
+
+def extract_json_from_text(text: str) -> str:
+    """コードフェンスを除去してJSON文字列を抽出"""
+    if "```" not in text:
+        return text.strip()
+    parts = text.split("```")
+    if len(parts) >= 2:
+        candidate = parts[1]
+        # 先頭の言語指定を削除
+        if candidate.startswith("json"):
+            candidate = candidate[4:]
+        return candidate.strip()
+    return text.strip()
+
+
+def call_gemini(prompt: str, model: str) -> str:
+    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY is not set")
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+    payload = {
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": 0.2,
+            "topP": 0.9,
+            "maxOutputTokens": 8192,
+        },
+    }
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            body = resp.read().decode("utf-8")
+    except urllib.error.HTTPError as e:
+        raise RuntimeError(f"Gemini API error: {e.code} {e.reason}") from e
+
+    result = json.loads(body)
+    candidates = result.get("candidates", [])
+    if not candidates:
+        raise RuntimeError("Gemini API returned no candidates")
+    parts = candidates[0].get("content", {}).get("parts", [])
+    if not parts:
+        raise RuntimeError("Gemini API returned no content parts")
+    return parts[0].get("text", "")
+
+
+def parse_xlsx_with_gemini(xlsx_path: Path, model: str) -> list[dict]:
+    workbook = openpyxl.load_workbook(xlsx_path, data_only=True)
+    prompt_data = workbook_to_prompt_data(workbook)
+    prompt = (
+        "You are given an Excel workbook as JSON (sheets with rows and values).\n"
+        "Extract road cross-section data and output ONLY a JSON array matching this schema:\n"
+        "[{\n"
+        "  \"survey_point_name\": string,\n"
+        "  \"dl\": number,\n"
+        "  \"cl_index\": number,\n"
+        "  \"l_to_cl_distance\": number,\n"
+        "  \"survey_data\": [{\n"
+        "    \"unit_distance\": number,\n"
+        "    \"elevation\": number,\n"
+        "    \"planned_height\": number,\n"
+        "    \"cumulative_distance\": number,\n"
+        "    \"cutting_bottom\": number\n"
+        "  }],\n"
+        "  \"route_distance\": number | null,\n"
+        "  \"route_id\": string\n"
+        "}]\n"
+        "Rules:\n"
+        "- Output JSON only (no markdown).\n"
+        "- If multiple routes exist, set route_id per route; otherwise use \"route_1\".\n"
+        "- cl_index is the index of the center line point within survey_data.\n"
+        "- l_to_cl_distance is the distance from left edge to CL (meters).\n"
+        "- cumulative_distance is distance from CL (left is negative, right positive).\n"
+        "- cutting_bottom is ground elevation minus cutting depth if explicit data is not present.\n"
+        "Input workbook:\n"
+    )
+    prompt += json.dumps(prompt_data, ensure_ascii=False)
+
+    text = call_gemini(prompt, model)
+    json_text = extract_json_from_text(text)
+    sections = json.loads(json_text)
+    if not isinstance(sections, list):
+        raise ValueError("Gemini output is not a JSON array")
+    return sections
 
 
 def parse_longitudinal_sheet(ws, sheet_name: str) -> LongitudinalSection:
@@ -476,6 +604,11 @@ def main():
     else:
         xlsx_path = Path(sys.argv[1])
         output_path = Path(sys.argv[2]) if len(sys.argv) >= 3 else xlsx_path.parent / "sections.json"
+    use_gemini = "--local-only" not in sys.argv
+    model = "gemini-2.0-flash"
+    for i, arg in enumerate(sys.argv):
+        if arg == "--model" and i + 1 < len(sys.argv):
+            model = sys.argv[i + 1]
 
     if not xlsx_path.exists():
         print(f"Error: {xlsx_path} not found", file=sys.stderr)
@@ -483,10 +616,16 @@ def main():
 
     print(f"Parsing: {xlsx_path}", file=sys.stderr)
 
-    data = parse_xlsx(str(xlsx_path))
-
-    # cross-section-ui用に変換
-    sections = to_cross_section_ui_format(data)
+    if use_gemini:
+        try:
+            sections = parse_xlsx_with_gemini(xlsx_path, model)
+        except Exception as e:
+            print(f"Gemini error: {e}", file=sys.stderr)
+            sys.exit(1)
+    else:
+        data = parse_xlsx(str(xlsx_path))
+        # cross-section-ui用に変換
+        sections = to_cross_section_ui_format(data)
 
     # JSON出力（デフォルトはdata/sections.json）
     output_path.parent.mkdir(parents=True, exist_ok=True)
