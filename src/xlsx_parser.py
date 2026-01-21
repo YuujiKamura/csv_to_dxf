@@ -472,8 +472,10 @@ def to_cross_section_ui_format(data: dict) -> list[dict]:
 def main():
     if len(sys.argv) < 2:
         xlsx_path = Path(__file__).parent.parent / "data" / "計画.xlsx"
+        output_path = xlsx_path.parent / "sections.json"
     else:
         xlsx_path = Path(sys.argv[1])
+        output_path = Path(sys.argv[2]) if len(sys.argv) >= 3 else xlsx_path.parent / "sections.json"
 
     if not xlsx_path.exists():
         print(f"Error: {xlsx_path} not found", file=sys.stderr)
@@ -486,8 +488,8 @@ def main():
     # cross-section-ui用に変換
     sections = to_cross_section_ui_format(data)
 
-    # JSON出力（data/sections.jsonに保存）
-    output_path = xlsx_path.parent / "sections.json"
+    # JSON出力（デフォルトはdata/sections.json）
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(sections, f, ensure_ascii=False, indent=2)
 

@@ -9,7 +9,6 @@ Excel→JSON→Wasmビルドの一括スクリプト
 """
 
 import argparse
-import shutil
 import subprocess
 import sys
 import time
@@ -25,7 +24,12 @@ def parse_xlsx_to_json(xlsx_path: Path, output_path: Path) -> bool:
 
     # xlsx_parser.pyを実行
     result = subprocess.run(
-        [sys.executable, str(PROJECT_ROOT / "src" / "xlsx_parser.py"), str(xlsx_path)],
+        [
+            sys.executable,
+            str(PROJECT_ROOT / "src" / "xlsx_parser.py"),
+            str(xlsx_path),
+            str(output_path),
+        ],
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -37,15 +41,11 @@ def parse_xlsx_to_json(xlsx_path: Path, output_path: Path) -> bool:
 
     print(result.stderr)  # パーサーの出力はstderrに書かれる
 
-    # JSONをstaticフォルダにコピー
-    json_path = xlsx_path.parent / "sections.json"
-    if json_path.exists():
-        shutil.copy(json_path, output_path)
-        print(f"[2/3] Copied: {json_path} -> {output_path}")
+    if output_path.exists():
+        print(f"[2/3] Wrote: {output_path}")
         return True
-    else:
-        print(f"Error: {json_path} not found")
-        return False
+    print(f"Error: {output_path} not found")
+    return False
 
 
 def build_wasm(release: bool = True) -> bool:
@@ -79,7 +79,7 @@ def main():
         sys.exit(1)
 
     # 出力先
-    output_path = PROJECT_ROOT / "cross-section-ui" / "static" / "sections.json"
+    output_path = PROJECT_ROOT / "data" / "sections.json"
 
     if args.watch:
         print(f"Watching: {xlsx_path}")
