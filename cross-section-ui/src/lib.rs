@@ -11,6 +11,11 @@ use dxf::entities::{Entity, EntityType, Line, Text};
 use dxf::enums::{HorizontalTextJustification, VerticalTextJustification};
 use dxf::{Color, Point};
 
+#[cfg(target_arch = "wasm32")]
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+#[cfg(target_arch = "wasm32")]
+use base64::Engine as _;
+
 // ============================================================================
 // DXF Generation (using dxf crate)
 // ============================================================================
@@ -1667,6 +1672,18 @@ impl CrossSectionApp {
         });
     }
 
+    #[cfg(target_arch = "wasm32")]
+    fn gemini_excel_ui(&mut self, ui: &mut egui::Ui) {
+        ui.separator();
+        if ui.button("Excelを読み込む (Gemini)").clicked() {
+            trigger_xlsx_dialog();
+        }
+        ui.label("Excelはローカルに保存されず、APIに送信されます。");
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn gemini_excel_ui(&mut self, _ui: &mut egui::Ui) {}
+
     fn handle_csv_loaded(&mut self, csv_text: &str) {
         match parse_csv_sections(csv_text) {
             Ok(raw_sections) => {
@@ -1780,6 +1797,18 @@ impl eframe::App for CrossSectionApp {
 
         if let Some(csv_text) = take_pending_csv() {
             self.handle_csv_loaded(&csv_text);
+        }
+        if let Some(xlsx_bytes) = take_pending_xlsx() {
+            if self.api_key.is_empty() {
+                self.status_message = Some("APIキーが未設定です".to_string());
+            } else {
+                self.status_message = Some("Geminiで解析中...".to_string());
+                self.loading_stage = "Gemini解析中".to_string();
+                start_gemini_parse(self.api_key.clone(), xlsx_bytes);
+            }
+        }
+        if let Some(err) = take_pending_error() {
+            self.status_message = Some(format!("Geminiエラー: {err}"));
         }
         let screen_width = ctx.screen_rect().width();
         let is_mobile = screen_width < 600.0;
@@ -1963,6 +1992,7 @@ impl eframe::App for CrossSectionApp {
 
                     ui.collapsing("API", |ui| {
                         self.api_key_ui(ui);
+                        self.gemini_excel_ui(ui);
                     });
                 });
             });
@@ -1981,6 +2011,7 @@ impl eframe::App for CrossSectionApp {
                 }
                 ui.collapsing("API", |ui| {
                     self.api_key_ui(ui);
+                    self.gemini_excel_ui(ui);
                 });
 
                 // ルート選択（複数ルートがある場合のみ表示）
@@ -2252,13 +2283,16 @@ impl eframe::App for CrossSectionApp {
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::{prelude::*, JsCast};
 #[cfg(target_arch = "wasm32")]
-use web_sys::{console, Event, FileReader, HtmlCanvasElement, HtmlInputElement};
+use web_sys::{console, Event, FileReader, HtmlCanvasElement, HtmlInputElement, Headers, Request, RequestInit, Response};
 
 #[cfg(target_arch = "wasm32")]
 thread_local! {
     static PENDING_CSV: std::cell::RefCell<Option<String>> = std::cell::RefCell::new(None);
     static PENDING_JSON: std::cell::RefCell<Option<String>> = std::cell::RefCell::new(None);
+    static PENDING_XLSX: std::cell::RefCell<Option<Vec<u8>>> = std::cell::RefCell::new(None);
+    static PENDING_ERROR: std::cell::RefCell<Option<String>> = std::cell::RefCell::new(None);
     static JSON_FETCH_STARTED: std::cell::Cell<bool> = std::cell::Cell::new(false);
+    static GEMINI_IN_FLIGHT: std::cell::Cell<bool> = std::cell::Cell::new(false);
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -2319,6 +2353,66 @@ fn trigger_csv_dialog() {
 }
 
 #[cfg(target_arch = "wasm32")]
+fn trigger_xlsx_dialog() {
+    let Some(window) = web_sys::window() else { return; };
+    let Some(document) = window.document() else { return; };
+
+    let Ok(input) = document.create_element("input") else { return; };
+    let Ok(input) = input.dyn_into::<HtmlInputElement>() else { return; };
+    input.set_type("file");
+    input.set_accept(".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+
+    let on_change: std::rc::Rc<std::cell::RefCell<Option<Closure<dyn FnMut(Event)>>>> =
+        std::rc::Rc::new(std::cell::RefCell::new(None));
+    let on_load: std::rc::Rc<std::cell::RefCell<Option<Closure<dyn FnMut(Event)>>>> =
+        std::rc::Rc::new(std::cell::RefCell::new(None));
+
+    let on_change_handle = on_change.clone();
+    let on_load_handle = on_load.clone();
+
+    *on_change.borrow_mut() = Some(Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+        let Some(target) = event.target() else { return; };
+        let Ok(input) = target.dyn_into::<HtmlInputElement>() else { return; };
+        let Some(files) = input.files() else { return; };
+        let Some(file) = files.get(0) else { return; };
+
+        let Ok(reader) = FileReader::new() else { return; };
+        let reader_clone = reader.clone();
+        let on_load_handle_clone = on_load_handle.clone();
+        let on_change_handle = on_change_handle.clone();
+
+        *on_load_handle.borrow_mut() = Some(Closure::<dyn FnMut(Event)>::new(move |_event: Event| {
+            let result = reader_clone.result();
+            if let Ok(result) = result {
+                if let Some(buf) = result.dyn_ref::<js_sys::ArrayBuffer>() {
+                    let array = js_sys::Uint8Array::new(buf);
+                    let mut bytes = vec![0u8; array.length() as usize];
+                    array.copy_to(&mut bytes);
+                    PENDING_XLSX.with(|cell| {
+                        *cell.borrow_mut() = Some(bytes);
+                    });
+                }
+            }
+            reader_clone.set_onload(None);
+            on_load_handle_clone.borrow_mut().take();
+        }));
+
+        if let Some(handler) = on_load_handle.borrow().as_ref() {
+            reader.set_onload(Some(handler.as_ref().unchecked_ref()));
+        }
+
+        let _ = reader.read_as_array_buffer(&file);
+        input.set_onchange(None);
+        on_change_handle.borrow_mut().take();
+    }));
+
+    if let Some(handler) = on_change.borrow().as_ref() {
+        input.set_onchange(Some(handler.as_ref().unchecked_ref()));
+    }
+    input.click();
+}
+
+#[cfg(target_arch = "wasm32")]
 fn take_pending_csv() -> Option<String> {
     PENDING_CSV.with(|cell| cell.borrow_mut().take())
 }
@@ -2339,9 +2433,166 @@ fn take_pending_json() -> Option<String> {
 }
 
 #[cfg(target_arch = "wasm32")]
+fn take_pending_xlsx() -> Option<Vec<u8>> {
+    PENDING_XLSX.with(|cell| cell.borrow_mut().take())
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn take_pending_xlsx() -> Option<Vec<u8>> {
+    None
+}
+
+#[cfg(target_arch = "wasm32")]
+fn take_pending_error() -> Option<String> {
+    PENDING_ERROR.with(|cell| cell.borrow_mut().take())
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn take_pending_error() -> Option<String> {
+    None
+}
+
+#[cfg(target_arch = "wasm32")]
+fn extract_json_from_text(text: &str) -> String {
+    if !text.contains("```") {
+        return text.trim().to_string();
+    }
+    let parts: Vec<&str> = text.split("```").collect();
+    if parts.len() >= 2 {
+        let mut candidate = parts[1];
+        if let Some(rest) = candidate.strip_prefix("json") {
+            candidate = rest;
+        }
+        return candidate.trim().to_string();
+    }
+    text.trim().to_string()
+}
+
+#[cfg(target_arch = "wasm32")]
+fn start_gemini_parse(api_key: String, xlsx_bytes: Vec<u8>) {
+    use wasm_bindgen_futures::JsFuture;
+
+    let already_started = GEMINI_IN_FLIGHT.with(|cell| {
+        if cell.get() { return true; }
+        cell.set(true);
+        false
+    });
+    if already_started { return; }
+
+    wasm_bindgen_futures::spawn_local(async move {
+        let result = async {
+            let window = web_sys::window().ok_or("No window")?;
+            let base64_data = BASE64_STANDARD.encode(&xlsx_bytes);
+            let prompt = [
+                "You are given an Excel file. Extract road cross-section data and output ONLY JSON array matching schema:",
+                "[{",
+                "  \"survey_point_name\": string,",
+                "  \"dl\": number,",
+                "  \"cl_index\": number,",
+                "  \"l_to_cl_distance\": number,",
+                "  \"survey_data\": [{",
+                "    \"unit_distance\": number,",
+                "    \"elevation\": number,",
+                "    \"planned_height\": number,",
+                "    \"cumulative_distance\": number,",
+                "    \"cutting_bottom\": number",
+                "  }],",
+                "  \"route_distance\": number | null,",
+                "  \"route_id\": string",
+                "}]",
+                "Rules:",
+                "- Output JSON only (no markdown).",
+                "- If multiple routes exist, set route_id per route; otherwise use \"route_1\".",
+                "- cl_index is the index of the center line point within survey_data.",
+                "- l_to_cl_distance is the distance from left edge to CL (meters).",
+                "- cumulative_distance is distance from CL (left is negative, right positive).",
+                "- cutting_bottom is ground elevation minus cutting depth if explicit data is not present.",
+            ].join("\n");
+
+            let payload = serde_json::json!({
+                "contents": [{
+                    "role": "user",
+                    "parts": [
+                        { "text": prompt },
+                        { "inlineData": {
+                            "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            "data": base64_data
+                        }}
+                    ]
+                }],
+                "generationConfig": {
+                    "temperature": 0.2,
+                    "topP": 0.9,
+                    "maxOutputTokens": 8192
+                }
+            });
+
+            let url = format!(
+                "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={}",
+                api_key
+            );
+            let mut opts = RequestInit::new();
+            opts.method("POST");
+            let body = serde_json::to_string(&payload).map_err(|e| e.to_string())?;
+            opts.body(Some(&JsValue::from_str(&body)));
+
+            let headers = Headers::new().map_err(|_| "Failed to create headers")?;
+            headers
+                .set("Content-Type", "application/json")
+                .map_err(|_| "Failed to set headers")?;
+            opts.headers(&headers);
+
+            let request = Request::new_with_str_and_init(&url, &opts)
+                .map_err(|_| "Failed to create request")?;
+
+            let resp_value = JsFuture::from(window.fetch_with_request(&request))
+                .await
+                .map_err(|_| "Failed to fetch")?;
+
+            let resp: Response = resp_value.dyn_into().map_err(|_| "Invalid response")?;
+            let text = JsFuture::from(resp.text().map_err(|_| "Failed to read response")?)
+                .await
+                .map_err(|_| "Failed to read response text")?;
+            let text = text.as_string().ok_or("Response is not text")?;
+
+            let value: serde_json::Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
+            let content = value
+                .get("candidates")
+                .and_then(|c| c.get(0))
+                .and_then(|c| c.get("content"))
+                .and_then(|c| c.get("parts"))
+                .and_then(|p| p.get(0))
+                .and_then(|p| p.get("text"))
+                .and_then(|t| t.as_str())
+                .ok_or("Gemini response missing content")?;
+
+            Ok::<String, String>(extract_json_from_text(content))
+        }.await;
+
+        match result {
+            Ok(json_text) => {
+                PENDING_JSON.with(|cell| {
+                    *cell.borrow_mut() = Some(json_text);
+                });
+            }
+            Err(err) => {
+                PENDING_ERROR.with(|cell| {
+                    *cell.borrow_mut() = Some(err);
+                });
+            }
+        }
+        GEMINI_IN_FLIGHT.with(|cell| cell.set(false));
+    });
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn start_gemini_parse(_api_key: String, _xlsx_bytes: Vec<u8>) {
+    // ネイティブでは何もしない
+}
+
+#[cfg(target_arch = "wasm32")]
 fn start_json_fetch() {
     use wasm_bindgen_futures::JsFuture;
-    use web_sys::{Request, RequestInit, Response};
 
     let already_started = JSON_FETCH_STARTED.with(|cell| {
         if cell.get() { return true; }
