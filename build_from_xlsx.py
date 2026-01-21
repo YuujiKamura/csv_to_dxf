@@ -18,18 +18,24 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).parent
 
 
-def parse_xlsx_to_json(xlsx_path: Path, output_path: Path) -> bool:
+def parse_xlsx_to_json(xlsx_path: Path, output_path: Path, local_only: bool, model: str | None) -> bool:
     """ExcelファイルをパースしてJSONに変換"""
     print(f"[1/3] Parsing: {xlsx_path}")
 
     # xlsx_parser.pyを実行
+    cmd = [
+        sys.executable,
+        str(PROJECT_ROOT / "src" / "xlsx_parser.py"),
+        str(xlsx_path),
+        str(output_path),
+    ]
+    if local_only:
+        cmd.append("--local-only")
+    if model:
+        cmd.extend(["--model", model])
+
     result = subprocess.run(
-        [
-            sys.executable,
-            str(PROJECT_ROOT / "src" / "xlsx_parser.py"),
-            str(xlsx_path),
-            str(output_path),
-        ],
+        cmd,
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -66,6 +72,8 @@ def main():
     parser.add_argument("xlsx", nargs="?", help="Excelファイルパス")
     parser.add_argument("--watch", action="store_true", help="ファイル監視モード")
     parser.add_argument("--no-build", action="store_true", help="Wasmビルドをスキップ")
+    parser.add_argument("--local-only", action="store_true", help="Geminiを使わずローカル解析のみ")
+    parser.add_argument("--model", default=None, help="Geminiモデル名（例: gemini-2.0-flash）")
     args = parser.parse_args()
 
     # デフォルトのExcelパス
@@ -93,7 +101,7 @@ def main():
                 if mtime > last_mtime:
                     print(f"\n[{time.strftime('%H:%M:%S')}] File changed, rebuilding...")
                     last_mtime = mtime
-                    if parse_xlsx_to_json(xlsx_path, output_path):
+                    if parse_xlsx_to_json(xlsx_path, output_path, args.local_only, args.model):
                         if not args.no_build:
                             build_wasm()
                     print("Done. Watching for changes...")
@@ -102,7 +110,7 @@ def main():
                 break
     else:
         # 一回だけ実行
-        if not parse_xlsx_to_json(xlsx_path, output_path):
+        if not parse_xlsx_to_json(xlsx_path, output_path, args.local_only, args.model):
             sys.exit(1)
 
         if not args.no_build:
