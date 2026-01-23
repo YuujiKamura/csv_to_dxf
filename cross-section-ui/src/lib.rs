@@ -620,11 +620,11 @@ fn is_plus_stake(name: &str) -> bool {
 
 /// 縦断図を生成（土木標準形式）
 pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
-    // スケール設定（DXF単位）
-    let scale_x = 100.0;     // 横方向スケール（1m = 100単位）
-    let scale_y = 500.0;     // 縦方向スケール（1m = 500単位）縦横比 5:1
-    let text_height = 150.0; // 基本テキスト高さ（横断図と同じ）
-    let label_width = 750.0; // 左側のラベル幅
+    // スケール設定（DXF単位: mm単位に統一、1m = 1000単位）
+    let scale_x = 1000.0;     // 横方向スケール（1m = 1000単位）
+    let scale_y = 5000.0;     // 縦方向スケール（1m = 5000単位）縦横比 H1:V5
+    let text_height = 1500.0; // 基本テキスト高さ（×10）
+    let label_width = 7500.0; // 左側のラベル幅（×10）
     let _title_height = 0.0; // タイトルなし（ピッチリ）
 
     let mut drawing = Drawing::new();
@@ -657,8 +657,8 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
 
     if points.is_empty() { return drawing; }
 
-    // 通常行の高さ（固定）
-    let row_height = 750.0;
+    // 通常行の高さ（固定）（×10）
+    let row_height = 7500.0;
     // 測点名行の高さ（最大文字数に基づいて計算）
     let max_name_len = points.iter().map(|p| p.3.chars().count()).max().unwrap_or(6);
     let station_row_height = (max_name_len as f64 * text_height * 1.0).max(row_height);
@@ -717,18 +717,18 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
         } else {
             format!("{:.0}", elev)
         };
-        add_text_rotated(&mut drawing, label_width - 80.0, y, &label_text,
+        add_text_rotated(&mut drawing, label_width - 800.0, y, &label_text,
             text_height * 0.9, 7, "TEXT", TextAlign::Right, VerticalAlign::Bottom, 0.0);
 
         // 標高ラベル（右側）
-        add_text_rotated(&mut drawing, label_width + graph_width + 80.0, y, &format!("{:.0}", elev),
+        add_text_rotated(&mut drawing, label_width + graph_width + 800.0, y, &format!("{:.0}", elev),
             text_height * 0.9, 7, "TEXT", TextAlign::Left, VerticalAlign::Bottom, 0.0);
         elev += grid_step;
     }
 
     // 縮尺比率と単位の注釈（DL付近、標高ラベルの左側に配置）
     let dl_y = to_dxf_y(dl);
-    let annotation_x = 50.0;  // 左端寄り
+    let annotation_x = 500.0;  // 左端寄り（×10）
     // 縮尺比率: V:H=5:1
     add_text_rotated(&mut drawing, annotation_x, dl_y + scale_y * 0.3,
         "V:H=5:1", text_height * 0.8, 5, "ANNOTATION", TextAlign::Left, VerticalAlign::Bottom, 0.0);
@@ -808,7 +808,7 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
                 let slope_pct = (d_elev / d_dist) * 100.0;
                 let slope_str = format!("{:+.3}%", slope_pct);  // 符号を明示
                 // 勾配: -90°回転（他と同じ）
-                let slope_y = table_top - 0.0 * row_height - 30.0;
+                let slope_y = table_top - 0.0 * row_height - 300.0;
                 let slope_mid_x = (x + to_dxf_x(next.0)) / 2.0;
                 add_text_rotated(&mut drawing, slope_mid_x, slope_y, &slope_str,
                     text_height * 0.9, 7, "TEXT", TextAlign::Left, VerticalAlign::Bottom, -90.0);
@@ -820,7 +820,7 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
         // 各フィールドの左上を基準に配置
         // -90°回転テキストでは、TextAlign::Left = テキストが上から下に伸びる
         // VerticalAlign::Bottom = テキストの下端が挿入点
-        let top_margin = 30.0;  // セル上端からのマージン
+        let top_margin = 300.0;  // セル上端からのマージン（×10）
 
         // 盛土: 行1の上端基準
         if fill > 0.001 {
@@ -925,8 +925,8 @@ pub fn generate_combo_drawing(sections: &[CrossSectionData], columns: usize, col
     }
 
     // === レイアウト計算 ===
-    // 間隔（図面間のスペース）
-    let spacing = 500.0; // 0.5m間隔
+    // 間隔（図面間のスペース）（×10）
+    let spacing = 5000.0; // 5m間隔（mm単位）
 
     // 基準: 縦断図を原点に配置
     // 縦断図のエンティティをそのままコピー
@@ -1062,12 +1062,12 @@ pub fn generate_combo_dxf_bytes(sections: &[CrossSectionData], columns: usize, c
 /// X軸: 縦断図と同じスケール（相対距離 * scale_x）
 /// Y軸: 左幅員が正、右幅員が負（縦断図と同じscale_yで5:1）
 pub fn generate_area_expansion_drawing(sections: &[CrossSectionData]) -> Drawing {
-    // 縦断図のXと同じスケール（縦横同一）
-    let scale_x = 100.0;     // 1m = 100単位
-    let scale_y = 100.0;     // 1m = 100単位（縦横同一）
-    let text_height = 150.0; // 縦断図と同じテキスト高さ
-    let label_width = 750.0; // 縦断図と同じ左側ラベル幅
-    let station_text_offset = 300.0; // 測点名のオフセット
+    // スケール設定（DXF単位: mm単位に統一、1m = 1000単位）
+    let scale_x = 1000.0;     // 横方向スケール（1m = 1000単位）
+    let scale_y = 1000.0;     // 縦方向スケール（1m = 1000単位）縦横比 H1:V1
+    let text_height = 1500.0; // 基本テキスト高さ（×10）
+    let label_width = 7500.0; // 左側ラベル幅（×10）
+    let station_text_offset = 3000.0; // 測点名のオフセット（×10）
 
     let mut drawing = Drawing::new();
     drawing.header.version = dxf::enums::AcadVersion::R2000;
@@ -2518,14 +2518,14 @@ impl eframe::App for CrossSectionApp {
                 if scroll != 0.0 {
                     let zoom_factor = if scroll > 0.0 { 1.1 } else { 0.9 };
                     self.dxf_view_state.zoom *= zoom_factor;
-                    self.dxf_view_state.zoom = self.dxf_view_state.zoom.clamp(0.01, 5.0);
+                    self.dxf_view_state.zoom = self.dxf_view_state.zoom.clamp(0.001, 50.0);
                 }
 
                 // ピンチズーム（二本指）
                 let zoom_delta = ui.input(|i| i.zoom_delta());
                 if zoom_delta != 1.0 {
                     self.dxf_view_state.zoom *= zoom_delta;
-                    self.dxf_view_state.zoom = self.dxf_view_state.zoom.clamp(0.01, 5.0);
+                    self.dxf_view_state.zoom = self.dxf_view_state.zoom.clamp(0.001, 50.0);
                 }
             }
 
