@@ -362,7 +362,7 @@ pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
 
     // ========== DLラベル ==========
     add_text(&mut drawing, cl_x, to_dxf_y(dl) + 300.0,  // 複数横断図と共通
-        &format!("DL={:.3}  Scale:H1:V2", dl), text_height, 7, "TEXT", TextAlign::Left);
+        &format!("DL={:.3}  Scale:H1:V2", dl), text_height, 8, "TEXT", TextAlign::Left);
 
     // ========== 切削厚表示（DLライン上部） ==========
     let cutting_text_height = text_height;  // GH等と同じサイズ
@@ -561,7 +561,7 @@ fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
     add_dimension_as_lines(drawing, cl_x, r_x, dim_base_y,
         &format!("{:.2}", right_width), text_height, 7, "DIMENSION");
 
-    add_text(drawing, cl_x, to_dxf_y(dl) + 300.0, &format!("DL={:.3}  Scale:H1:V2", dl), text_height, 7, "TEXT", TextAlign::Left);
+    add_text(drawing, cl_x, to_dxf_y(dl) + 300.0, &format!("DL={:.3}  Scale:H1:V2", dl), text_height, 8, "TEXT", TextAlign::Left);
 
     // ========== 切削厚表示（DLライン上部） ==========
     let cutting_text_height = text_height;  // GH等と同じサイズ
@@ -712,13 +712,15 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
         let y = to_dxf_y(elev);
         add_line(&mut drawing, label_width, y, label_width + graph_width, y, 8, "GRID");
         // 標高ラベル（左側）- DL行は特別表示、ボトムアライメント
-        let label_text = if (elev - dl).abs() < 0.01 {
+        let is_dl_row = (elev - dl).abs() < 0.01;
+        let label_text = if is_dl_row {
             format!("DL={:.0}", elev)
         } else {
             format!("{:.0}", elev)
         };
+        let label_color = if is_dl_row { 8 } else { 7 };  // DL行はグレー
         add_text_rotated(&mut drawing, label_width - 800.0, y, &label_text,
-            text_height * 0.9, 7, "TEXT", TextAlign::Right, VerticalAlign::Bottom, 0.0);
+            text_height * 0.9, label_color, "TEXT", TextAlign::Right, VerticalAlign::Bottom, 0.0);
 
         // 標高ラベル（右側）
         add_text_rotated(&mut drawing, label_width + graph_width + 800.0, y, &format!("{:.0}", elev),
