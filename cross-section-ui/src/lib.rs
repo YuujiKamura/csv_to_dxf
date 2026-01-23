@@ -1197,7 +1197,7 @@ pub fn generate_area_expansion_drawing(sections: &[CrossSectionData]) -> Drawing
         if station.wl > 0.0 {
             let y_text = station.wl * scale_y + station_text_offset;
             let text = format!("{:.2}", station.wl);
-            add_text_rotated(&mut drawing, x + text_height * 1.0, y_text, &text, text_height,
+            add_text_rotated(&mut drawing, x + text_height * 0.2, y_text, &text, text_height,
                 7, "TENKAI_DIM", TextAlign::Left, VerticalAlign::Middle, -90.0);
         }
 
@@ -1205,7 +1205,7 @@ pub fn generate_area_expansion_drawing(sections: &[CrossSectionData]) -> Drawing
         if station.wr > 0.0 {
             let y_text = -station.wr * scale_y - station_text_offset;
             let text = format!("{:.2}", station.wr);
-            add_text_rotated(&mut drawing, x + text_height * 1.0, y_text, &text, text_height,
+            add_text_rotated(&mut drawing, x + text_height * 0.2, y_text, &text, text_height,
                 7, "TENKAI_DIM", TextAlign::Right, VerticalAlign::Middle, -90.0);
         }
     }
