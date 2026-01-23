@@ -1190,6 +1190,7 @@ pub fn generate_area_expansion_drawing(sections: &[CrossSectionData]) -> Drawing
     }
 
     // 幅員寸法（-90°回転、幅員線の外側）
+    let marker_size = 200.0;  // デバッグ用マーカーサイズ
     for station in &stations {
         let x = station.x;
 
@@ -1197,16 +1198,22 @@ pub fn generate_area_expansion_drawing(sections: &[CrossSectionData]) -> Drawing
         if station.wl > 0.0 {
             let y_text = station.wl * scale_y + station_text_offset;
             let text = format!("{:.2}", station.wl);
-            add_text_rotated(&mut drawing, x + text_height * 0.2, y_text, &text, text_height,
-                7, "TENKAI_DIM", TextAlign::Left, VerticalAlign::Middle, -90.0);
+            // デバッグ: アンカーポイントに十字マーカー（赤）
+            add_line(&mut drawing, x - marker_size, y_text, x + marker_size, y_text, 1, "DEBUG");
+            add_line(&mut drawing, x, y_text - marker_size, x, y_text + marker_size, 1, "DEBUG");
+            add_text_rotated(&mut drawing, x, y_text, &text, text_height,
+                7, "TENKAI_DIM", TextAlign::Left, VerticalAlign::Top, -90.0);
         }
 
         // 右幅員（下側外側に配置）
         if station.wr > 0.0 {
             let y_text = -station.wr * scale_y - station_text_offset;
             let text = format!("{:.2}", station.wr);
-            add_text_rotated(&mut drawing, x + text_height * 0.2, y_text, &text, text_height,
-                7, "TENKAI_DIM", TextAlign::Right, VerticalAlign::Middle, -90.0);
+            // デバッグ: アンカーポイントに十字マーカー（赤）
+            add_line(&mut drawing, x - marker_size, y_text, x + marker_size, y_text, 1, "DEBUG");
+            add_line(&mut drawing, x, y_text - marker_size, x, y_text + marker_size, 1, "DEBUG");
+            add_text_rotated(&mut drawing, x, y_text, &text, text_height,
+                7, "TENKAI_DIM", TextAlign::Right, VerticalAlign::Top, -90.0);
         }
     }
 
@@ -1224,9 +1231,9 @@ pub fn generate_area_expansion_drawing(sections: &[CrossSectionData]) -> Drawing
         let underline_y1 = y_name_base;
         let underline_y2 = y_name_base - name_len * text_height * 0.8;
         add_line(&mut drawing, x, underline_y1, x, underline_y2, 5, "TENKAI_STATION");
-        // 測点名テキスト（アンダーラインの右側にオフセット）
-        add_text_rotated(&mut drawing, x + text_height * 1.0, y_name_base, &station.name, text_height * 1.2,
-            5, "TENKAI_STATION", TextAlign::Left, VerticalAlign::Middle, -90.0);
+        // 測点名テキスト（アンダーラインの右側）
+        add_text_rotated(&mut drawing, x, y_name_base, &station.name, text_height * 1.2,
+            5, "TENKAI_STATION", TextAlign::Left, VerticalAlign::Bottom, -90.0);
     }
 
     drawing
