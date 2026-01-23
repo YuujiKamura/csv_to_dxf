@@ -284,9 +284,9 @@ pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
         add_line(&mut drawing, p1_x, p1_y, p2_x, p2_y, 5, "CUTTING");
     }
 
-    let text_height = 150.0;
+    let text_height = 300.0;  // モバイル表示用に2倍
     let cl_ground_y = to_dxf_y(cl_data.elevation);
-    let flag_height_mm = 800.0;
+    let flag_height_mm = 1600.0;  // 2倍
     let flag_y = cl_ground_y + flag_height_mm;
 
     let l_x = to_dxf_x(l_data.cumulative_distance);
@@ -294,27 +294,27 @@ pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
     let r_x = to_dxf_x(r_data.cumulative_distance);
 
     // ========== 測点名（CL上）==========
-    add_text(&mut drawing, cl_x, flag_y + 600.0,
+    add_text(&mut drawing, cl_x, flag_y + 1200.0,  // 2倍
         &section.survey_point_name, text_height * 1.5, 7, "TEXT", TextAlign::Center);
 
     // ========== CL GH, FH ==========
-    add_text(&mut drawing, cl_x, flag_y + 400.0,
+    add_text(&mut drawing, cl_x, flag_y + 800.0,  // 2倍
         &format!("GH={:.3}", cl_data.elevation), text_height, 7, "TEXT", TextAlign::Center);
-    add_text(&mut drawing, cl_x, flag_y + 200.0,
+    add_text(&mut drawing, cl_x, flag_y + 400.0,  // 2倍
         &format!("FH={:.3}", cl_data.planned_height), text_height, 1, "PLAN", TextAlign::Center);
 
     // ========== L側 GH, FH ==========
     let l_ground_y = to_dxf_y(l_data.elevation);
-    add_text(&mut drawing, l_x, l_ground_y + 400.0,
+    add_text(&mut drawing, l_x, l_ground_y + 800.0,  // 2倍
         &format!("GH={:.3}", l_data.elevation), text_height, 7, "TEXT", TextAlign::Left);
-    add_text(&mut drawing, l_x, l_ground_y + 200.0,
+    add_text(&mut drawing, l_x, l_ground_y + 400.0,  // 2倍
         &format!("FH={:.3}", l_data.planned_height), text_height, 1, "PLAN", TextAlign::Left);
 
     // ========== R側 GH, FH ==========
     let r_ground_y = to_dxf_y(r_data.elevation);
-    add_text(&mut drawing, r_x, r_ground_y + 400.0,
+    add_text(&mut drawing, r_x, r_ground_y + 800.0,  // 2倍
         &format!("GH={:.3}", r_data.elevation), text_height, 7, "TEXT", TextAlign::Right);
-    add_text(&mut drawing, r_x, r_ground_y + 200.0,
+    add_text(&mut drawing, r_x, r_ground_y + 400.0,  // 2倍
         &format!("FH={:.3}", r_data.planned_height), text_height, 1, "PLAN", TextAlign::Right);
 
     // ========== 寸法線による旗揚げ（幅員）==========
@@ -333,18 +333,18 @@ pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
         &format!("{:.2}", right_width), text_height, 7, "DIMENSION");
 
     // ========== 勾配テキスト ==========
-    add_text(&mut drawing, mid_l_x, flag_y - text_height - 50.0,
+    add_text(&mut drawing, mid_l_x, flag_y - text_height - 100.0,  // 2倍
         &format!("il={:.1}%", left_slope), text_height, 7, "TEXT", TextAlign::Center);
-    add_text(&mut drawing, mid_r_x, flag_y - text_height - 50.0,
+    add_text(&mut drawing, mid_r_x, flag_y - text_height - 100.0,  // 2倍
         &format!("ir={:.1}%", right_slope), text_height, 7, "TEXT", TextAlign::Center);
 
     // ========== DLラベル ==========
-    add_text(&mut drawing, cl_x, to_dxf_y(dl) - 200.0,
+    add_text(&mut drawing, cl_x, to_dxf_y(dl) - 400.0,  // 2倍
         &format!("DL={:.3}", dl), text_height, 7, "TEXT", TextAlign::Left);
 
     // ========== 切削厚表示（DLライン上部） ==========
     let cutting_text_height = text_height * 1.6;
-    let cutting_y = to_dxf_y(dl) - 150.0;  // DL線の下側に表示
+    let cutting_y = to_dxf_y(dl) - 300.0;  // 2倍
     // ラベル「切削厚」を左端に表示
     add_text(&mut drawing, l_x - 100.0, cutting_y,
         "切削厚", cutting_text_height, 5, "CUTTING", TextAlign::Right);
@@ -485,29 +485,29 @@ fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
             to_dxf_x(data[i + 1].cumulative_distance), to_dxf_y(data[i + 1].cutting_bottom), 5, "CUTTING");
     }
 
-    let text_height = 150.0;
+    let text_height = 300.0;  // モバイル表示用に2倍
     let cl_ground_y = to_dxf_y(cl_data.elevation);
-    let flag_y = cl_ground_y + 800.0;
+    let flag_y = cl_ground_y + 1600.0;  // 2倍
     let l_x = to_dxf_x(l_data.cumulative_distance);
     let cl_x = to_dxf_x(cl_data.cumulative_distance);
     let r_x = to_dxf_x(r_data.cumulative_distance);
 
-    add_text(drawing, cl_x, flag_y + 600.0, &section.survey_point_name, text_height * 1.5, 7, "TEXT", TextAlign::Center);
-    add_text(drawing, cl_x, flag_y + 400.0, &format!("GH={:.3}", cl_data.elevation), text_height, 7, "TEXT", TextAlign::Center);
-    add_text(drawing, cl_x, flag_y + 200.0, &format!("FH={:.3}", cl_data.planned_height), text_height, 1, "PLAN", TextAlign::Center);
+    add_text(drawing, cl_x, flag_y + 1200.0, &section.survey_point_name, text_height * 1.5, 7, "TEXT", TextAlign::Center);
+    add_text(drawing, cl_x, flag_y + 800.0, &format!("GH={:.3}", cl_data.elevation), text_height, 7, "TEXT", TextAlign::Center);
+    add_text(drawing, cl_x, flag_y + 400.0, &format!("FH={:.3}", cl_data.planned_height), text_height, 1, "PLAN", TextAlign::Center);
 
     let l_ground_y = to_dxf_y(l_data.elevation);
-    add_text(drawing, l_x, l_ground_y + 400.0, &format!("GH={:.3}", l_data.elevation), text_height, 7, "TEXT", TextAlign::Left);
-    add_text(drawing, l_x, l_ground_y + 200.0, &format!("FH={:.3}", l_data.planned_height), text_height, 1, "PLAN", TextAlign::Left);
+    add_text(drawing, l_x, l_ground_y + 800.0, &format!("GH={:.3}", l_data.elevation), text_height, 7, "TEXT", TextAlign::Left);
+    add_text(drawing, l_x, l_ground_y + 400.0, &format!("FH={:.3}", l_data.planned_height), text_height, 1, "PLAN", TextAlign::Left);
 
     let r_ground_y = to_dxf_y(r_data.elevation);
-    add_text(drawing, r_x, r_ground_y + 400.0, &format!("GH={:.3}", r_data.elevation), text_height, 7, "TEXT", TextAlign::Right);
-    add_text(drawing, r_x, r_ground_y + 200.0, &format!("FH={:.3}", r_data.planned_height), text_height, 1, "PLAN", TextAlign::Right);
+    add_text(drawing, r_x, r_ground_y + 800.0, &format!("GH={:.3}", r_data.elevation), text_height, 7, "TEXT", TextAlign::Right);
+    add_text(drawing, r_x, r_ground_y + 400.0, &format!("FH={:.3}", r_data.planned_height), text_height, 1, "PLAN", TextAlign::Right);
 
     let mid_l_x = (l_x + cl_x) / 2.0;
     let mid_r_x = (cl_x + r_x) / 2.0;
-    add_text(drawing, mid_l_x, flag_y - text_height - 50.0, &format!("il={:.1}%", left_slope), text_height, 7, "TEXT", TextAlign::Center);
-    add_text(drawing, mid_r_x, flag_y - text_height - 50.0, &format!("ir={:.1}%", right_slope), text_height, 7, "TEXT", TextAlign::Center);
+    add_text(drawing, mid_l_x, flag_y - text_height - 100.0, &format!("il={:.1}%", left_slope), text_height, 7, "TEXT", TextAlign::Center);
+    add_text(drawing, mid_r_x, flag_y - text_height - 100.0, &format!("ir={:.1}%", right_slope), text_height, 7, "TEXT", TextAlign::Center);
 
     // 寸法線（幅員）- 線とテキストで描画
     let dim_base_y = flag_y;
@@ -522,11 +522,11 @@ fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
     add_dimension_as_lines(drawing, cl_x, r_x, dim_base_y,
         &format!("{:.2}", right_width), text_height, 7, "DIMENSION");
 
-    add_text(drawing, cl_x, to_dxf_y(dl) + 150.0, &format!("DL={:.3}", dl), text_height, 7, "TEXT", TextAlign::Left);
+    add_text(drawing, cl_x, to_dxf_y(dl) + 300.0, &format!("DL={:.3}", dl), text_height, 7, "TEXT", TextAlign::Left);
 
     // ========== 切削厚表示（DLライン上部） ==========
     let cutting_text_height = text_height * 1.6;
-    let cutting_y = to_dxf_y(dl) - 150.0;  // DL線の下側に表示
+    let cutting_y = to_dxf_y(dl) - 300.0;  // 2倍
     // ラベル「切削厚」を左端に表示
     add_text(drawing, l_x - 100.0, cutting_y,
         "切削厚", cutting_text_height, 5, "CUTTING", TextAlign::Right);
