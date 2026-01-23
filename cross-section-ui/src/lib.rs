@@ -536,6 +536,73 @@ pub fn generate_multi_drawing(sections: &[CrossSectionData], columns: usize, col
     drawing
 }
 
+/// グリッド配置内の特定セクションのバウンディングボックスを計算
+/// generate_multi_drawingと同じ配置ロジックを使用
+fn calc_section_bounds_in_grid(
+    sections: &[CrossSectionData], target_idx: usize, columns: usize, column_gap: f64
+) -> Option<(f32, f32, f32, f32)> {
+    if sections.is_empty() || target_idx >= sections.len() { return None; }
+
+    let scale = 1000.0;
+    let rows_per_column = (sections.len() + columns - 1) / columns;
+
+    // 列ごとの最大幅と全体の最大高さを計算（generate_multi_drawingと同じ）
+    let mut col_max_left: Vec<f64> = vec![0.0; columns];
+    let mut col_max_right: Vec<f64> = vec![0.0; columns];
+    let mut max_height: f64 = 0.0;
+
+    for (idx, section) in sections.iter().enumerate() {
+        if section.survey_data.len() < 2 { continue; }
+        let col = idx / rows_per_column;
+        let data = &section.survey_data;
+        let min_dist = data.first().unwrap().cumulative_distance;
+        let max_dist = data.last().unwrap().cumulative_distance;
+        col_max_left[col] = col_max_left[col].max(min_dist.abs());
+        col_max_right[col] = col_max_right[col].max(max_dist);
+        let max_elev = data.iter().map(|d| d.elevation.max(d.planned_height)).fold(f64::MIN, f64::max);
+        max_height = max_height.max(max_elev - section.dl + 1.5);
+    }
+
+    // 列ごとのCL位置を計算
+    let mut col_x_offsets: Vec<f64> = Vec::with_capacity(columns);
+    let mut cumulative_x = 0.0;
+
+    for col in 0..columns {
+        let cell_width = (col_max_left[col] + col_max_right[col] + column_gap) * scale;
+        let cl_x = cumulative_x + (col_max_left[col] + column_gap / 2.0) * scale;
+        col_x_offsets.push(cl_x);
+        cumulative_x += cell_width;
+    }
+
+    let cell_height = (max_height + 1.0) * scale * 2.0;
+
+    // ターゲットセクションの位置を計算
+    let target_section = &sections[target_idx];
+    if target_section.survey_data.len() < 2 { return None; }
+
+    let col = target_idx / rows_per_column;
+    let row_in_col = target_idx % rows_per_column;
+    let offset_x = col_x_offsets[col];
+    let offset_y = row_in_col as f64 * cell_height;
+
+    // セクションのバウンディングボックスを計算
+    let data = &target_section.survey_data;
+    let dl = round_dl(target_section.dl);
+    let y_scale = scale * 2.0;
+
+    let min_dist = data.first().unwrap().cumulative_distance;
+    let max_dist = data.last().unwrap().cumulative_distance;
+    let min_elev = data.iter().map(|d| d.elevation.min(d.planned_height)).fold(f64::MAX, f64::min);
+    let max_elev = data.iter().map(|d| d.elevation.max(d.planned_height)).fold(f64::MIN, f64::max);
+
+    let min_x = (offset_x + min_dist * scale) as f32;
+    let max_x = (offset_x + max_dist * scale) as f32;
+    let min_y = (offset_y + (dl - dl) * y_scale) as f32;  // DL位置
+    let max_y = (offset_y + (max_elev - dl + 2.0) * y_scale) as f32;  // 旗揚げ分のマージン
+
+    Some((min_x, min_y, max_x, max_y))
+}
+
 fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
                           offset_x: f64, offset_y: f64, scale: f64) {
     let data = &section.survey_data;
@@ -1933,6 +2000,7 @@ pub struct CrossSectionApp {
     column_gap: f64,         // 列間隔（メートル単位）
     status_message: Option<String>,
     needs_fit: bool,         // canvas_rect更新後にfit_to_dxfを呼ぶフラグ
+    fit_bounds: Option<(f32, f32, f32, f32)>,  // フィット先のバウンディングボックス（Singleモード用）
     is_first_frame: bool,    // 初回フレームフラグ（モバイル判定用）
     loading_frame: usize,    // ローディングアニメーション用フレームカウンタ
     loading_stage: String,   // ローディング進捗メッセージ
@@ -1954,6 +2022,7 @@ impl Default for CrossSectionApp {
             column_gap: 2.0,  // 列間隔2メートル（切削厚ラベル分）
             status_message: None,
             needs_fit: false,
+            fit_bounds: None,
             is_first_frame: true,
             loading_frame: 0,
             loading_stage: "JSONデータを取得中".to_string(),
@@ -2061,6 +2130,9 @@ impl CrossSectionApp {
         let filtered: Vec<CrossSectionData> = self.filtered_sections()
             .into_iter().cloned().collect();
 
+        // fit_boundsをリセット（Singleモード以外はNone）
+        self.fit_bounds = None;
+
         let drawing = match self.view_mode {
             ViewMode::AlignTest => {
                 generate_alignment_test_drawing()
@@ -2077,13 +2149,16 @@ impl CrossSectionApp {
             ViewMode::AreaExpansion if !filtered.is_empty() => {
                 generate_area_expansion_drawing(&filtered)
             }
-            _ => {
+            ViewMode::Single if !filtered.is_empty() => {
+                // 全横断図を生成し、選択した横断図の位置にフィット
                 if let Some(idx) = self.selected_index {
-                    if let Some(section) = filtered.get(idx) {
-                        generate_drawing(section)
-                    } else { return; }
-                } else { return; }
+                    self.fit_bounds = calc_section_bounds_in_grid(
+                        &filtered, idx, self.grid_columns, self.column_gap
+                    );
+                }
+                generate_multi_drawing(&filtered, self.grid_columns, self.column_gap)
             }
+            _ => { return; }
         };
 
         self.dxf_drawing = Some(drawing);
@@ -2583,7 +2658,11 @@ impl eframe::App for CrossSectionApp {
 
             // canvas_rect更新後にfit_to_dxfを実行
             if self.needs_fit {
-                if let Some(ref drawing) = self.dxf_drawing {
+                // Singleモードでfit_boundsがある場合は選択した横断図にフィット
+                if let Some((min_x, min_y, max_x, max_y)) = self.fit_bounds {
+                    self.dxf_view_state.fit_to_dxf(min_x, min_y, max_x, max_y);
+                } else if let Some(ref drawing) = self.dxf_drawing {
+                    // それ以外は全体にフィット
                     let (min_x, min_y, max_x, max_y) = calc_dxf_bounds(drawing);
                     self.dxf_view_state.fit_to_dxf(min_x, min_y, max_x, max_y);
                 }
