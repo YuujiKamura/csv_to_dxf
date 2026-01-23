@@ -673,8 +673,8 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
     let dl = (min_elev - 2.0).floor();
     let graph_top = (max_elev + 2.0).ceil();
 
-    // 左右マージンなし（ピッチリ）
-    let margin_x = 0.0;
+    // 左右マージン（最初と最後の測点が表枠境界から離れるように）
+    let margin_x = 2000.0;  // 2m分のマージン
 
     // 座標変換
     let to_dxf_x = |d: f64| label_width + margin_x + (d - min_dist) * scale_x;
