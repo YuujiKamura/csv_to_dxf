@@ -2513,17 +2513,29 @@ impl eframe::App for CrossSectionApp {
 
             // キャンバス上にホバー時のみズーム処理
             if response.hovered() {
-                // マウスホイールズーム
+                // マウスホイールズーム（マウス位置中心）
                 let scroll = ui.input(|i| i.raw_scroll_delta.y);
                 if scroll != 0.0 {
-                    let zoom_factor = if scroll > 0.0 { 1.1 } else { 0.9 };
-                    self.dxf_view_state.zoom *= zoom_factor;
-                    self.dxf_view_state.zoom = self.dxf_view_state.zoom.clamp(0.001, 50.0);
+                    if let Some(mouse_pos) = response.hover_pos() {
+                        let zoom_factor = if scroll > 0.0 { 1.1 } else { 0.9 };
+                        let local = mouse_pos - self.dxf_view_state.canvas_rect.min;
+
+                        // pan調整: マウス位置のDXF座標がズーム後も同じスクリーン位置に留まる
+                        self.dxf_view_state.pan = local * (1.0 - zoom_factor)
+                                                + self.dxf_view_state.pan * zoom_factor;
+                        self.dxf_view_state.zoom *= zoom_factor;
+                        self.dxf_view_state.zoom = self.dxf_view_state.zoom.clamp(0.001, 50.0);
+                    }
                 }
 
-                // ピンチズーム（二本指）
+                // ピンチズーム（画面中心）
                 let zoom_delta = ui.input(|i| i.zoom_delta());
                 if zoom_delta != 1.0 {
+                    let center = self.dxf_view_state.canvas_rect.center();
+                    let local = center - self.dxf_view_state.canvas_rect.min;
+
+                    self.dxf_view_state.pan = local * (1.0 - zoom_delta)
+                                            + self.dxf_view_state.pan * zoom_delta;
                     self.dxf_view_state.zoom *= zoom_delta;
                     self.dxf_view_state.zoom = self.dxf_view_state.zoom.clamp(0.001, 50.0);
                 }
