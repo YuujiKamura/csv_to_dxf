@@ -1057,12 +1057,15 @@ pub fn generate_combo_dxf_bytes(sections: &[CrossSectionData], columns: usize, c
 // ============================================================================
 
 /// 面積展開図を生成
-/// X軸: 累積距離（route_distance * 1000）
-/// Y軸: 左幅員が正、右幅員が負
+/// X軸: 縦断図と同じスケール（相対距離 * scale_x）
+/// Y軸: 左幅員が正、右幅員が負（縦断図と同じscale_yで5:1）
 pub fn generate_area_expansion_drawing(sections: &[CrossSectionData]) -> Drawing {
-    let scale = 1000.0; // mm単位
-    let text_height = 200.0;
-    let station_text_offset = 500.0; // 測点名のオフセット
+    // 縦断図と同じスケールを使用
+    let scale_x = 1000.0;    // 横方向スケール（1m = 1000単位）縦断図と同じ
+    let scale_y = 500.0;     // 縦方向スケール（1m = 500単位）縦断図と同じ5:1比
+    let text_height = 150.0; // 縦断図と同じテキスト高さ
+    let label_width = 750.0; // 縦断図と同じ左側ラベル幅
+    let station_text_offset = 300.0; // 測点名のオフセット
 
     let mut drawing = Drawing::new();
     drawing.header.version = dxf::enums::AcadVersion::R2000;
@@ -1094,9 +1097,14 @@ pub fn generate_area_expansion_drawing(sections: &[CrossSectionData]) -> Drawing
         dist_a.partial_cmp(&dist_b).unwrap_or(std::cmp::Ordering::Equal)
     });
 
+    // 基準距離（最小値）を取得 - 縦断図と同じ方式
+    let base_distance = sorted_sections.iter()
+        .map(|s| s.route_distance.unwrap_or_else(|| parse_station_distance(&s.survey_point_name)))
+        .fold(f64::INFINITY, f64::min);
+
     // 各測点のX位置と幅員を収集
     struct StationInfo {
-        x: f64,           // X座標（累積距離 * scale）
+        x: f64,           // X座標（相対距離 * scale_x + label_width）
         wl: f64,          // 左幅員（正）
         wr: f64,          // 右幅員（正、描画時は負方向）
         name: String,     // 測点名
@@ -1107,7 +1115,8 @@ pub fn generate_area_expansion_drawing(sections: &[CrossSectionData]) -> Drawing
 
     for section in &sorted_sections {
         let dist = section.route_distance.unwrap_or_else(|| parse_station_distance(&section.survey_point_name));
-        let x = dist * scale;
+        // 縦断図と同じX計算方式（相対距離）
+        let x = label_width + (dist - base_distance) * scale_x;
 
         // 左幅員: L端からCLまでの距離
         let wl = section.l_to_cl_distance;
@@ -1137,8 +1146,8 @@ pub fn generate_area_expansion_drawing(sections: &[CrossSectionData]) -> Drawing
     // 各測点での垂直線（幅員線）
     for station in &stations {
         let x = station.x;
-        let y_top = station.wl * scale;     // 左幅員（上方向）
-        let y_bottom = -station.wr * scale; // 右幅員（下方向）
+        let y_top = station.wl * scale_y;     // 左幅員（上方向）
+        let y_bottom = -station.wr * scale_y; // 右幅員（下方向）
 
         // 幅員線（垂直）
         add_line(&mut drawing, x, y_bottom, x, y_top, 7, "TENKAI_WIDTH");
@@ -1155,10 +1164,10 @@ pub fn generate_area_expansion_drawing(sections: &[CrossSectionData]) -> Drawing
     for i in 0..stations.len() - 1 {
         let x1 = stations[i].x;
         let x2 = stations[i + 1].x;
-        let y1_top = stations[i].wl * scale;
-        let y2_top = stations[i + 1].wl * scale;
-        let y1_bottom = -stations[i].wr * scale;
-        let y2_bottom = -stations[i + 1].wr * scale;
+        let y1_top = stations[i].wl * scale_y;
+        let y2_top = stations[i + 1].wl * scale_y;
+        let y1_bottom = -stations[i].wr * scale_y;
+        let y2_bottom = -stations[i + 1].wr * scale_y;
 
         // 上端（左幅員側）
         add_line(&mut drawing, x1, y1_top, x2, y2_top, 7, "TENKAI_OUTLINE");
@@ -1182,7 +1191,7 @@ pub fn generate_area_expansion_drawing(sections: &[CrossSectionData]) -> Drawing
 
         // 左幅員（上側外側に配置）
         if station.wl > 0.0 {
-            let y_text = station.wl * scale + station_text_offset;
+            let y_text = station.wl * scale_y + station_text_offset;
             let text = format!("{:.2}", station.wl);
             add_text_rotated(&mut drawing, x - text_height * 0.3, y_text, &text, text_height,
                 7, "TENKAI_DIM", TextAlign::Left, VerticalAlign::Middle, -90.0);
@@ -1190,7 +1199,7 @@ pub fn generate_area_expansion_drawing(sections: &[CrossSectionData]) -> Drawing
 
         // 右幅員（下側外側に配置）
         if station.wr > 0.0 {
-            let y_text = -station.wr * scale - station_text_offset;
+            let y_text = -station.wr * scale_y - station_text_offset;
             let text = format!("{:.2}", station.wr);
             add_text_rotated(&mut drawing, x - text_height * 0.3, y_text, &text, text_height,
                 7, "TENKAI_DIM", TextAlign::Right, VerticalAlign::Middle, -90.0);
@@ -1200,7 +1209,7 @@ pub fn generate_area_expansion_drawing(sections: &[CrossSectionData]) -> Drawing
     // 測点名（-90°回転、青色、上端オフセット）
     for station in &stations {
         let x = station.x;
-        let y_top = station.wl * scale;
+        let y_top = station.wl * scale_y;
         let y_name = y_top + station_text_offset * 2.0 + text_height;
 
         add_text_rotated(&mut drawing, x, y_name, &station.name, text_height * 1.2,
