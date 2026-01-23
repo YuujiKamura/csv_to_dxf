@@ -752,11 +752,11 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
             if d_dist.abs() > 0.001 {
                 let slope_pct = (d_elev / d_dist) * 100.0;
                 let slope_str = format!("{:.3}%", slope_pct);
-                // 勾配: 0°回転、上寄せ（row_height * 0.25）
-                let slope_y = table_top - 0.0 * row_height - row_height * 0.25;
+                // 勾配: -90°回転（他と同じ）
+                let slope_y = table_top - 0.0 * row_height - 30.0;
                 let slope_mid_x = (x + to_dxf_x(next.0)) / 2.0;
                 add_text_rotated(&mut drawing, slope_mid_x, slope_y, &slope_str,
-                    text_height * 0.9, 7, "TEXT", TextAlign::Center, VerticalAlign::Top, 0.0);
+                    text_height * 0.9, 7, "TEXT", TextAlign::Left, VerticalAlign::Bottom, -90.0);
             }
         }
 
