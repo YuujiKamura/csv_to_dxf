@@ -99,7 +99,7 @@ fn add_dimension_as_lines(
     color: i16, layer: &str,
 ) {
     let tick_up = 50.0;    // 端点マークの上方向
-    let tick_down = 300.0; // 端点マークの下方向（アシを長く）
+    let tick_down = 500.0; // 端点マークの下方向（アシを長く）
 
     // 水平線（寸法線本体）
     add_line(drawing, x1, y, x2, y, color, layer);
@@ -316,7 +316,7 @@ pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
     let r_x = to_dxf_x(r_data.cumulative_distance);
 
     // ========== 測点名（CL上）==========
-    add_text(&mut drawing, cl_x, flag_y + 1200.0,
+    add_text(&mut drawing, cl_x, flag_y + 1600.0,
         &section.survey_point_name, text_height * 1.5, 7, "TEXT", TextAlign::Center);
 
     // ========== CL GH, FH ==========
@@ -355,10 +355,45 @@ pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
         &format!("{:.2}", right_width), text_height, 7, "DIMENSION");
 
     // ========== 勾配テキスト（寸法線の上）==========
-    add_text(&mut drawing, mid_l_x, flag_y + 600.0,
+    let arrow_len = 600.0;
+    let arrow_drop = 20.0;  // 矢印の傾き（下がり量）
+    let arrow_head = 180.0;
+    let arrow_offset = 300.0;  // 矢印用のスペース
+    let slope_text_y = flag_y + 500.0 + arrow_offset;  // 矢印分上げる
+
+    // 左側勾配
+    add_text(&mut drawing, mid_l_x, slope_text_y,
         &format!("{:.1}%", left_slope), text_height, 7, "TEXT", TextAlign::Center);
-    add_text(&mut drawing, mid_r_x, flag_y + 600.0,
+    if left_slope.abs() > 0.01 {
+        let arrow_y = slope_text_y - arrow_offset;
+        let arrow_x = mid_l_x - arrow_len / 2.0;
+        if left_slope < 0.0 {
+            // 左下向き矢印（斜め）
+            add_line(&mut drawing, arrow_x + arrow_len, arrow_y + arrow_drop, arrow_x, arrow_y - arrow_drop, 7, "SLOPE");
+            add_line(&mut drawing, arrow_x, arrow_y - arrow_drop, arrow_x + arrow_head, arrow_y - arrow_drop + arrow_head * 0.4, 7, "SLOPE");
+        } else {
+            // 右下向き矢印（斜め）
+            add_line(&mut drawing, arrow_x, arrow_y + arrow_drop, arrow_x + arrow_len, arrow_y - arrow_drop, 7, "SLOPE");
+            add_line(&mut drawing, arrow_x + arrow_len, arrow_y - arrow_drop, arrow_x + arrow_len - arrow_head, arrow_y - arrow_drop + arrow_head * 0.4, 7, "SLOPE");
+        }
+    }
+
+    // 右側勾配
+    add_text(&mut drawing, mid_r_x, slope_text_y,
         &format!("{:.1}%", right_slope), text_height, 7, "TEXT", TextAlign::Center);
+    if right_slope.abs() > 0.01 {
+        let arrow_y = slope_text_y - arrow_offset;
+        let arrow_x = mid_r_x - arrow_len / 2.0;
+        if right_slope < 0.0 {
+            // 右下向き矢印（斜め）
+            add_line(&mut drawing, arrow_x, arrow_y + arrow_drop, arrow_x + arrow_len, arrow_y - arrow_drop, 7, "SLOPE");
+            add_line(&mut drawing, arrow_x + arrow_len, arrow_y - arrow_drop, arrow_x + arrow_len - arrow_head, arrow_y - arrow_drop + arrow_head * 0.4, 7, "SLOPE");
+        } else {
+            // 左下向き矢印（斜め）
+            add_line(&mut drawing, arrow_x + arrow_len, arrow_y + arrow_drop, arrow_x, arrow_y - arrow_drop, 7, "SLOPE");
+            add_line(&mut drawing, arrow_x, arrow_y - arrow_drop, arrow_x + arrow_head, arrow_y - arrow_drop + arrow_head * 0.4, 7, "SLOPE");
+        }
+    }
 
     // ========== DLラベル ==========
     add_text(&mut drawing, cl_x, to_dxf_y(dl) + 300.0,  // 複数横断図と共通
@@ -545,8 +580,39 @@ fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
 
     let mid_l_x = (l_x + cl_x) / 2.0;
     let mid_r_x = (cl_x + r_x) / 2.0;
-    add_text(drawing, mid_l_x, flag_y + 600.0, &format!("{:.1}%", left_slope), text_height, 7, "TEXT", TextAlign::Center);
-    add_text(drawing, mid_r_x, flag_y + 600.0, &format!("{:.1}%", right_slope), text_height, 7, "TEXT", TextAlign::Center);
+    let arrow_len = 600.0;
+    let arrow_drop = 20.0;
+    let arrow_head = 180.0;
+    let arrow_offset = 300.0;
+    let slope_text_y = flag_y + 500.0 + arrow_offset;
+
+    // 左側勾配
+    add_text(drawing, mid_l_x, slope_text_y, &format!("{:.1}%", left_slope), text_height, 7, "TEXT", TextAlign::Center);
+    if left_slope.abs() > 0.01 {
+        let arrow_y = slope_text_y - arrow_offset;
+        let arrow_x = mid_l_x - arrow_len / 2.0;
+        if left_slope < 0.0 {
+            add_line(drawing, arrow_x + arrow_len, arrow_y + arrow_drop, arrow_x, arrow_y - arrow_drop, 7, "SLOPE");
+            add_line(drawing, arrow_x, arrow_y - arrow_drop, arrow_x + arrow_head, arrow_y - arrow_drop + arrow_head * 0.4, 7, "SLOPE");
+        } else {
+            add_line(drawing, arrow_x, arrow_y + arrow_drop, arrow_x + arrow_len, arrow_y - arrow_drop, 7, "SLOPE");
+            add_line(drawing, arrow_x + arrow_len, arrow_y - arrow_drop, arrow_x + arrow_len - arrow_head, arrow_y - arrow_drop + arrow_head * 0.4, 7, "SLOPE");
+        }
+    }
+
+    // 右側勾配
+    add_text(drawing, mid_r_x, slope_text_y, &format!("{:.1}%", right_slope), text_height, 7, "TEXT", TextAlign::Center);
+    if right_slope.abs() > 0.01 {
+        let arrow_y = slope_text_y - arrow_offset;
+        let arrow_x = mid_r_x - arrow_len / 2.0;
+        if right_slope < 0.0 {
+            add_line(drawing, arrow_x, arrow_y + arrow_drop, arrow_x + arrow_len, arrow_y - arrow_drop, 7, "SLOPE");
+            add_line(drawing, arrow_x + arrow_len, arrow_y - arrow_drop, arrow_x + arrow_len - arrow_head, arrow_y - arrow_drop + arrow_head * 0.4, 7, "SLOPE");
+        } else {
+            add_line(drawing, arrow_x + arrow_len, arrow_y + arrow_drop, arrow_x, arrow_y - arrow_drop, 7, "SLOPE");
+            add_line(drawing, arrow_x, arrow_y - arrow_drop, arrow_x + arrow_head, arrow_y - arrow_drop + arrow_head * 0.4, 7, "SLOPE");
+        }
+    }
 
     // 寸法線（幅員）- 線とテキストで描画
     let dim_base_y = flag_y;
