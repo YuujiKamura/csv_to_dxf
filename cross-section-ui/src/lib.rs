@@ -924,7 +924,7 @@ pub fn generate_combo_drawing(sections: &[CrossSectionData], columns: usize, col
 
     // === レイアウト計算 ===
     // 間隔（図面間のスペース）
-    let spacing = 2000.0; // 2m間隔
+    let spacing = 500.0; // 0.5m間隔
 
     // 基準: 縦断図を原点に配置
     // 縦断図のエンティティをそのままコピー
