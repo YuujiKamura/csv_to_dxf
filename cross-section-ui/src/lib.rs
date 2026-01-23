@@ -6,7 +6,19 @@ use eframe::egui::{self, Color32, Painter, Pos2, Stroke, Vec2, Rect};
 use serde::{Deserialize, Serialize};
 
 mod font_metrics;
+mod title_block;
+
 use font_metrics::cap_height_to_text_height;
+
+// Re-export title block types
+pub use title_block::{
+    TitleBlockInfo,
+    add_title_block_layer,
+    draw_outer_frame,
+    draw_top_title,
+    draw_title_block,
+    draw_drawing_frame,
+};
 
 // dxf crate for proper DXF file generation
 use dxf::Drawing;
