@@ -1502,7 +1502,8 @@ fn render_dxf(painter: &Painter, drawing: &Drawing, view: &DxfViewState) {
             }
             EntityType::Text(text) => {
                 let base_pos = view.dxf_to_screen(text.location.x, text.location.y);
-                let font_size = (text.text_height as f32 * view.zoom).max(1.0);
+                // DXF text_heightはCAD用に補正済み（×1.364）なので、egui表示用に逆補正
+                let font_size = (text.text_height as f32 / font_metrics::SCALE_FOR_CAP_HEIGHT as f32 * view.zoom).max(1.0);
                 let font = egui::FontId::proportional(font_size);
 
                 // Galleyを取得
