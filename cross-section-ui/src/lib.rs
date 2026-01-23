@@ -288,6 +288,24 @@ pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
     }
 
     let text_height = 300.0;  // モバイル表示用に2倍
+    let pointer_offset = 500.0;  // ポインター分の上方オフセット
+
+    // ========== 測点ポインター（逆三角形 + Vラベル）==========
+    let pointer_size = 150.0;  // 逆三角形のサイズ
+    for (i, pt) in data.iter().enumerate() {
+        let x = to_dxf_x(pt.cumulative_distance);
+        let y = to_dxf_y(pt.elevation);
+        // 逆三角形（▽）を描画 - 青色
+        let top_y = y + pointer_size;
+        let half_w = pointer_size * 0.6;
+        add_line(&mut drawing, x - half_w, top_y, x + half_w, top_y, 5, "CUTTING");
+        add_line(&mut drawing, x - half_w, top_y, x, y, 5, "CUTTING");
+        add_line(&mut drawing, x + half_w, top_y, x, y, 5, "CUTTING");
+        // ラベル（V1, V2, ...）- 文字サイズ統一
+        let label = format!("V{}", i + 1);
+        add_text(&mut drawing, x, top_y + 300.0, &label, text_height, 5, "CUTTING", TextAlign::Center);
+    }
+
     let cl_ground_y = to_dxf_y(cl_data.elevation);
     let flag_height_mm = 1600.0;  // 2倍
     let flag_y = cl_ground_y + flag_height_mm;
@@ -297,27 +315,27 @@ pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
     let r_x = to_dxf_x(r_data.cumulative_distance);
 
     // ========== 測点名（CL上）==========
-    add_text(&mut drawing, cl_x, flag_y + 1200.0,  // 2倍
+    add_text(&mut drawing, cl_x, flag_y + 1200.0,
         &section.survey_point_name, text_height * 1.5, 7, "TEXT", TextAlign::Center);
 
     // ========== CL GH, FH ==========
-    add_text(&mut drawing, cl_x, flag_y + 800.0,  // 2倍
+    add_text(&mut drawing, cl_x, flag_y + 800.0,
         &format!("GH={:.3}", cl_data.elevation), text_height, 7, "TEXT", TextAlign::Center);
-    add_text(&mut drawing, cl_x, flag_y + 400.0,  // 2倍
+    add_text(&mut drawing, cl_x, flag_y + 400.0,
         &format!("FH={:.3}", cl_data.planned_height), text_height, 1, "PLAN", TextAlign::Center);
 
-    // ========== L側 GH, FH ==========
+    // ========== L側 GH, FH（ポインター分上にオフセット）==========
     let l_ground_y = to_dxf_y(l_data.elevation);
-    add_text(&mut drawing, l_x, l_ground_y + 800.0,  // 2倍
+    add_text(&mut drawing, l_x, l_ground_y + 800.0 + pointer_offset,
         &format!("GH={:.3}", l_data.elevation), text_height, 7, "TEXT", TextAlign::Left);
-    add_text(&mut drawing, l_x, l_ground_y + 400.0,  // 2倍
+    add_text(&mut drawing, l_x, l_ground_y + 400.0 + pointer_offset,
         &format!("FH={:.3}", l_data.planned_height), text_height, 1, "PLAN", TextAlign::Left);
 
-    // ========== R側 GH, FH ==========
+    // ========== R側 GH, FH（ポインター分上にオフセット）==========
     let r_ground_y = to_dxf_y(r_data.elevation);
-    add_text(&mut drawing, r_x, r_ground_y + 800.0,  // 2倍
+    add_text(&mut drawing, r_x, r_ground_y + 800.0 + pointer_offset,
         &format!("GH={:.3}", r_data.elevation), text_height, 7, "TEXT", TextAlign::Right);
-    add_text(&mut drawing, r_x, r_ground_y + 400.0,  // 2倍
+    add_text(&mut drawing, r_x, r_ground_y + 400.0 + pointer_offset,
         &format!("FH={:.3}", r_data.planned_height), text_height, 1, "PLAN", TextAlign::Right);
 
     // ========== 寸法線による旗揚げ（幅員）==========
@@ -335,10 +353,10 @@ pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
     add_dimension_as_lines(&mut drawing, cl_x, r_x, dim_base_y,
         &format!("{:.2}", right_width), text_height, 7, "DIMENSION");
 
-    // ========== 勾配テキスト ==========
-    add_text(&mut drawing, mid_l_x, flag_y - text_height - 100.0,  // 2倍
+    // ========== 勾配テキスト（寸法線の上）==========
+    add_text(&mut drawing, mid_l_x, flag_y + 600.0,
         &format!("il={:.1}%", left_slope), text_height, 7, "TEXT", TextAlign::Center);
-    add_text(&mut drawing, mid_r_x, flag_y - text_height - 100.0,  // 2倍
+    add_text(&mut drawing, mid_r_x, flag_y + 600.0,
         &format!("ir={:.1}%", right_slope), text_height, 7, "TEXT", TextAlign::Center);
 
     // ========== DLラベル ==========
@@ -489,6 +507,22 @@ fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
     }
 
     let text_height = 300.0;  // モバイル表示用に2倍
+    let pointer_offset = 500.0;  // ポインター分の上方オフセット
+
+    // ========== 測点ポインター（逆三角形 + Vラベル）==========
+    let pointer_size = 150.0;
+    for (i, pt) in data.iter().enumerate() {
+        let x = to_dxf_x(pt.cumulative_distance);
+        let y = to_dxf_y(pt.elevation);
+        let top_y = y + pointer_size;
+        let half_w = pointer_size * 0.6;
+        add_line(drawing, x - half_w, top_y, x + half_w, top_y, 5, "CUTTING");
+        add_line(drawing, x - half_w, top_y, x, y, 5, "CUTTING");
+        add_line(drawing, x + half_w, top_y, x, y, 5, "CUTTING");
+        let label = format!("V{}", i + 1);
+        add_text(drawing, x, top_y + 300.0, &label, text_height, 5, "CUTTING", TextAlign::Center);
+    }
+
     let cl_ground_y = to_dxf_y(cl_data.elevation);
     let flag_y = cl_ground_y + 1600.0;  // 2倍
     let l_x = to_dxf_x(l_data.cumulative_distance);
@@ -500,17 +534,17 @@ fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
     add_text(drawing, cl_x, flag_y + 400.0, &format!("FH={:.3}", cl_data.planned_height), text_height, 1, "PLAN", TextAlign::Center);
 
     let l_ground_y = to_dxf_y(l_data.elevation);
-    add_text(drawing, l_x, l_ground_y + 800.0, &format!("GH={:.3}", l_data.elevation), text_height, 7, "TEXT", TextAlign::Left);
-    add_text(drawing, l_x, l_ground_y + 400.0, &format!("FH={:.3}", l_data.planned_height), text_height, 1, "PLAN", TextAlign::Left);
+    add_text(drawing, l_x, l_ground_y + 800.0 + pointer_offset, &format!("GH={:.3}", l_data.elevation), text_height, 7, "TEXT", TextAlign::Left);
+    add_text(drawing, l_x, l_ground_y + 400.0 + pointer_offset, &format!("FH={:.3}", l_data.planned_height), text_height, 1, "PLAN", TextAlign::Left);
 
     let r_ground_y = to_dxf_y(r_data.elevation);
-    add_text(drawing, r_x, r_ground_y + 800.0, &format!("GH={:.3}", r_data.elevation), text_height, 7, "TEXT", TextAlign::Right);
-    add_text(drawing, r_x, r_ground_y + 400.0, &format!("FH={:.3}", r_data.planned_height), text_height, 1, "PLAN", TextAlign::Right);
+    add_text(drawing, r_x, r_ground_y + 800.0 + pointer_offset, &format!("GH={:.3}", r_data.elevation), text_height, 7, "TEXT", TextAlign::Right);
+    add_text(drawing, r_x, r_ground_y + 400.0 + pointer_offset, &format!("FH={:.3}", r_data.planned_height), text_height, 1, "PLAN", TextAlign::Right);
 
     let mid_l_x = (l_x + cl_x) / 2.0;
     let mid_r_x = (cl_x + r_x) / 2.0;
-    add_text(drawing, mid_l_x, flag_y - text_height - 100.0, &format!("il={:.1}%", left_slope), text_height, 7, "TEXT", TextAlign::Center);
-    add_text(drawing, mid_r_x, flag_y - text_height - 100.0, &format!("ir={:.1}%", right_slope), text_height, 7, "TEXT", TextAlign::Center);
+    add_text(drawing, mid_l_x, flag_y + 600.0, &format!("il={:.1}%", left_slope), text_height, 7, "TEXT", TextAlign::Center);
+    add_text(drawing, mid_r_x, flag_y + 600.0, &format!("ir={:.1}%", right_slope), text_height, 7, "TEXT", TextAlign::Center);
 
     // 寸法線（幅員）- 線とテキストで描画
     let dim_base_y = flag_y;
