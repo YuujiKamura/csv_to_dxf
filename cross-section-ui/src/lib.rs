@@ -295,7 +295,7 @@ pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
     let pointer_size = 150.0;  // 逆三角形のサイズ
     for (i, pt) in data.iter().enumerate() {
         let x = to_dxf_x(pt.cumulative_distance);
-        let y = to_dxf_y(pt.elevation);
+        let y = to_dxf_y(pt.planned_height);
         // 逆三角形（▽）を描画 - 青色
         let top_y = y + pointer_size;
         let half_w = pointer_size * 0.6;
