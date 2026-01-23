@@ -5,6 +5,9 @@
 use eframe::egui::{self, Color32, Painter, Pos2, Stroke, Vec2, Rect};
 use serde::{Deserialize, Serialize};
 
+mod font_metrics;
+use font_metrics::cap_height_to_text_height;
+
 // dxf crate for proper DXF file generation
 use dxf::Drawing;
 use dxf::entities::{Entity, EntityType, Line, Text};
@@ -54,7 +57,7 @@ enum TextAlign { Left, Center, Right }
 fn add_text(drawing: &mut Drawing, x: f64, y: f64, text: &str, height: f64, color: i16, layer: &str, align: TextAlign) {
     let mut t = Text::default();
     t.location = Point::new(x, y, 0.0);
-    t.text_height = height;
+    t.text_height = cap_height_to_text_height(height);  // フォントメトリクス補正
     t.value = text.to_string();
     t.text_style_name = "NOTOSANSJP".to_string();
     t.relative_x_scale_factor = 1.0;  // 幅が引き伸ばされるのを防止
@@ -84,7 +87,7 @@ fn add_text_rotated(
 ) {
     let mut t = Text::default();
     t.location = Point::new(x, y, 0.0);
-    t.text_height = height;
+    t.text_height = cap_height_to_text_height(height);  // フォントメトリクス補正
     t.value = text.to_string();
     t.rotation = rotation;
     t.text_style_name = "NOTOSANSJP".to_string();
