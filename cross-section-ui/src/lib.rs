@@ -1327,23 +1327,19 @@ fn calc_dxf_bounds(drawing: &Drawing) -> (f32, f32, f32, f32) {
                 let estimated_width = text.value.len() as f32 * text_height * 0.6;
 
                 // アライメントに基づくオフセット計算
-                let align_h = text.horizontal_text_justification as i32;
-                let align_v = text.vertical_text_justification as i32;
-
                 // 水平方向: 描画開始位置
-                let (text_left, text_right) = match align_h {
-                    0 => (base_x, base_x + estimated_width),                      // 左揃え
-                    1 => (base_x - estimated_width / 2.0, base_x + estimated_width / 2.0), // 中央揃え
-                    2 => (base_x - estimated_width, base_x),                       // 右揃え
+                let (text_left, text_right) = match text.horizontal_text_justification {
+                    HorizontalTextJustification::Left => (base_x, base_x + estimated_width),
+                    HorizontalTextJustification::Center => (base_x - estimated_width / 2.0, base_x + estimated_width / 2.0),
+                    HorizontalTextJustification::Right => (base_x - estimated_width, base_x),
                     _ => (base_x, base_x + estimated_width),
                 };
 
                 // 垂直方向: 描画範囲
-                let (text_bottom, text_top) = match align_v {
-                    0 | 1 => (base_y - text_height, base_y),  // ベースライン/下揃え
-                    2 => (base_y - text_height / 2.0, base_y + text_height / 2.0), // 中央揃え
-                    3 => (base_y, base_y + text_height),      // 上揃え
-                    _ => (base_y - text_height, base_y),
+                let (text_bottom, text_top) = match text.vertical_text_justification {
+                    VerticalTextJustification::Baseline | VerticalTextJustification::Bottom => (base_y - text_height, base_y),
+                    VerticalTextJustification::Middle => (base_y - text_height / 2.0, base_y + text_height / 2.0),
+                    VerticalTextJustification::Top => (base_y, base_y + text_height),
                 };
 
                 // 回転を考慮（簡易版: 回転時は4コーナーをすべてチェック）
@@ -1425,23 +1421,18 @@ fn render_dxf(painter: &Painter, drawing: &Drawing, view: &DxfViewState) {
                 let text_width = galley.rect.width();
                 let text_height = galley.rect.height();
 
-                // DXFのアライメント値
-                let align_h = text.horizontal_text_justification as i32;
-                let align_v = text.vertical_text_justification as i32;
-
                 // アライメントに基づくオフセット計算（回転前の座標系で）
-                let offset_x = match align_h {
-                    0 => 0.0,                    // 左揃え
-                    1 => -text_width / 2.0,      // 中央揃え
-                    2 => -text_width,            // 右揃え
+                let offset_x = match text.horizontal_text_justification {
+                    HorizontalTextJustification::Left => 0.0,
+                    HorizontalTextJustification::Center => -text_width / 2.0,
+                    HorizontalTextJustification::Right => -text_width,
                     _ => 0.0,
                 };
-                let offset_y = match align_v {
-                    0 => -text_height,           // ベースライン
-                    1 => -text_height,           // 下揃え
-                    2 => -text_height / 2.0,     // 中央揃え
-                    3 => 0.0,                    // 上揃え
-                    _ => -text_height,
+                let offset_y = match text.vertical_text_justification {
+                    VerticalTextJustification::Baseline => -text_height,
+                    VerticalTextJustification::Bottom => -text_height,
+                    VerticalTextJustification::Middle => -text_height / 2.0,
+                    VerticalTextJustification::Top => 0.0,
                 };
 
                 // 回転角度（テキストの頭が右向き=測点進行方向）
