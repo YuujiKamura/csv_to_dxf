@@ -466,7 +466,7 @@ pub fn generate_multi_drawing(sections: &[CrossSectionData], columns: usize, col
         cumulative_x += cell_width;
     }
 
-    let cell_height = (max_height + 3.0) * scale * 2.0;  // 旗揚げ部分のマージン（縦スケール2倍）
+    let cell_height = (max_height + 1.0) * scale * 2.0;  // 旗揚げ部分のマージン（縦スケール2倍）
 
     // セクションを描画
     for (idx, section) in sections.iter().enumerate() {
