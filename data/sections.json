@@ -3,48 +3,41 @@
     "survey_point_name": "No.0",
     "dl": 9,
     "cl_index": 2,
-    "l_to_cl_distance": 2.99,
+    "l_to_cl_distance": 4.25,
     "survey_data": [
       {
         "unit_distance": 0.0,
         "elevation": 9.716,
         "planned_height": 9.716,
-        "cumulative_distance": -2.99,
+        "cumulative_distance": -4.25,
         "cutting_bottom": 9.665999999999999
       },
       {
-        "unit_distance": 0.9900000000000002,
-        "elevation": 9.761,
-        "planned_height": 9.761,
+        "unit_distance": 2.25,
+        "elevation": 9.782,
+        "planned_height": 9.782,
         "cumulative_distance": -2.0,
-        "cutting_bottom": 9.710999999999999
+        "cutting_bottom": 9.732
       },
       {
         "unit_distance": 2.0,
-        "elevation": 9.81,
-        "planned_height": 9.81,
+        "elevation": 9.853,
+        "planned_height": 9.853,
         "cumulative_distance": 0.0,
-        "cutting_bottom": 9.76
+        "cutting_bottom": 9.802999999999999
       },
       {
         "unit_distance": 2.0,
-        "elevation": 9.827,
-        "planned_height": 9.827,
+        "elevation": 9.782,
+        "planned_height": 9.782,
         "cumulative_distance": 2.0,
-        "cutting_bottom": 9.777
+        "cutting_bottom": 9.732
       },
       {
-        "unit_distance": 2.0,
-        "elevation": 9.742,
-        "planned_height": 9.742,
-        "cumulative_distance": 4.0,
-        "cutting_bottom": 9.692
-      },
-      {
-        "unit_distance": 1.38,
+        "unit_distance": 2.0999999999999996,
         "elevation": 9.681,
         "planned_height": 9.681,
-        "cumulative_distance": 5.38,
+        "cumulative_distance": 4.1,
         "cutting_bottom": 9.630999999999998
       }
     ],
@@ -55,48 +48,41 @@
     "survey_point_name": "No.0+10",
     "dl": 9,
     "cl_index": 2,
-    "l_to_cl_distance": 2.97,
+    "l_to_cl_distance": 4.24,
     "survey_data": [
       {
         "unit_distance": 0.0,
         "elevation": 9.825,
         "planned_height": 9.825,
-        "cumulative_distance": -2.97,
+        "cumulative_distance": -4.24,
         "cutting_bottom": 9.774999999999999
       },
       {
-        "unit_distance": 0.9700000000000002,
-        "elevation": 9.847,
-        "planned_height": 9.833,
+        "unit_distance": 2.24,
+        "elevation": 9.85,
+        "planned_height": 9.85,
         "cumulative_distance": -2.0,
-        "cutting_bottom": 9.783
+        "cutting_bottom": 9.799999999999999
       },
       {
         "unit_distance": 2.0,
-        "elevation": 9.855,
-        "planned_height": 9.851,
+        "elevation": 9.851,
+        "planned_height": 9.882,
         "cumulative_distance": 0.0,
-        "cutting_bottom": 9.801
+        "cutting_bottom": 9.831999999999999
       },
       {
         "unit_distance": 2.0,
-        "elevation": 9.812,
-        "planned_height": 9.811000000000002,
+        "elevation": 9.8,
+        "planned_height": 9.8,
         "cumulative_distance": 2.0,
-        "cutting_bottom": 9.761000000000001
+        "cutting_bottom": 9.75
       },
       {
-        "unit_distance": 2.0,
-        "elevation": 9.783,
-        "planned_height": 9.771,
-        "cumulative_distance": 4.0,
-        "cutting_bottom": 9.721
-      },
-      {
-        "unit_distance": 1.4000000000000004,
+        "unit_distance": 2.13,
         "elevation": 9.743,
         "planned_height": 9.743,
-        "cumulative_distance": 5.4,
+        "cumulative_distance": 4.13,
         "cutting_bottom": 9.693
       }
     ],
@@ -107,48 +93,41 @@
     "survey_point_name": "No.1",
     "dl": 9,
     "cl_index": 2,
-    "l_to_cl_distance": 2.95,
+    "l_to_cl_distance": 4.2,
     "survey_data": [
       {
         "unit_distance": 0.0,
         "elevation": 9.869,
         "planned_height": 9.869,
-        "cumulative_distance": -2.95,
+        "cumulative_distance": -4.2,
         "cutting_bottom": 9.818999999999999
       },
       {
-        "unit_distance": 0.9500000000000002,
-        "elevation": 9.874,
-        "planned_height": 9.876,
-        "cumulative_distance": -2.0,
-        "cutting_bottom": 9.825999999999999
-      },
-      {
-        "unit_distance": 2.0,
-        "elevation": 9.901,
+        "unit_distance": 2.2,
+        "elevation": 9.892,
         "planned_height": 9.892,
-        "cumulative_distance": 0.0,
+        "cumulative_distance": -2.0,
         "cutting_bottom": 9.841999999999999
       },
       {
         "unit_distance": 2.0,
-        "elevation": 9.879,
-        "planned_height": 9.87,
-        "cumulative_distance": 2.0,
-        "cutting_bottom": 9.819999999999999
+        "elevation": 9.916,
+        "planned_height": 9.911,
+        "cumulative_distance": 0.0,
+        "cutting_bottom": 9.860999999999999
       },
       {
         "unit_distance": 2.0,
-        "elevation": 9.865,
-        "planned_height": 9.847999999999999,
-        "cumulative_distance": 4.0,
-        "cutting_bottom": 9.797999999999998
+        "elevation": 9.876,
+        "planned_height": 9.876,
+        "cumulative_distance": 2.0,
+        "cutting_bottom": 9.825999999999999
       },
       {
-        "unit_distance": 1.4000000000000004,
+        "unit_distance": 2.13,
         "elevation": 9.835,
         "planned_height": 9.835,
-        "cumulative_distance": 5.4,
+        "cumulative_distance": 4.13,
         "cutting_bottom": 9.785
       }
     ],
@@ -159,48 +138,41 @@
     "survey_point_name": "No.1+10",
     "dl": 9,
     "cl_index": 2,
-    "l_to_cl_distance": 2.92,
+    "l_to_cl_distance": 4.2,
     "survey_data": [
       {
         "unit_distance": 0.0,
         "elevation": 9.883,
         "planned_height": 9.883,
-        "cumulative_distance": -2.92,
+        "cumulative_distance": -4.2,
         "cutting_bottom": 9.832999999999998
       },
       {
-        "unit_distance": 0.9199999999999999,
-        "elevation": 9.902,
-        "planned_height": 9.899,
+        "unit_distance": 2.2,
+        "elevation": 9.927,
+        "planned_height": 9.927,
         "cumulative_distance": -2.0,
-        "cutting_bottom": 9.848999999999998
+        "cutting_bottom": 9.876999999999999
       },
       {
         "unit_distance": 2.0,
-        "elevation": 9.935,
-        "planned_height": 9.933,
+        "elevation": 9.942,
+        "planned_height": 9.94,
         "cumulative_distance": 0.0,
-        "cutting_bottom": 9.883
+        "cutting_bottom": 9.889999999999999
       },
       {
         "unit_distance": 2.0,
-        "elevation": 9.919,
-        "planned_height": 9.913,
+        "elevation": 9.912,
+        "planned_height": 9.912,
         "cumulative_distance": 2.0,
-        "cutting_bottom": 9.863
+        "cutting_bottom": 9.862
       },
       {
-        "unit_distance": 2.0,
-        "elevation": 9.902,
-        "planned_height": 9.893,
-        "cumulative_distance": 4.0,
-        "cutting_bottom": 9.843
-      },
-      {
-        "unit_distance": 1.25,
+        "unit_distance": 1.98,
         "elevation": 9.878,
         "planned_height": 9.878,
-        "cumulative_distance": 5.25,
+        "cumulative_distance": 3.98,
         "cutting_bottom": 9.828
       }
     ],
@@ -211,48 +183,41 @@
     "survey_point_name": "No.1+15.5マンホール",
     "dl": 9,
     "cl_index": 2,
-    "l_to_cl_distance": 2.93,
+    "l_to_cl_distance": 4.18,
     "survey_data": [
       {
         "unit_distance": 0.0,
         "elevation": 9.872,
         "planned_height": 9.872,
-        "cumulative_distance": -2.93,
+        "cumulative_distance": -4.18,
         "cutting_bottom": 9.822
       },
       {
-        "unit_distance": 0.9300000000000002,
-        "elevation": 9.893,
-        "planned_height": 9.898,
+        "unit_distance": 2.1799999999999997,
+        "elevation": 9.917,
+        "planned_height": 9.917,
         "cumulative_distance": -2.0,
-        "cutting_bottom": 9.847999999999999
+        "cutting_bottom": 9.866999999999999
       },
       {
         "unit_distance": 2.0,
-        "elevation": 9.945,
-        "planned_height": 9.956,
+        "elevation": 9.955,
+        "planned_height": 9.955,
         "cumulative_distance": 0.0,
-        "cutting_bottom": 9.905999999999999
+        "cutting_bottom": 9.905
       },
       {
         "unit_distance": 2.0,
-        "elevation": 9.916,
-        "planned_height": 9.924,
+        "elevation": 9.905,
+        "planned_height": 9.905,
         "cumulative_distance": 2.0,
-        "cutting_bottom": 9.873999999999999
+        "cutting_bottom": 9.854999999999999
       },
       {
-        "unit_distance": 2.0,
-        "elevation": 9.896,
-        "planned_height": 9.892,
-        "cumulative_distance": 4.0,
-        "cutting_bottom": 9.841999999999999
-      },
-      {
-        "unit_distance": 1.13,
+        "unit_distance": 1.9,
         "elevation": 9.873,
         "planned_height": 9.873,
-        "cumulative_distance": 5.13,
+        "cumulative_distance": 3.9,
         "cutting_bottom": 9.822999999999999
       }
     ],
@@ -263,48 +228,41 @@
     "survey_point_name": "No.2",
     "dl": 9,
     "cl_index": 2,
-    "l_to_cl_distance": 3.0,
+    "l_to_cl_distance": 4.26,
     "survey_data": [
       {
         "unit_distance": 0.0,
         "elevation": 9.903,
         "planned_height": 9.903,
-        "cumulative_distance": -3.0,
+        "cumulative_distance": -4.26,
         "cutting_bottom": 9.853
       },
       {
-        "unit_distance": 1.0,
-        "elevation": 9.917,
-        "planned_height": 9.926,
-        "cumulative_distance": -2.0,
-        "cutting_bottom": 9.876
-      },
-      {
-        "unit_distance": 2.0,
-        "elevation": 9.947,
-        "planned_height": 9.974,
-        "cumulative_distance": 0.0,
-        "cutting_bottom": 9.924
-      },
-      {
-        "unit_distance": 2.0,
-        "elevation": 9.947,
+        "unit_distance": 2.26,
+        "elevation": 9.938,
         "planned_height": 9.938,
-        "cumulative_distance": 2.0,
+        "cumulative_distance": -2.0,
         "cutting_bottom": 9.888
       },
       {
         "unit_distance": 2.0,
-        "elevation": 9.915,
-        "planned_height": 9.902000000000001,
-        "cumulative_distance": 4.0,
-        "cutting_bottom": 9.852
+        "elevation": 9.96,
+        "planned_height": 9.973,
+        "cumulative_distance": 0.0,
+        "cutting_bottom": 9.923
       },
       {
-        "unit_distance": 0.9699999999999998,
+        "unit_distance": 2.0,
+        "elevation": 9.926,
+        "planned_height": 9.926,
+        "cumulative_distance": 2.0,
+        "cutting_bottom": 9.876
+      },
+      {
+        "unit_distance": 1.7000000000000002,
         "elevation": 9.883999999999999,
         "planned_height": 9.883999999999999,
-        "cumulative_distance": 4.97,
+        "cumulative_distance": 3.7,
         "cutting_bottom": 9.833999999999998
       }
     ],
@@ -315,48 +273,41 @@
     "survey_point_name": "No.2+10",
     "dl": 9,
     "cl_index": 2,
-    "l_to_cl_distance": 3.05,
+    "l_to_cl_distance": 3.72,
     "survey_data": [
       {
         "unit_distance": 0.0,
         "elevation": 9.926,
         "planned_height": 9.926,
-        "cumulative_distance": -3.05,
+        "cumulative_distance": -3.72,
         "cutting_bottom": 9.876
       },
       {
-        "unit_distance": 1.0499999999999998,
-        "elevation": 9.944,
-        "planned_height": 9.957,
+        "unit_distance": 1.7200000000000002,
+        "elevation": 9.961,
+        "planned_height": 9.961,
         "cumulative_distance": -2.0,
-        "cutting_bottom": 9.907
+        "cutting_bottom": 9.911
       },
       {
         "unit_distance": 2.0,
-        "elevation": 9.987,
-        "planned_height": 10.015,
+        "elevation": 9.982,
+        "planned_height": 10.014,
         "cumulative_distance": 0.0,
-        "cutting_bottom": 9.965
+        "cutting_bottom": 9.963999999999999
       },
       {
         "unit_distance": 2.0,
-        "elevation": 9.96,
-        "planned_height": 9.969000000000001,
+        "elevation": 9.95,
+        "planned_height": 9.95,
         "cumulative_distance": 2.0,
-        "cutting_bottom": 9.919
+        "cutting_bottom": 9.899999999999999
       },
       {
-        "unit_distance": 2.0,
-        "elevation": 9.928,
-        "planned_height": 9.923,
-        "cumulative_distance": 4.0,
-        "cutting_bottom": 9.873
-      },
-      {
-        "unit_distance": 0.45999999999999996,
+        "unit_distance": 1.7999999999999998,
         "elevation": 9.912,
         "planned_height": 9.912,
-        "cumulative_distance": 4.46,
+        "cumulative_distance": 3.8,
         "cutting_bottom": 9.862
       }
     ],
