@@ -243,8 +243,9 @@ pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
     let to_dxf_x = |cumulative_distance: f64| -> f64 {
         (cumulative_distance - cl_offset) * scale  // CLが原点に来るようにオフセット
     };
+    let y_scale = scale * 2.0;  // 縦方向スケールを2倍（縦断図と同様）
     let to_dxf_y = |height: f64| -> f64 {
-        (height - dl) * scale
+        (height - dl) * y_scale
     };
 
     let l_data = &data[0];
@@ -465,7 +466,7 @@ pub fn generate_multi_drawing(sections: &[CrossSectionData], columns: usize, col
         cumulative_x += cell_width;
     }
 
-    let cell_height = (max_height + 3.0) * scale;  // 旗揚げ部分のマージン
+    let cell_height = (max_height + 3.0) * scale * 2.0;  // 旗揚げ部分のマージン（縦スケール2倍）
 
     // セクションを描画
     for (idx, section) in sections.iter().enumerate() {
@@ -486,7 +487,8 @@ fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
     let data = &section.survey_data;
     let dl = round_dl(section.dl);
     let to_dxf_x = |d: f64| offset_x + d * scale;
-    let to_dxf_y = |h: f64| offset_y + (h - dl) * scale;
+    let y_scale = scale * 2.0;  // 縦方向スケールを2倍（縦断図と同様）
+    let to_dxf_y = |h: f64| offset_y + (h - dl) * y_scale;
 
     let l_data = &data[0];
     let cl_data = &data[section.cl_index.min(data.len() - 1)];
