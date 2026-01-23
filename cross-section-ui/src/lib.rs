@@ -1218,11 +1218,11 @@ pub fn generate_area_expansion_drawing(sections: &[CrossSectionData]) -> Drawing
         // 測点名テキスト
         add_text_rotated(&mut drawing, x, y_name_base, &station.name, text_height * 1.2,
             5, "TENKAI_STATION", TextAlign::Left, VerticalAlign::Middle, -90.0);
-        // アンダーライン（テキストの左側に縦線、少しオフセット）
-        let underline_x = x + text_height * 0.3;
+        // アンダーライン（テキストの下に縦線、少しオフセット）
+        let underline_x = x;
         let name_len = station.name.chars().count() as f64;
-        let underline_y1 = y_name_base;
-        let underline_y2 = y_name_base - name_len * text_height * 0.8;
+        let underline_y1 = y_name_base + text_height * 0.3;
+        let underline_y2 = y_name_base - name_len * text_height * 0.8 + text_height * 0.3;
         add_line(&mut drawing, underline_x, underline_y1, underline_x, underline_y2, 5, "TENKAI_STATION");
     }
 
