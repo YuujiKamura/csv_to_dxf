@@ -55,3 +55,7 @@ desktop.ini
 !data/sections.json
 tmp/
 tmpclaude-*-cwd
+
+# Rust/Wasm build artifacts
+cross-section-ui/target/
+cross-section-ui/pkg/
