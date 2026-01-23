@@ -10,7 +10,7 @@ use dxf::{Color, Point};
 use crate::font_metrics::cap_height_to_text_height;
 
 // DXF color constants (ACI)
-const WHITE: i16 = 8;  // Gray (visible on both light/dark backgrounds)
+const COLOR_WHITE: i16 = 7;  // White (displays as black on white background, white on black)
 
 /// タイトルブロック情報
 #[derive(Debug, Clone, Default)]
@@ -168,7 +168,7 @@ fn add_rect_scaled(
 pub fn add_title_block_layer(drawing: &mut Drawing) {
     let mut layer = dxf::tables::Layer::default();
     layer.name = "TITLEBLOCK".to_string();
-    layer.color = Color::from_index(WHITE as u8);
+    layer.color = Color::from_index(COLOR_WHITE as u8);
     drawing.add_layer(layer);
 }
 
@@ -194,7 +194,7 @@ pub fn draw_outer_frame(
         drawing,
         210.0, 148.5,  // 中心座標（mm）
         400.0, 270.0,  // サイズ（mm）
-        WHITE,
+        COLOR_WHITE,
         "TITLEBLOCK",
         scale,
         origin_x,
@@ -223,14 +223,14 @@ pub fn draw_top_title(
     // Kotlinでは (21f, 27.1f), (21f, 26f) → 210mm, 271mm と 210mm, 260mm
     add_text_scaled(
         drawing, 210.0, 271.0, &info.top_title,
-        text_size, WHITE, "TITLEBLOCK",
+        text_size, COLOR_WHITE, "TITLEBLOCK",
         HorizontalTextJustification::Left,
         VerticalTextJustification::Middle,
         scale, origin_x, origin_y,
     );
     add_text_scaled(
         drawing, 210.0, 260.0, &info.drawing_name,
-        text_size, WHITE, "TITLEBLOCK",
+        text_size, COLOR_WHITE, "TITLEBLOCK",
         HorizontalTextJustification::Left,
         VerticalTextJustification::Middle,
         scale, origin_x, origin_y,
@@ -239,8 +239,8 @@ pub fn draw_top_title(
     // タイトル下の二重線
     // Kotlinでは (19f, 27f)-(23f, 27f) と (19f, 26.9f)-(23f, 26.9f)
     // → 190-230mm, 270mm と 190-230mm, 269mm
-    add_line_scaled(drawing, 190.0, 270.0, 230.0, 270.0, WHITE, "TITLEBLOCK", scale, origin_x, origin_y);
-    add_line_scaled(drawing, 190.0, 269.0, 230.0, 269.0, WHITE, "TITLEBLOCK", scale, origin_x, origin_y);
+    add_line_scaled(drawing, 190.0, 270.0, 230.0, 270.0, COLOR_WHITE, "TITLEBLOCK", scale, origin_x, origin_y);
+    add_line_scaled(drawing, 190.0, 269.0, 230.0, 269.0, COLOR_WHITE, "TITLEBLOCK", scale, origin_x, origin_y);
 }
 
 /// 右下タイトル枠を描画
@@ -269,45 +269,45 @@ pub fn draw_title_block(
 
     // === 外枠線 ===
     // 上辺
-    add_line_scaled(drawing, 310.0, 73.5, 410.0, 73.5, WHITE, "TITLEBLOCK", scale, origin_x, origin_y);
+    add_line_scaled(drawing, 310.0, 73.5, 410.0, 73.5, COLOR_WHITE, "TITLEBLOCK", scale, origin_x, origin_y);
     // 左辺（外側）
-    add_line_scaled(drawing, 310.0, 13.5, 310.0, 73.5, WHITE, "TITLEBLOCK", scale, origin_x, origin_y);
+    add_line_scaled(drawing, 310.0, 13.5, 310.0, 73.5, COLOR_WHITE, "TITLEBLOCK", scale, origin_x, origin_y);
     // 左辺（内側、ラベル列）: 33f→330mm
-    add_line_scaled(drawing, 330.0, 13.5, 330.0, 73.5, WHITE, "TITLEBLOCK", scale, origin_x, origin_y);
+    add_line_scaled(drawing, 330.0, 13.5, 330.0, 73.5, COLOR_WHITE, "TITLEBLOCK", scale, origin_x, origin_y);
 
     // === 横線（各行の境界）===
     // 行: 6.35f, 5.35f, 4.35f, 3.35f, 2.35f → 63.5, 53.5, 43.5, 33.5, 23.5mm
-    add_line_scaled(drawing, 310.0, 63.5, 410.0, 63.5, WHITE, "TITLEBLOCK", scale, origin_x, origin_y);
-    add_line_scaled(drawing, 310.0, 53.5, 410.0, 53.5, WHITE, "TITLEBLOCK", scale, origin_x, origin_y);
-    add_line_scaled(drawing, 310.0, 43.5, 410.0, 43.5, WHITE, "TITLEBLOCK", scale, origin_x, origin_y);
-    add_line_scaled(drawing, 310.0, 33.5, 410.0, 33.5, WHITE, "TITLEBLOCK", scale, origin_x, origin_y);
-    add_line_scaled(drawing, 310.0, 23.5, 410.0, 23.5, WHITE, "TITLEBLOCK", scale, origin_x, origin_y);
+    add_line_scaled(drawing, 310.0, 63.5, 410.0, 63.5, COLOR_WHITE, "TITLEBLOCK", scale, origin_x, origin_y);
+    add_line_scaled(drawing, 310.0, 53.5, 410.0, 53.5, COLOR_WHITE, "TITLEBLOCK", scale, origin_x, origin_y);
+    add_line_scaled(drawing, 310.0, 43.5, 410.0, 43.5, COLOR_WHITE, "TITLEBLOCK", scale, origin_x, origin_y);
+    add_line_scaled(drawing, 310.0, 33.5, 410.0, 33.5, COLOR_WHITE, "TITLEBLOCK", scale, origin_x, origin_y);
+    add_line_scaled(drawing, 310.0, 23.5, 410.0, 23.5, COLOR_WHITE, "TITLEBLOCK", scale, origin_x, origin_y);
 
     // 縮尺/図番の縦仕切り: 36f, 38f → 360mm, 380mm (Y: 23.5-33.5mm)
-    add_line_scaled(drawing, 360.0, 23.5, 360.0, 33.5, WHITE, "TITLEBLOCK", scale, origin_x, origin_y);
-    add_line_scaled(drawing, 380.0, 23.5, 380.0, 33.5, WHITE, "TITLEBLOCK", scale, origin_x, origin_y);
+    add_line_scaled(drawing, 360.0, 23.5, 360.0, 33.5, COLOR_WHITE, "TITLEBLOCK", scale, origin_x, origin_y);
+    add_line_scaled(drawing, 380.0, 23.5, 380.0, 33.5, COLOR_WHITE, "TITLEBLOCK", scale, origin_x, origin_y);
 
     // === ラベルテキスト（左列）===
     // 32f, Y.7f → 320mm, (Y*10+7)mm に左揃え
-    add_text_scaled(drawing, 320.0, 67.0, "工事名", text_size, WHITE, "TITLEBLOCK",
+    add_text_scaled(drawing, 320.0, 67.0, "工事名", text_size, COLOR_WHITE, "TITLEBLOCK",
                     HorizontalTextJustification::Left, VerticalTextJustification::Middle,
                     scale, origin_x, origin_y);
-    add_text_scaled(drawing, 320.0, 57.0, "工種", text_size, WHITE, "TITLEBLOCK",
+    add_text_scaled(drawing, 320.0, 57.0, "工種", text_size, COLOR_WHITE, "TITLEBLOCK",
                     HorizontalTextJustification::Left, VerticalTextJustification::Middle,
                     scale, origin_x, origin_y);
-    add_text_scaled(drawing, 320.0, 47.0, "路線", text_size, WHITE, "TITLEBLOCK",
+    add_text_scaled(drawing, 320.0, 47.0, "路線", text_size, COLOR_WHITE, "TITLEBLOCK",
                     HorizontalTextJustification::Left, VerticalTextJustification::Middle,
                     scale, origin_x, origin_y);
-    add_text_scaled(drawing, 320.0, 37.0, "日付", text_size, WHITE, "TITLEBLOCK",
+    add_text_scaled(drawing, 320.0, 37.0, "日付", text_size, COLOR_WHITE, "TITLEBLOCK",
                     HorizontalTextJustification::Left, VerticalTextJustification::Middle,
                     scale, origin_x, origin_y);
-    add_text_scaled(drawing, 320.0, 27.0, "縮尺", text_size, WHITE, "TITLEBLOCK",
+    add_text_scaled(drawing, 320.0, 27.0, "縮尺", text_size, COLOR_WHITE, "TITLEBLOCK",
                     HorizontalTextJustification::Left, VerticalTextJustification::Middle,
                     scale, origin_x, origin_y);
-    add_text_scaled(drawing, 370.0, 27.0, "図番", text_size, WHITE, "TITLEBLOCK",
+    add_text_scaled(drawing, 370.0, 27.0, "図番", text_size, COLOR_WHITE, "TITLEBLOCK",
                     HorizontalTextJustification::Left, VerticalTextJustification::Middle,
                     scale, origin_x, origin_y);
-    add_text_scaled(drawing, 320.0, 17.0, "作成", text_size, WHITE, "TITLEBLOCK",
+    add_text_scaled(drawing, 320.0, 17.0, "作成", text_size, COLOR_WHITE, "TITLEBLOCK",
                     HorizontalTextJustification::Left, VerticalTextJustification::Middle,
                     scale, origin_x, origin_y);
 
@@ -317,43 +317,43 @@ pub fn draw_title_block(
 
     // 工事名（長い場合は改行処理）
     let project_name_display = truncate_or_split(&info.project_name, 25);
-    add_text_scaled(drawing, data_x, 67.0, &project_name_display, text_size, WHITE, "TITLEBLOCK",
+    add_text_scaled(drawing, data_x, 67.0, &project_name_display, text_size, COLOR_WHITE, "TITLEBLOCK",
                     HorizontalTextJustification::Left, VerticalTextJustification::Middle,
                     scale, origin_x, origin_y);
 
     // 工種
-    add_text_scaled(drawing, data_x, 57.0, &info.work_type, text_size, WHITE, "TITLEBLOCK",
+    add_text_scaled(drawing, data_x, 57.0, &info.work_type, text_size, COLOR_WHITE, "TITLEBLOCK",
                     HorizontalTextJustification::Left, VerticalTextJustification::Middle,
                     scale, origin_x, origin_y);
 
     // 路線名
-    add_text_scaled(drawing, data_x, 47.0, &info.drawing_name, text_size, WHITE, "TITLEBLOCK",
+    add_text_scaled(drawing, data_x, 47.0, &info.drawing_name, text_size, COLOR_WHITE, "TITLEBLOCK",
                     HorizontalTextJustification::Left, VerticalTextJustification::Middle,
                     scale, origin_x, origin_y);
 
     // 日付
-    add_text_scaled(drawing, data_x, 37.0, &info.date, text_size, WHITE, "TITLEBLOCK",
+    add_text_scaled(drawing, data_x, 37.0, &info.date, text_size, COLOR_WHITE, "TITLEBLOCK",
                     HorizontalTextJustification::Left, VerticalTextJustification::Middle,
                     scale, origin_x, origin_y);
 
     // 縮尺（345mm位置）
-    add_text_scaled(drawing, 345.0, 27.0, &info.scale, text_size, WHITE, "TITLEBLOCK",
+    add_text_scaled(drawing, 345.0, 27.0, &info.scale, text_size, COLOR_WHITE, "TITLEBLOCK",
                     HorizontalTextJustification::Left, VerticalTextJustification::Middle,
                     scale, origin_x, origin_y);
 
     // 図番（395mm位置）
-    add_text_scaled(drawing, 395.0, 27.0, &info.drawing_number, text_size, WHITE, "TITLEBLOCK",
+    add_text_scaled(drawing, 395.0, 27.0, &info.drawing_number, text_size, COLOR_WHITE, "TITLEBLOCK",
                     HorizontalTextJustification::Left, VerticalTextJustification::Middle,
                     scale, origin_x, origin_y);
 
     // 作成者
-    add_text_scaled(drawing, data_x, 17.0, &info.author, text_size, WHITE, "TITLEBLOCK",
+    add_text_scaled(drawing, data_x, 17.0, &info.author, text_size, COLOR_WHITE, "TITLEBLOCK",
                     HorizontalTextJustification::Left, VerticalTextJustification::Middle,
                     scale, origin_x, origin_y);
 
     // クレジット（左下: 80mm, 10mm）
     if !info.credit.is_empty() {
-        add_text_scaled(drawing, 80.0, 10.0, &info.credit, text_size, WHITE, "TITLEBLOCK",
+        add_text_scaled(drawing, 80.0, 10.0, &info.credit, text_size, COLOR_WHITE, "TITLEBLOCK",
                         HorizontalTextJustification::Left, VerticalTextJustification::Middle,
                         scale, origin_x, origin_y);
     }
