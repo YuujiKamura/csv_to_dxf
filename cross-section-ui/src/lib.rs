@@ -932,8 +932,8 @@ pub fn generate_combo_drawing(sections: &[CrossSectionData], columns: usize, col
         drawing.add_entity(entity.clone());
     }
 
-    // 面積展開図: 縦断図の上に配置（X起点を揃える）
-    let area_x_offset = long_min_x - area_min_x;
+    // 面積展開図: 縦断図の上に配置（両方label_width=750から開始なのでXオフセット不要）
+    let area_x_offset = 0.0;
     let area_y_offset = long_max_y + spacing - area_min_y;
     for entity in area_expansion.entities() {
         let mut shifted_entity = entity.clone();
