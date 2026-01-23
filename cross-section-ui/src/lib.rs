@@ -1060,9 +1060,9 @@ pub fn generate_combo_dxf_bytes(sections: &[CrossSectionData], columns: usize, c
 /// X軸: 縦断図と同じスケール（相対距離 * scale_x）
 /// Y軸: 左幅員が正、右幅員が負（縦断図と同じscale_yで5:1）
 pub fn generate_area_expansion_drawing(sections: &[CrossSectionData]) -> Drawing {
-    // 縦断図と同じXスケールを使用
-    let scale_x = 100.0;     // 横方向スケール（1m = 100単位）縦断図と同じ
-    let scale_y = 1000.0;    // 縦方向スケール（1m = 1000単位）幅員用
+    // 縦断図のXと同じスケール（縦横同一）
+    let scale_x = 100.0;     // 1m = 100単位
+    let scale_y = 100.0;     // 1m = 100単位（縦横同一）
     let text_height = 150.0; // 縦断図と同じテキスト高さ
     let label_width = 750.0; // 縦断図と同じ左側ラベル幅
     let station_text_offset = 300.0; // 測点名のオフセット
