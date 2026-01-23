@@ -2150,7 +2150,7 @@ impl eframe::App for CrossSectionApp {
                             ViewMode::Single => "単一",
                             ViewMode::AllGrid => "全横断",
                             ViewMode::Longitudinal => "縦断",
-                            ViewMode::AreaExpansion => "面展開",
+                            ViewMode::AreaExpansion => "展開図",
                             ViewMode::AlignTest => "テスト",
                         };
                         let response = egui::ComboBox::from_id_salt("view_mode_select")
@@ -2329,7 +2329,7 @@ impl eframe::App for CrossSectionApp {
                         self.view_mode = ViewMode::Longitudinal;
                         self.update_dxf_preview();
                     }
-                    if ui.selectable_label(self.view_mode == ViewMode::AreaExpansion, "面展開").clicked() {
+                    if ui.selectable_label(self.view_mode == ViewMode::AreaExpansion, "展開図").clicked() {
                         self.view_mode = ViewMode::AreaExpansion;
                         self.update_dxf_preview();
                     }
