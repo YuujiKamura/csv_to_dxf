@@ -110,9 +110,9 @@ fn add_dimension_as_lines(
     // 右端の縦線（端点マーク）
     add_line(drawing, x2, y - tick_down, x2, y + tick_up, color, layer);
 
-    // 中央にテキスト
+    // 中央にテキスト（寸法線の上にマージンを取る）
     let mid_x = (x1 + x2) / 2.0;
-    add_text(drawing, mid_x, y + 100.0, text, text_height, color, layer, TextAlign::Center);
+    add_text(drawing, mid_x, y + 250.0, text, text_height, color, layer, TextAlign::Center);
 }
 
 /// DL値を1m刻みに丸める（最小標高との差が0.2以下なら1m下げる）
@@ -444,7 +444,7 @@ pub fn generate_multi_drawing(sections: &[CrossSectionData], columns: usize, col
         cumulative_x += cell_width;
     }
 
-    let cell_height = (max_height + 4.0) * scale;  // 旗揚げ部分のマージン増加
+    let cell_height = (max_height + 3.0) * scale;  // 旗揚げ部分のマージン
 
     // セクションを描画
     for (idx, section) in sections.iter().enumerate() {
@@ -492,7 +492,7 @@ fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
     let cl_x = to_dxf_x(cl_data.cumulative_distance);
     let r_x = to_dxf_x(r_data.cumulative_distance);
 
-    add_text(drawing, cl_x, flag_y + 1200.0, &section.survey_point_name, text_height * 1.5, 7, "TEXT", TextAlign::Center);
+    add_text(drawing, cl_x, flag_y + 1300.0, &section.survey_point_name, text_height * 1.5, 7, "TEXT", TextAlign::Center);
     add_text(drawing, cl_x, flag_y + 800.0, &format!("GH={:.3}", cl_data.elevation), text_height, 7, "TEXT", TextAlign::Center);
     add_text(drawing, cl_x, flag_y + 400.0, &format!("FH={:.3}", cl_data.planned_height), text_height, 1, "PLAN", TextAlign::Center);
 
@@ -1615,7 +1615,7 @@ impl Default for CrossSectionApp {
             dxf_view_state: DxfViewState::default(),
             view_mode: ViewMode::Single, // デフォルトで単一横断図（モバイル向け）
             grid_columns: 3,
-            column_gap: 1.0,  // 列間隔1メートル
+            column_gap: 2.0,  // 列間隔2メートル（切削厚ラベル分）
             status_message: None,
             needs_fit: false,
             is_first_frame: true,
