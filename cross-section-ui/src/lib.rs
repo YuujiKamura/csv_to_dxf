@@ -356,9 +356,9 @@ pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
 
     // ========== 勾配テキスト（寸法線の上）==========
     add_text(&mut drawing, mid_l_x, flag_y + 600.0,
-        &format!("il={:.1}%", left_slope), text_height, 7, "TEXT", TextAlign::Center);
+        &format!("{:.1}%", left_slope), text_height, 7, "TEXT", TextAlign::Center);
     add_text(&mut drawing, mid_r_x, flag_y + 600.0,
-        &format!("ir={:.1}%", right_slope), text_height, 7, "TEXT", TextAlign::Center);
+        &format!("{:.1}%", right_slope), text_height, 7, "TEXT", TextAlign::Center);
 
     // ========== DLラベル ==========
     add_text(&mut drawing, cl_x, to_dxf_y(dl) + 300.0,  // 複数横断図と共通
@@ -545,8 +545,8 @@ fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
 
     let mid_l_x = (l_x + cl_x) / 2.0;
     let mid_r_x = (cl_x + r_x) / 2.0;
-    add_text(drawing, mid_l_x, flag_y + 600.0, &format!("il={:.1}%", left_slope), text_height, 7, "TEXT", TextAlign::Center);
-    add_text(drawing, mid_r_x, flag_y + 600.0, &format!("ir={:.1}%", right_slope), text_height, 7, "TEXT", TextAlign::Center);
+    add_text(drawing, mid_l_x, flag_y + 600.0, &format!("{:.1}%", left_slope), text_height, 7, "TEXT", TextAlign::Center);
+    add_text(drawing, mid_r_x, flag_y + 600.0, &format!("{:.1}%", right_slope), text_height, 7, "TEXT", TextAlign::Center);
 
     // 寸法線（幅員）- 線とテキストで描画
     let dim_base_y = flag_y;
