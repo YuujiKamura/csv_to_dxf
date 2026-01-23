@@ -33,8 +33,10 @@ web-sys = { version = "0.3", features = [
     "Blob",
     "BlobPropertyBag",
     "Url",
+    "Headers",
     "Request",
     "RequestInit",
+    "RequestMode",
     "Response",
 ] }
 js-sys = "0.3"
