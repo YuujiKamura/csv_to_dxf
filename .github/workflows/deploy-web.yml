@@ -5,9 +5,7 @@ on:
     branches: [main, master]
     paths:
       - 'cross-section-ui/**'
-      - 'data/計画.xlsx'
-      - 'src/xlsx_parser.py'
-      - 'build_from_xlsx.py'
+      - 'data/sections.json'
       - '.github/workflows/deploy-web.yml'
   workflow_dispatch:
 
@@ -32,11 +30,6 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
-
       - name: Cache Cargo
         uses: actions/cache@v4
         with:
@@ -52,18 +45,6 @@ jobs:
 
       - name: Install trunk
         run: cargo install trunk --locked || true
-
-      - name: Generate sections.json from 計画.xlsx
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install openpyxl
-          if [ -n "$GEMINI_API_KEY" ]; then
-            python src/xlsx_parser.py data/計画.xlsx data/sections.json
-          else
-            python src/xlsx_parser.py data/計画.xlsx data/sections.json --local-only
-          fi
 
       - name: Build WASM with trunk
         working-directory: ./cross-section-ui
