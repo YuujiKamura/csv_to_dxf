@@ -2531,6 +2531,26 @@ impl eframe::App for CrossSectionApp {
 
             if let Some(ref drawing) = self.dxf_drawing {
                 render_dxf(&painter, drawing, &self.dxf_view_state);
+
+                // ズームセンター（マウス位置）にレティクル描画
+                if let Some(mouse_pos) = response.hover_pos() {
+                    let reticle_size = 15.0;
+                    let reticle_color = Color32::from_rgba_unmultiplied(255, 0, 0, 180);
+                    // 横線
+                    painter.line_segment(
+                        [Pos2::new(mouse_pos.x - reticle_size, mouse_pos.y),
+                         Pos2::new(mouse_pos.x + reticle_size, mouse_pos.y)],
+                        egui::Stroke::new(1.5, reticle_color)
+                    );
+                    // 縦線
+                    painter.line_segment(
+                        [Pos2::new(mouse_pos.x, mouse_pos.y - reticle_size),
+                         Pos2::new(mouse_pos.x, mouse_pos.y + reticle_size)],
+                        egui::Stroke::new(1.5, reticle_color)
+                    );
+                    // 中心円
+                    painter.circle_stroke(mouse_pos, 5.0, egui::Stroke::new(1.5, reticle_color));
+                }
             } else {
                 // ローディングアニメーション
                 self.loading_frame += 1;
