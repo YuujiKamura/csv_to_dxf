@@ -236,15 +236,18 @@ pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
 
     let dl = round_dl(section.dl);
 
+    // CLを原点（x=0）にするためのオフセット
+    let cl_data = &data[section.cl_index.min(data.len() - 1)];
+    let cl_offset = cl_data.cumulative_distance;
+
     let to_dxf_x = |cumulative_distance: f64| -> f64 {
-        cumulative_distance * scale
+        (cumulative_distance - cl_offset) * scale  // CLが原点に来るようにオフセット
     };
     let to_dxf_y = |height: f64| -> f64 {
         (height - dl) * scale
     };
 
     let l_data = &data[0];
-    let cl_data = &data[section.cl_index.min(data.len() - 1)];
     let r_data = &data[data.len() - 1];
 
     let left_distance = (cl_data.cumulative_distance - l_data.cumulative_distance).abs();
@@ -339,7 +342,7 @@ pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
         &format!("ir={:.1}%", right_slope), text_height, 7, "TEXT", TextAlign::Center);
 
     // ========== DLラベル ==========
-    add_text(&mut drawing, cl_x, to_dxf_y(dl) - 400.0,  // 2倍
+    add_text(&mut drawing, cl_x, to_dxf_y(dl) + 300.0,  // 複数横断図と共通
         &format!("DL={:.3}", dl), text_height, 7, "TEXT", TextAlign::Left);
 
     // ========== 切削厚表示（DLライン上部） ==========
@@ -583,7 +586,7 @@ fn is_plus_stake(name: &str) -> bool {
 pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
     // スケール設定（DXF単位）
     let scale_x = 100.0;     // 横方向スケール（1m = 100単位）
-    let scale_y = 200.0;     // 縦方向スケール（1m = 200単位）縦横比 2:1
+    let scale_y = 500.0;     // 縦方向スケール（1m = 500単位）縦横比 5:1
     let text_height = 150.0; // 基本テキスト高さ（横断図と同じ）
     let label_width = 750.0; // 左側のラベル幅
     let _title_height = 0.0; // タイトルなし（ピッチリ）
@@ -686,6 +689,16 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
             text_height * 0.9, 7, "TEXT", TextAlign::Left, VerticalAlign::Bottom, 0.0);
         elev += grid_step;
     }
+
+    // 縮尺比率と単位の注釈（DL付近、標高ラベルの左側に配置）
+    let dl_y = to_dxf_y(dl);
+    let annotation_x = 50.0;  // 左端寄り
+    // 縮尺比率: V:H=5:1
+    add_text_rotated(&mut drawing, annotation_x, dl_y + scale_y * 0.3,
+        "V:H=5:1", text_height * 0.8, 5, "ANNOTATION", TextAlign::Left, VerticalAlign::Bottom, 0.0);
+    // 単位 (m)
+    add_text_rotated(&mut drawing, annotation_x, dl_y + scale_y * 0.8,
+        "単位(m)", text_height * 0.8, 7, "TEXT", TextAlign::Left, VerticalAlign::Bottom, 0.0);
 
     // グラフ枠線
     add_line(&mut drawing, label_width, 0.0, label_width + graph_width, 0.0, 7, "TABLE");
