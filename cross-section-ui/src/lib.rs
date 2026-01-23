@@ -575,6 +575,13 @@ fn is_plus_stake(name: &str) -> bool {
 
 /// 縦断図を生成（土木標準形式）
 pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
+    // スケール設定（DXF単位）
+    let scale_x = 100.0;     // 横方向スケール（1m = 100単位）
+    let scale_y = 200.0;     // 縦方向スケール（1m = 200単位）縦横比 2:1
+    let text_height = 150.0; // 基本テキスト高さ（横断図と同じ）
+    let label_width = 750.0; // 左側のラベル幅
+    let _title_height = 0.0; // タイトルなし（ピッチリ）
+
     let mut drawing = Drawing::new();
     drawing.header.version = dxf::enums::AcadVersion::R2000;
 
@@ -595,6 +602,7 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
     }
 
     // データ収集（路線距離順にソート）
+    // route_distanceがあればそれを優先、なければ測点名からパース
     let mut points: Vec<(f64, f64, f64, String)> = sections.iter().map(|s| {
         let cl = &s.survey_data[s.cl_index.min(s.survey_data.len() - 1)];
         let dist = s.route_distance.unwrap_or_else(|| parse_station_distance(&s.survey_point_name));
@@ -604,34 +612,15 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
 
     if points.is_empty() { return drawing; }
 
-    // 範囲計算
-    let min_dist = points.first().map(|p| p.0).unwrap_or(0.0);
-    let max_dist = points.last().map(|p| p.0).unwrap_or(100.0);
-    let route_length = max_dist - min_dist;
-
-    // A3横サイズ: 420mm x 297mm
-    // 図面枠内の使用可能領域（マージン考慮）: 約380mm x 260mm
-    // 左側ラベル幅を引いた描画可能幅: 約300mm
-    let a3_drawable_width = 300.0;  // mm
-    let vertical_exaggeration = 10.0;  // 縦方向強調倍率（一般的に10倍）
-
-    // 路線長からスケールを自動計算（A3に収まるように）
-    // scale_x = 描画幅(mm) / 路線長(m) → mm/m
-    let scale_x = if route_length > 0.0 {
-        a3_drawable_width / route_length
-    } else {
-        1.0
-    };
-    let scale_y = scale_x * vertical_exaggeration;
-
-    // テキストと表の高さはスケールに比例
-    let text_height = scale_x * 1.5;  // 路線長に対して適切なサイズ
-    let label_width = scale_x * 8.0;  // ラベル幅もスケールに比例
-    let row_height = scale_x * 8.0;   // 行高さもスケールに比例
-
+    // 通常行の高さ（固定）
+    let row_height = 750.0;
     // 測点名行の高さ（最大文字数に基づいて計算）
     let max_name_len = points.iter().map(|p| p.3.chars().count()).max().unwrap_or(6);
     let station_row_height = (max_name_len as f64 * text_height * 1.0).max(row_height);
+
+    // 範囲計算
+    let min_dist = points.first().map(|p| p.0).unwrap_or(0.0);
+    let max_dist = points.last().map(|p| p.0).unwrap_or(100.0);
     let min_elev = points.iter().map(|p| p.1.min(p.2)).fold(f64::MAX, f64::min);
     let max_elev = points.iter().map(|p| p.1.max(p.2)).fold(f64::MIN, f64::max);
 
