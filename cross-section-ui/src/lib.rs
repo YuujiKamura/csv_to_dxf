@@ -18,6 +18,8 @@ pub use title_block::{
     draw_top_title,
     draw_title_block,
     draw_drawing_frame,
+    generate_title_block_test_drawing,
+    generate_title_block_test_dxf_bytes,
 };
 
 // dxf crate for proper DXF file generation
@@ -2004,6 +2006,7 @@ enum ViewMode {
     Combo,       // 縦断図＋全横断図
     AreaExpansion, // 面積展開図
     AlignTest,   // アライメントテスト
+    TitleBlock,  // タイトル枠テスト
 }
 
 pub struct CrossSectionApp {
@@ -2152,6 +2155,9 @@ impl CrossSectionApp {
         let drawing = match self.view_mode {
             ViewMode::AlignTest => {
                 generate_alignment_test_drawing()
+            }
+            ViewMode::TitleBlock => {
+                generate_title_block_test_drawing()
             }
             ViewMode::Combo if !filtered.is_empty() => {
                 generate_combo_drawing(&filtered, self.grid_columns, self.column_gap)
@@ -2328,6 +2334,7 @@ impl eframe::App for CrossSectionApp {
                             ViewMode::Longitudinal => "縦断",
                             ViewMode::AreaExpansion => "展開図",
                             ViewMode::AlignTest => "テスト",
+                            ViewMode::TitleBlock => "図枠",
                         };
                         let response = egui::ComboBox::from_id_salt("view_mode_select")
                             .selected_text(mode_text)
@@ -2352,6 +2359,9 @@ impl eframe::App for CrossSectionApp {
                                 }
                                 if ui.selectable_label(self.view_mode == ViewMode::AlignTest, "アライメントテスト").clicked() {
                                     selected = Some(ViewMode::AlignTest);
+                                }
+                                if ui.selectable_label(self.view_mode == ViewMode::TitleBlock, "タイトル枠").clicked() {
+                                    selected = Some(ViewMode::TitleBlock);
                                 }
                                 selected
                             });
@@ -2430,6 +2440,12 @@ impl eframe::App for CrossSectionApp {
                                 if ui.button("DXF").clicked() {
                                     let dxf_content = generate_alignment_test_dxf_bytes();
                                     download_file("alignment_test.dxf", &dxf_content);
+                                }
+                            }
+                            ViewMode::TitleBlock => {
+                                if ui.button("DXF").clicked() {
+                                    let dxf_content = generate_title_block_test_dxf_bytes();
+                                    download_file("title_block.dxf", &dxf_content);
                                 }
                             }
                             _ => {}
@@ -2548,6 +2564,12 @@ impl eframe::App for CrossSectionApp {
                             download_file("alignment_test.dxf", &dxf_content);
                         }
                     }
+                    ViewMode::TitleBlock => {
+                        if ui.button("Download Title Block DXF").clicked() {
+                            let dxf_content = generate_title_block_test_dxf_bytes();
+                            download_file("title_block.dxf", &dxf_content);
+                        }
+                    }
                     _ if filtered_for_download.is_empty() => {}
                     ViewMode::Combo => {
                         if ui.button("Download Combo DXF").clicked() {
@@ -2612,6 +2634,9 @@ impl eframe::App for CrossSectionApp {
                     }
                     ViewMode::AlignTest => {
                         ui.label("アライメントテスト");
+                    }
+                    ViewMode::TitleBlock => {
+                        ui.label("タイトル枠テスト");
                     }
                 }
 
