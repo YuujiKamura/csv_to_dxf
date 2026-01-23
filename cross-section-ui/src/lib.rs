@@ -362,7 +362,7 @@ pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
 
     // ========== DLラベル ==========
     add_text(&mut drawing, cl_x, to_dxf_y(dl) + 300.0,  // 複数横断図と共通
-        &format!("DL={:.3}", dl), text_height, 7, "TEXT", TextAlign::Left);
+        &format!("DL={:.3}  Scale:H1:V2", dl), text_height, 7, "TEXT", TextAlign::Left);
 
     // ========== 切削厚表示（DLライン上部） ==========
     let cutting_text_height = text_height;  // GH等と同じサイズ
@@ -561,7 +561,7 @@ fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
     add_dimension_as_lines(drawing, cl_x, r_x, dim_base_y,
         &format!("{:.2}", right_width), text_height, 7, "DIMENSION");
 
-    add_text(drawing, cl_x, to_dxf_y(dl) + 300.0, &format!("DL={:.3}", dl), text_height, 7, "TEXT", TextAlign::Left);
+    add_text(drawing, cl_x, to_dxf_y(dl) + 300.0, &format!("DL={:.3}  Scale:H1:V2", dl), text_height, 7, "TEXT", TextAlign::Left);
 
     // ========== 切削厚表示（DLライン上部） ==========
     let cutting_text_height = text_height;  // GH等と同じサイズ
