@@ -21,16 +21,45 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      needs_wasm_build: ${{ steps.check.outputs.needs_wasm_build }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check what changed
+        id: check
+        run: |
+          # 変更されたファイルをチェック
+          CHANGED=$(git diff --name-only HEAD^ HEAD 2>/dev/null || echo "")
+          echo "Changed files: $CHANGED"
+
+          # cross-section-ui/ の変更があるかチェック
+          if echo "$CHANGED" | grep -q "^cross-section-ui/"; then
+            echo "needs_wasm_build=true" >> $GITHUB_OUTPUT
+          else
+            echo "needs_wasm_build=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Restore dist cache
+        id: cache-dist
+        uses: actions/cache@v4
+        with:
+          path: cross-section-ui/dist
+          key: dist-${{ hashFiles('cross-section-ui/**/*.rs', 'cross-section-ui/Cargo.*', 'cross-section-ui/index.html') }}
+          restore-keys: |
+            dist-
 
       - name: Setup Rust
+        if: steps.check.outputs.needs_wasm_build == 'true' || steps.cache-dist.outputs.cache-hit != 'true'
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
 
       - name: Cache Cargo
+        if: steps.check.outputs.needs_wasm_build == 'true' || steps.cache-dist.outputs.cache-hit != 'true'
         uses: actions/cache@v4
         with:
           path: |
@@ -44,11 +73,26 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Install trunk
+        if: steps.check.outputs.needs_wasm_build == 'true' || steps.cache-dist.outputs.cache-hit != 'true'
         run: cargo install trunk --locked || true
 
       - name: Build WASM with trunk
+        if: steps.check.outputs.needs_wasm_build == 'true' || steps.cache-dist.outputs.cache-hit != 'true'
         working-directory: ./cross-section-ui
         run: trunk build --release --public-url /csv_to_dxf/
+
+      - name: Update sections.json only
+        if: steps.check.outputs.needs_wasm_build == 'false' && steps.cache-dist.outputs.cache-hit == 'true'
+        run: |
+          echo "Skipping WASM build, only updating sections.json"
+          cp data/sections.json cross-section-ui/dist/
+
+      - name: Save dist cache
+        if: steps.check.outputs.needs_wasm_build == 'true' || steps.cache-dist.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: cross-section-ui/dist
+          key: dist-${{ hashFiles('cross-section-ui/**/*.rs', 'cross-section-ui/Cargo.*', 'cross-section-ui/index.html') }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
