@@ -876,16 +876,21 @@ pub fn generate_combo_drawing(sections: &[CrossSectionData], columns: usize, col
         return Drawing::new();
     }
 
+    // 面積展開図を生成し、バウンディングボックスを取得
+    let area_expansion = generate_area_expansion_drawing(sections);
+    let (area_min_x, area_min_y, area_max_x, area_max_y) = calc_dxf_bounds(&area_expansion);
+    let area_height = area_max_y - area_min_y;
+    let area_center_x = (area_min_x + area_max_x) / 2.0;
+
     // 縦断図を生成し、バウンディングボックスを取得
     let longitudinal = generate_longitudinal_drawing(sections);
-    let (long_min_x, long_min_y, long_max_x, _long_max_y) = calc_dxf_bounds(&longitudinal);
-    let _long_width = long_max_x - long_min_x;
+    let (long_min_x, long_min_y, long_max_x, long_max_y) = calc_dxf_bounds(&longitudinal);
+    let long_height = long_max_y - long_min_y;
     let long_center_x = (long_min_x + long_max_x) / 2.0;
 
     // 横断図グリッド（指定列数・間隔を使用）
     let multi = generate_multi_drawing(sections, columns, column_gap);
     let (multi_min_x, multi_min_y, multi_max_x, multi_max_y) = calc_dxf_bounds(&multi);
-    let multi_width = multi_max_x - multi_min_x;
     let multi_height = multi_max_y - multi_min_y;
     let multi_center_x = (multi_min_x + multi_max_x) / 2.0;
 
@@ -893,12 +898,20 @@ pub fn generate_combo_drawing(sections: &[CrossSectionData], columns: usize, col
     let mut drawing = Drawing::new();
     drawing.header.version = dxf::enums::AcadVersion::R2000;
 
-    // 両方のレイヤーをマージ
-    for layer in longitudinal.layers() {
+    // 全てのレイヤーをマージ
+    for layer in area_expansion.layers() {
         let mut new_layer = dxf::tables::Layer::default();
         new_layer.name = layer.name.clone();
         new_layer.color = layer.color.clone();
         drawing.add_layer(new_layer);
+    }
+    for layer in longitudinal.layers() {
+        if drawing.layers().find(|l| l.name == layer.name).is_none() {
+            let mut new_layer = dxf::tables::Layer::default();
+            new_layer.name = layer.name.clone();
+            new_layer.color = layer.color.clone();
+            drawing.add_layer(new_layer);
+        }
     }
     for layer in multi.layers() {
         if drawing.layers().find(|l| l.name == layer.name).is_none() {
@@ -910,21 +923,27 @@ pub fn generate_combo_drawing(sections: &[CrossSectionData], columns: usize, col
     }
 
     // === レイアウト計算 ===
-    // 間隔なし（ピッチリ）
-    let spacing = 0.0;
+    // 間隔（図面間のスペース）
+    let spacing = 2000.0; // 2m間隔
 
-    // X方向: センタリング（縦断図の中心に横断図の中心を合わせる）
-    let multi_x_offset = long_center_x - multi_center_x;
-
-    // Y方向: 縦断図の下に横断図を配置
-    let multi_y_offset = long_min_y - spacing - multi_height;
-
+    // 基準: 縦断図を原点に配置
     // 縦断図のエンティティをそのままコピー
     for entity in longitudinal.entities() {
         drawing.add_entity(entity.clone());
     }
 
-    // 全横断図のエンティティをXY両方オフセットしてコピー
+    // 面積展開図: 縦断図の上に配置
+    let area_x_offset = long_center_x - area_center_x;
+    let area_y_offset = long_max_y + spacing - area_min_y;
+    for entity in area_expansion.entities() {
+        let mut shifted_entity = entity.clone();
+        shift_entity_xy(&mut shifted_entity, area_x_offset as f64, area_y_offset as f64);
+        drawing.add_entity(shifted_entity);
+    }
+
+    // 横断図グリッド: 縦断図の下に配置
+    let multi_x_offset = long_center_x - multi_center_x;
+    let multi_y_offset = long_min_y - spacing - multi_height;
     for entity in multi.entities() {
         let mut shifted_entity = entity.clone();
         shift_entity_xy(&mut shifted_entity, multi_x_offset as f64, (multi_y_offset - multi_min_y) as f64);
