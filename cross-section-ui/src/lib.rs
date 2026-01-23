@@ -1932,7 +1932,7 @@ impl eframe::App for CrossSectionApp {
                     if self.view_mode == ViewMode::AllGrid || self.view_mode == ViewMode::Combo {
                         ui.horizontal_wrapped(|ui| {
                             ui.label(format!("{}列", self.grid_columns));
-                            if ui.small_button("+").clicked() && self.grid_columns < 5 {
+                            if ui.small_button("+").clicked() && self.grid_columns < 10 {
                                 self.grid_columns += 1;
                                 self.update_dxf_preview();
                             }
@@ -2071,7 +2071,7 @@ impl eframe::App for CrossSectionApp {
                 if self.view_mode == ViewMode::AllGrid || self.view_mode == ViewMode::Combo {
                     ui.horizontal(|ui| {
                         ui.label(format!("{}列", self.grid_columns));
-                        if ui.small_button("+").clicked() && self.grid_columns < 5 {
+                        if ui.small_button("+").clicked() && self.grid_columns < 10 {
                             self.grid_columns += 1;
                             self.update_dxf_preview();
                         }
