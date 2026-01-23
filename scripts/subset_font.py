@@ -10,6 +10,7 @@ from pathlib import Path
 # プロジェクトルート
 PROJECT_ROOT = Path(__file__).parent.parent
 RUST_SRC = PROJECT_ROOT / "cross-section-ui" / "src" / "lib.rs"
+DATA_DIR = PROJECT_ROOT / "data"
 FONT_SRC = PROJECT_ROOT / "cross-section-ui" / "static" / "NotoSansJP-Regular.ttf"
 FONT_DST = PROJECT_ROOT / "cross-section-ui" / "static" / "NotoSansJP-Subset.ttf"
 
@@ -27,14 +28,32 @@ BASE_CHARS = (
     "㎜㎝ｍ㎞²³"
 )
 
-def extract_chars_from_rust(filepath: Path) -> set:
-    """Rustソースから文字を抽出"""
-    text = filepath.read_text(encoding="utf-8")
-    # 文字列リテラル内の文字を抽出
+def extract_japanese_chars(text: str) -> set:
+    """テキストから日本語文字を抽出"""
     chars = set()
     # 日本語文字（ひらがな、カタカナ、漢字）
     japanese = re.findall(r'[ぁ-んァ-ヶー一-龯々〆〤]', text)
     chars.update(japanese)
+    return chars
+
+def extract_chars_from_rust(filepath: Path) -> set:
+    """Rustソースから文字を抽出"""
+    text = filepath.read_text(encoding="utf-8")
+    return extract_japanese_chars(text)
+
+def extract_chars_from_data(data_dir: Path) -> set:
+    """データファイル（JSON, CSV）から文字を抽出"""
+    chars = set()
+    for pattern in ["*.json", "*.csv"]:
+        for filepath in data_dir.glob(pattern):
+            try:
+                text = filepath.read_text(encoding="utf-8")
+                extracted = extract_japanese_chars(text)
+                chars.update(extracted)
+                if extracted:
+                    print(f"  {filepath.name}: {len(extracted)} 文字")
+            except Exception as e:
+                print(f"  {filepath.name}: 読み込みエラー ({e})")
     return chars
 
 def main():
@@ -48,6 +67,13 @@ def main():
         rust_chars = extract_chars_from_rust(RUST_SRC)
         chars.update(rust_chars)
         print(f"Rustソースから {len(rust_chars)} 文字抽出")
+
+    # データファイルから抽出
+    if DATA_DIR.exists():
+        print("データファイルから抽出:")
+        data_chars = extract_chars_from_data(DATA_DIR)
+        chars.update(data_chars)
+        print(f"データファイルから {len(data_chars)} 文字抽出")
 
     # ユニコードポイントのリストを作成
     unicodes = ",".join(f"U+{ord(c):04X}" for c in sorted(chars))
