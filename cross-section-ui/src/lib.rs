@@ -751,7 +751,7 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
             let d_elev = next.2 - fh;
             if d_dist.abs() > 0.001 {
                 let slope_pct = (d_elev / d_dist) * 100.0;
-                let slope_str = format!("{:.3}%", slope_pct);
+                let slope_str = format!("{:+.3}%", slope_pct);  // 符号を明示
                 // 勾配: -90°回転（他と同じ）
                 let slope_y = table_top - 0.0 * row_height - 30.0;
                 let slope_mid_x = (x + to_dxf_x(next.0)) / 2.0;
