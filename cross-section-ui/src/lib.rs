@@ -41,6 +41,7 @@ fn add_text(drawing: &mut Drawing, x: f64, y: f64, text: &str, height: f64, colo
     t.location = Point::new(x, y, 0.0);
     t.text_height = height;
     t.value = text.to_string();
+    t.relative_x_scale_factor = 1.0;  // 幅が引き伸ばされるのを防止
     t.horizontal_text_justification = match align {
         TextAlign::Left => HorizontalTextJustification::Left,
         TextAlign::Center => HorizontalTextJustification::Center,
@@ -70,6 +71,7 @@ fn add_text_rotated(
     t.text_height = height;
     t.value = text.to_string();
     t.rotation = rotation;
+    t.relative_x_scale_factor = 1.0;  // 幅が引き伸ばされるのを防止
 
     t.horizontal_text_justification = match align {
         TextAlign::Left => HorizontalTextJustification::Left,
