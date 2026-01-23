@@ -1215,8 +1215,15 @@ pub fn generate_area_expansion_drawing(sections: &[CrossSectionData]) -> Drawing
 
     for station in &stations {
         let x = station.x;
+        // 測点名テキスト
         add_text_rotated(&mut drawing, x, y_name_base, &station.name, text_height * 1.2,
             5, "TENKAI_STATION", TextAlign::Left, VerticalAlign::Middle, -90.0);
+        // アンダーライン（テキストの左側に縦線）
+        let underline_x = x - text_height * 0.5;
+        let name_len = station.name.chars().count() as f64;
+        let underline_y1 = y_name_base;
+        let underline_y2 = y_name_base - name_len * text_height * 0.8;
+        add_line(&mut drawing, underline_x, underline_y1, underline_x, underline_y2, 5, "TENKAI_STATION");
     }
 
     drawing
