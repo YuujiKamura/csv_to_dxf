@@ -1034,6 +1034,172 @@ pub fn generate_combo_dxf_bytes(sections: &[CrossSectionData], columns: usize, c
 }
 
 // ============================================================================
+// Area Expansion Drawing (面積展開図)
+// ============================================================================
+
+/// 面積展開図を生成
+/// X軸: 累積距離（route_distance * 1000）
+/// Y軸: 左幅員が正、右幅員が負
+pub fn generate_area_expansion_drawing(sections: &[CrossSectionData]) -> Drawing {
+    let scale = 1000.0; // mm単位
+    let text_height = 200.0;
+    let station_text_offset = 500.0; // 測点名のオフセット
+
+    let mut drawing = Drawing::new();
+    drawing.header.version = dxf::enums::AcadVersion::R2000;
+
+    // レイヤー定義
+    for (name, color_idx) in [
+        ("TENKAI_OUTLINE", 7),   // 外形線（黒）
+        ("TENKAI_WIDTH", 7),     // 幅員線（黒）
+        ("TENKAI_CENTER", 1),    // センターライン（赤）
+        ("TENKAI_STATION", 5),   // 測点名（青）
+        ("TENKAI_DIM", 7),       // 寸法テキスト（黒）
+    ] {
+        drawing.add_layer(dxf::tables::Layer {
+            name: name.to_string(),
+            color: Color::from_index(color_idx),
+            ..Default::default()
+        });
+    }
+
+    if sections.is_empty() {
+        return drawing;
+    }
+
+    // 路線距離順にソートしたデータを準備
+    let mut sorted_sections: Vec<&CrossSectionData> = sections.iter().collect();
+    sorted_sections.sort_by(|a, b| {
+        let dist_a = a.route_distance.unwrap_or_else(|| parse_station_distance(&a.survey_point_name));
+        let dist_b = b.route_distance.unwrap_or_else(|| parse_station_distance(&b.survey_point_name));
+        dist_a.partial_cmp(&dist_b).unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    // 各測点のX位置と幅員を収集
+    struct StationInfo {
+        x: f64,           // X座標（累積距離 * scale）
+        wl: f64,          // 左幅員（正）
+        wr: f64,          // 右幅員（正、描画時は負方向）
+        name: String,     // 測点名
+        dist: f64,        // 元の路線距離
+    }
+
+    let mut stations: Vec<StationInfo> = Vec::new();
+
+    for section in &sorted_sections {
+        let dist = section.route_distance.unwrap_or_else(|| parse_station_distance(&section.survey_point_name));
+        let x = dist * scale;
+
+        // 左幅員: L端からCLまでの距離
+        let wl = section.l_to_cl_distance;
+
+        // 右幅員: survey_dataの最後の点のcumulative_distance（CLからの距離）
+        let wr = if let Some(last) = section.survey_data.last() {
+            last.cumulative_distance.abs()
+        } else {
+            0.0
+        };
+
+        stations.push(StationInfo {
+            x,
+            wl,
+            wr,
+            name: section.survey_point_name.clone(),
+            dist,
+        });
+    }
+
+    if stations.is_empty() {
+        return drawing;
+    }
+
+    // ========== 描画 ==========
+
+    // 各測点での垂直線（幅員線）
+    for station in &stations {
+        let x = station.x;
+        let y_top = station.wl * scale;     // 左幅員（上方向）
+        let y_bottom = -station.wr * scale; // 右幅員（下方向）
+
+        // 幅員線（垂直）
+        add_line(&mut drawing, x, y_bottom, x, y_top, 7, "TENKAI_WIDTH");
+    }
+
+    // センターライン（Y=0で測点間を接続）
+    for i in 0..stations.len() - 1 {
+        let x1 = stations[i].x;
+        let x2 = stations[i + 1].x;
+        add_line(&mut drawing, x1, 0.0, x2, 0.0, 1, "TENKAI_CENTER");
+    }
+
+    // 外形線（上端・下端を測点間で接続）
+    for i in 0..stations.len() - 1 {
+        let x1 = stations[i].x;
+        let x2 = stations[i + 1].x;
+        let y1_top = stations[i].wl * scale;
+        let y2_top = stations[i + 1].wl * scale;
+        let y1_bottom = -stations[i].wr * scale;
+        let y2_bottom = -stations[i + 1].wr * scale;
+
+        // 上端（左幅員側）
+        add_line(&mut drawing, x1, y1_top, x2, y2_top, 7, "TENKAI_OUTLINE");
+        // 下端（右幅員側）
+        add_line(&mut drawing, x1, y1_bottom, x2, y2_bottom, 7, "TENKAI_OUTLINE");
+    }
+
+    // 延長寸法（測点間中央、Y=0）
+    for i in 0..stations.len() - 1 {
+        let x1 = stations[i].x;
+        let x2 = stations[i + 1].x;
+        let mid_x = (x1 + x2) / 2.0;
+        let extension = (stations[i + 1].dist - stations[i].dist).abs();
+        let text = format!("{:.2}", extension);
+        add_text(&mut drawing, mid_x, text_height * 0.5, &text, text_height, 7, "TENKAI_DIM", TextAlign::Center);
+    }
+
+    // 幅員寸法（-90°回転、幅員線の外側）
+    for station in &stations {
+        let x = station.x;
+
+        // 左幅員（上側外側に配置）
+        if station.wl > 0.0 {
+            let y_text = station.wl * scale + station_text_offset;
+            let text = format!("{:.2}", station.wl);
+            add_text_rotated(&mut drawing, x - text_height * 0.3, y_text, &text, text_height,
+                7, "TENKAI_DIM", TextAlign::Left, VerticalAlign::Middle, -90.0);
+        }
+
+        // 右幅員（下側外側に配置）
+        if station.wr > 0.0 {
+            let y_text = -station.wr * scale - station_text_offset;
+            let text = format!("{:.2}", station.wr);
+            add_text_rotated(&mut drawing, x - text_height * 0.3, y_text, &text, text_height,
+                7, "TENKAI_DIM", TextAlign::Right, VerticalAlign::Middle, -90.0);
+        }
+    }
+
+    // 測点名（-90°回転、青色、上端オフセット）
+    for station in &stations {
+        let x = station.x;
+        let y_top = station.wl * scale;
+        let y_name = y_top + station_text_offset * 2.0 + text_height;
+
+        add_text_rotated(&mut drawing, x, y_name, &station.name, text_height * 1.2,
+            5, "TENKAI_STATION", TextAlign::Left, VerticalAlign::Middle, -90.0);
+    }
+
+    drawing
+}
+
+/// 面積展開図のDXFバイト列を生成
+pub fn generate_area_expansion_dxf_bytes(sections: &[CrossSectionData]) -> Vec<u8> {
+    let drawing = generate_area_expansion_drawing(sections);
+    let mut output: Vec<u8> = Vec::new();
+    drawing.save(&mut output).expect("Failed to save DXF");
+    output
+}
+
+// ============================================================================
 // DXF Renderer
 // ============================================================================
 
@@ -1631,6 +1797,7 @@ enum ViewMode {
     AllGrid,     // 全横断図グリッド
     Longitudinal, // 縦断図
     Combo,       // 縦断図＋全横断図
+    AreaExpansion, // 面積展開図
     AlignTest,   // アライメントテスト
 }
 
@@ -1784,6 +1951,9 @@ impl CrossSectionApp {
             }
             ViewMode::Longitudinal if !filtered.is_empty() => {
                 generate_longitudinal_drawing(&filtered)
+            }
+            ViewMode::AreaExpansion if !filtered.is_empty() => {
+                generate_area_expansion_drawing(&filtered)
             }
             _ => {
                 if let Some(idx) = self.selected_index {
@@ -1943,6 +2113,7 @@ impl eframe::App for CrossSectionApp {
                             ViewMode::Single => "単一",
                             ViewMode::AllGrid => "全横断",
                             ViewMode::Longitudinal => "縦断",
+                            ViewMode::AreaExpansion => "展開図",
                             ViewMode::AlignTest => "テスト",
                         };
                         let response = egui::ComboBox::from_id_salt("view_mode_select")
@@ -1962,6 +2133,9 @@ impl eframe::App for CrossSectionApp {
                                 }
                                 if ui.selectable_label(self.view_mode == ViewMode::Longitudinal, "縦断図").clicked() {
                                     selected = Some(ViewMode::Longitudinal);
+                                }
+                                if ui.selectable_label(self.view_mode == ViewMode::AreaExpansion, "面積展開図").clicked() {
+                                    selected = Some(ViewMode::AreaExpansion);
                                 }
                                 if ui.selectable_label(self.view_mode == ViewMode::AlignTest, "アライメントテスト").clicked() {
                                     selected = Some(ViewMode::AlignTest);
@@ -2020,6 +2194,12 @@ impl eframe::App for CrossSectionApp {
                                 if ui.button("DXF").clicked() {
                                     let dxf_content = generate_longitudinal_dxf_bytes(&filtered_for_dxf);
                                     download_file("longitudinal.dxf", &dxf_content);
+                                }
+                            }
+                            ViewMode::AreaExpansion if !filtered_for_dxf.is_empty() => {
+                                if ui.button("DXF").clicked() {
+                                    let dxf_content = generate_area_expansion_dxf_bytes(&filtered_for_dxf);
+                                    download_file("area_expansion.dxf", &dxf_content);
                                 }
                             }
                             ViewMode::Single => {
@@ -2112,6 +2292,10 @@ impl eframe::App for CrossSectionApp {
                         self.view_mode = ViewMode::Longitudinal;
                         self.update_dxf_preview();
                     }
+                    if ui.selectable_label(self.view_mode == ViewMode::AreaExpansion, "展開図").clicked() {
+                        self.view_mode = ViewMode::AreaExpansion;
+                        self.update_dxf_preview();
+                    }
                 });
 
                 // AllGrid/Comboモード時の列数・間隔調整
@@ -2170,6 +2354,12 @@ impl eframe::App for CrossSectionApp {
                             download_file("longitudinal.dxf", &dxf_content);
                         }
                     }
+                    ViewMode::AreaExpansion => {
+                        if ui.button("Download 展開図 DXF").clicked() {
+                            let dxf_content = generate_area_expansion_dxf_bytes(&filtered_for_download);
+                            download_file("area_expansion.dxf", &dxf_content);
+                        }
+                    }
                     ViewMode::Single => {
                         if let Some(idx) = self.selected_index {
                             if let Some(section) = filtered_for_download.get(idx) {
@@ -2203,6 +2393,9 @@ impl eframe::App for CrossSectionApp {
                     }
                     ViewMode::Longitudinal => {
                         ui.label(format!("縦断図 ({}測点)", filtered_count));
+                    }
+                    ViewMode::AreaExpansion => {
+                        ui.label(format!("面積展開図 ({}測点)", filtered_count));
                     }
                     ViewMode::AlignTest => {
                         ui.label("アライメントテスト");
