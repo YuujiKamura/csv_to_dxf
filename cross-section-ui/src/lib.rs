@@ -2525,6 +2525,10 @@ impl eframe::App for CrossSectionApp {
                         self.view_mode = ViewMode::AreaExpansion;
                         self.update_dxf_preview();
                     }
+                    if ui.selectable_label(self.view_mode == ViewMode::TitleBlock, "図枠").clicked() {
+                        self.view_mode = ViewMode::TitleBlock;
+                        self.update_dxf_preview();
+                    }
                 });
 
                 // AllGrid/Comboモード時の列数・間隔調整
