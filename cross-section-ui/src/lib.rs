@@ -36,10 +36,10 @@ fn new_drawing() -> Drawing {
     let mut drawing = Drawing::new();
     drawing.header.version = dxf::enums::AcadVersion::R2000;
 
-    // テキストスタイル作成（MSPゴシック）
+    // テキストスタイル作成（Noto Sans JP - Web/DXF共通）
     let mut style = dxf::tables::Style::default();
-    style.name = "MSPGOTHIC".to_string();
-    style.primary_font_file_name = "MS Pゴシック".to_string();
+    style.name = "NOTOSANSJP".to_string();
+    style.primary_font_file_name = "Noto Sans JP".to_string();
     style.width_factor = 1.0;
     drawing.add_style(style);
 
@@ -56,7 +56,7 @@ fn add_text(drawing: &mut Drawing, x: f64, y: f64, text: &str, height: f64, colo
     t.location = Point::new(x, y, 0.0);
     t.text_height = height;
     t.value = text.to_string();
-    t.text_style_name = "MSPGOTHIC".to_string();
+    t.text_style_name = "NOTOSANSJP".to_string();
     t.relative_x_scale_factor = 1.0;  // 幅が引き伸ばされるのを防止
     t.horizontal_text_justification = match align {
         TextAlign::Left => HorizontalTextJustification::Left,
@@ -87,7 +87,7 @@ fn add_text_rotated(
     t.text_height = height;
     t.value = text.to_string();
     t.rotation = rotation;
-    t.text_style_name = "MSPGOTHIC".to_string();
+    t.text_style_name = "NOTOSANSJP".to_string();
     t.relative_x_scale_factor = 1.0;  // 幅が引き伸ばされるのを防止
 
     t.horizontal_text_justification = match align {
