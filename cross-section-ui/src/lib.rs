@@ -1207,12 +1207,15 @@ pub fn generate_area_expansion_drawing(sections: &[CrossSectionData]) -> Drawing
     }
 
     // 測点名（-90°回転、青色、上端オフセット）
+    // 最大文字数から高さを計算
+    let max_name_len = stations.iter().map(|s| s.name.chars().count()).max().unwrap_or(6);
+    let station_name_height = max_name_len as f64 * text_height * 0.8;
+    let max_wl = stations.iter().map(|s| s.wl).fold(0.0_f64, f64::max);
+    let y_name_base = max_wl * scale_y + station_text_offset + station_name_height;
+
     for station in &stations {
         let x = station.x;
-        let y_top = station.wl * scale_y;
-        let y_name = y_top + station_text_offset * 2.0 + text_height;
-
-        add_text_rotated(&mut drawing, x, y_name, &station.name, text_height * 1.2,
+        add_text_rotated(&mut drawing, x, y_name_base, &station.name, text_height * 1.2,
             5, "TENKAI_STATION", TextAlign::Left, VerticalAlign::Middle, -90.0);
     }
 
