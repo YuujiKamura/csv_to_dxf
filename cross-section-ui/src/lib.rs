@@ -637,7 +637,7 @@ fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
     let pointer_size = 150.0;
     for (i, pt) in data.iter().enumerate() {
         let x = to_dxf_x(pt.cumulative_distance);
-        let y = to_dxf_y(pt.elevation);
+        let y = to_dxf_y(pt.planned_height);  // 計画高を基準
         let top_y = y + pointer_size;
         let half_w = pointer_size * 0.6;
         add_line(drawing, x - half_w, top_y, x + half_w, top_y, 5, "CUTTING");
