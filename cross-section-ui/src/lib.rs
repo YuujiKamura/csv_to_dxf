@@ -31,6 +31,21 @@ fn add_line(drawing: &mut Drawing, x1: f64, y1: f64, x2: f64, y2: f64, color: i1
     drawing.add_entity(entity);
 }
 
+/// Drawing初期化（共通設定：バージョン、テキストスタイル）
+fn new_drawing() -> Drawing {
+    let mut drawing = Drawing::new();
+    drawing.header.version = dxf::enums::AcadVersion::R2000;
+
+    // テキストスタイル作成（MSPゴシック）
+    let mut style = dxf::tables::Style::default();
+    style.name = "MSPGOTHIC".to_string();
+    style.primary_font_file_name = "MS Pゴシック".to_string();
+    style.width_factor = 1.0;
+    drawing.add_style(style);
+
+    drawing
+}
+
 /// 水平アライメント
 #[derive(Clone, Copy)]
 enum TextAlign { Left, Center, Right }
@@ -41,6 +56,7 @@ fn add_text(drawing: &mut Drawing, x: f64, y: f64, text: &str, height: f64, colo
     t.location = Point::new(x, y, 0.0);
     t.text_height = height;
     t.value = text.to_string();
+    t.text_style_name = "MSPGOTHIC".to_string();
     t.relative_x_scale_factor = 1.0;  // 幅が引き伸ばされるのを防止
     t.horizontal_text_justification = match align {
         TextAlign::Left => HorizontalTextJustification::Left,
@@ -71,6 +87,7 @@ fn add_text_rotated(
     t.text_height = height;
     t.value = text.to_string();
     t.rotation = rotation;
+    t.text_style_name = "MSPGOTHIC".to_string();
     t.relative_x_scale_factor = 1.0;  // 幅が引き伸ばされるのを防止
 
     t.horizontal_text_justification = match align {
@@ -132,8 +149,7 @@ fn round_dl(dl: f64) -> f64 {
 /// アライメントテスト用DXF生成
 /// 回転テキスト(-90°)の全アライメント組み合わせを表示
 pub fn generate_alignment_test_drawing() -> Drawing {
-    let mut drawing = Drawing::new();
-    drawing.header.version = dxf::enums::AcadVersion::R2000;
+    let mut drawing = new_drawing();
 
     let mut layer = dxf::tables::Layer::default();
     layer.name = "TEST".to_string();
@@ -202,8 +218,7 @@ pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
     let scale = 1000.0; // mm単位
     let data = &section.survey_data;
 
-    let mut drawing = Drawing::new();
-    drawing.header.version = dxf::enums::AcadVersion::R2000;  // サブクラスマーカー出力のため
+    let mut drawing = new_drawing();
 
     // レイヤー作成
     drawing.add_layer(dxf::tables::Layer {
@@ -453,8 +468,7 @@ pub fn generate_dxf_bytes(section: &CrossSectionData) -> Vec<u8> {
 pub fn generate_multi_drawing(sections: &[CrossSectionData], columns: usize, column_gap: f64) -> Drawing {
     let scale = 1000.0;
 
-    let mut drawing = Drawing::new();
-    drawing.header.version = dxf::enums::AcadVersion::R2000;
+    let mut drawing = new_drawing();
 
     for (name, color_idx) in [
         ("GROUND", 7), ("PLAN", 1), ("TEXT", 7),
@@ -695,8 +709,7 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
     let label_width = 7500.0; // 左側のラベル幅（×10）
     let _title_height = 0.0; // タイトルなし（ピッチリ）
 
-    let mut drawing = Drawing::new();
-    drawing.header.version = dxf::enums::AcadVersion::R2000;
+    let mut drawing = new_drawing();
 
     // レイヤー作成
     for (name, color_idx) in [
@@ -945,7 +958,7 @@ pub fn generate_longitudinal_dxf_bytes(sections: &[CrossSectionData]) -> Vec<u8>
 /// レイアウトマネージャ：センタリング揃え＋適切な間隔
 pub fn generate_combo_drawing(sections: &[CrossSectionData], columns: usize, column_gap: f64) -> Drawing {
     if sections.is_empty() {
-        return Drawing::new();
+        return new_drawing();
     }
 
     // 面積展開図を生成し、バウンディングボックスを取得
@@ -967,8 +980,7 @@ pub fn generate_combo_drawing(sections: &[CrossSectionData], columns: usize, col
     let multi_center_x = (multi_min_x + multi_max_x) / 2.0;
 
     // 新しいDrawingを作成
-    let mut drawing = Drawing::new();
-    drawing.header.version = dxf::enums::AcadVersion::R2000;
+    let mut drawing = new_drawing();
 
     // 全てのレイヤーをマージ
     for layer in area_expansion.layers() {
@@ -1139,8 +1151,7 @@ pub fn generate_area_expansion_drawing(sections: &[CrossSectionData]) -> Drawing
     let label_width = 7500.0; // 左側ラベル幅（×10）
     let station_text_offset = 3000.0; // 測点名のオフセット（×10）
 
-    let mut drawing = Drawing::new();
-    drawing.header.version = dxf::enums::AcadVersion::R2000;
+    let mut drawing = new_drawing();
 
     // レイヤー定義
     for (name, color_idx) in [
