@@ -59,30 +59,64 @@ pub mod available_area {
     /// 水色エリアの高さをフルに使用（上部タイトル下端 - タイトル枠上端 = 203mm）
     pub const FRAME_USABLE_HEIGHT_MM: f64 = TOP_MM - TITLE_BLOCK_TOP_MM;  // 203mm
 
-    // === 4列分割の列ごとの高さ定数 ===
-    /// 列ごとの有効高さ（4列分割）
-    /// 列0-2: タイトル枠がないため縦をフルに使える（241mm）
-    /// 列3: タイトル枠があるため高さが制限される（203mm）
-    pub const COLUMN_HEIGHTS: [f64; 4] = [
-        HEIGHT_MM - MARGIN_MM * 2.0,  // 列0: 241mm
-        HEIGHT_MM - MARGIN_MM * 2.0,  // 列1: 241mm
-        HEIGHT_MM - MARGIN_MM * 2.0,  // 列2: 241mm
-        FRAME_USABLE_HEIGHT_MM,       // 列3: 203mm (タイトル枠を避ける)
+    // === 4列均等分割の定数 ===
+    /// 列数
+    pub const COLUMN_COUNT: usize = 4;
+    /// 列幅（100mm = 400mm / 4）
+    pub const COLUMN_WIDTH_MM: f64 = FRAME_FULL_WIDTH_MM / 4.0;
+
+    /// 列ごとの左端X座標
+    pub const COLUMN_LEFTS: [f64; 4] = [
+        FRAME_LEFT,                          // 10mm
+        FRAME_LEFT + COLUMN_WIDTH_MM,        // 110mm
+        FRAME_LEFT + COLUMN_WIDTH_MM * 2.0,  // 210mm
+        FRAME_LEFT + COLUMN_WIDTH_MM * 3.0,  // 310mm
     ];
 
-    /// 列ごとの下端Y座標
-    /// 列0-2: 内枠下端 + マージン = 15mm
+    /// 列ごとの右端X座標
+    pub const COLUMN_RIGHTS: [f64; 4] = [
+        FRAME_LEFT + COLUMN_WIDTH_MM,        // 110mm
+        FRAME_LEFT + COLUMN_WIDTH_MM * 2.0,  // 210mm
+        FRAME_LEFT + COLUMN_WIDTH_MM * 3.0,  // 310mm
+        FRAME_RIGHT,                         // 410mm
+    ];
+
+    /// 列の中心X座標（横断図CL配置基準）
+    pub const COLUMN_CENTERS: [f64; 4] = [
+        FRAME_LEFT + COLUMN_WIDTH_MM * 0.5,  // 60mm
+        FRAME_LEFT + COLUMN_WIDTH_MM * 1.5,  // 160mm
+        FRAME_LEFT + COLUMN_WIDTH_MM * 2.5,  // 260mm
+        FRAME_LEFT + COLUMN_WIDTH_MM * 3.5,  // 360mm
+    ];
+
+    /// 列ごとの上端Y座標（全列共通 = 261mm）
+    pub const COLUMN_TOP: f64 = TOP_MM;
+
+    /// 列ごとの下端Y座標（ガイド枠用、マージンなし）
+    /// 列0-2: 内枠下端 = 10mm
     /// 列3: タイトル枠上端 = 58mm
     pub const COLUMN_BOTTOMS: [f64; 4] = [
-        BOTTOM_MM + MARGIN_MM,        // 列0: 15mm
-        BOTTOM_MM + MARGIN_MM,        // 列1: 15mm
-        BOTTOM_MM + MARGIN_MM,        // 列2: 15mm
-        TITLE_BLOCK_TOP_MM,           // 列3: 58mm
+        BOTTOM_MM,                           // 列0: 10mm
+        BOTTOM_MM,                           // 列1: 10mm
+        BOTTOM_MM,                           // 列2: 10mm
+        TITLE_BLOCK_TOP_MM,                  // 列3: 58mm
     ];
+
+    /// 列ごとの有効高さ（ガイド枠用、マージンなし）
+    /// 列0-2: フル高さ（251mm）
+    /// 列3: タイトル枠上のみ（203mm）
+    pub const COLUMN_HEIGHTS: [f64; 4] = [
+        HEIGHT_MM,                           // 列0: 251mm
+        HEIGHT_MM,                           // 列1: 251mm
+        HEIGHT_MM,                           // 列2: 251mm
+        FRAME_USABLE_HEIGHT_MM,              // 列3: 203mm
+    ];
+
+    // === 有効描画領域（マージン込み）の関数 ===
 
     /// 指定列数に対する最大使用可能高さを返す
     /// 4列以上の場合は最も制限が厳しい列3の高さ（203mm）
-    /// 3列以下の場合は列0-2の高さ（241mm）
+    /// 3列以下の場合は列0-2の高さ（241mm）マージン込み
     #[inline]
     pub fn max_height_for_columns(columns: usize) -> f64 {
         if columns >= 4 {
@@ -92,7 +126,7 @@ pub mod available_area {
         }
     }
 
-    /// 指定列に対する下端Y座標を返す
+    /// 指定列に対する下端Y座標を返す（マージン込み）
     #[inline]
     pub fn bottom_for_column(col: usize) -> f64 {
         if col >= 3 {
@@ -102,7 +136,7 @@ pub mod available_area {
         }
     }
 
-    /// 指定列に対する有効高さを返す
+    /// 指定列に対する有効高さを返す（マージン込み）
     #[inline]
     pub fn height_for_column(col: usize) -> f64 {
         if col >= 3 {
@@ -594,7 +628,7 @@ fn truncate_or_split(s: &str, max_len: usize) -> String {
 
 /// 配置可能エリアのガイド矩形を描画
 ///
-/// TOP_NAME下端からタイトル表組み左端までの矩形を描画
+/// 4列均等分割のガイド枠を描画（各列100mm幅）
 fn draw_available_area_guide(
     drawing: &mut Drawing,
     origin_x: f64,
@@ -603,76 +637,38 @@ fn draw_available_area_guide(
     text_size: f64,
     show_debug: bool,
 ) {
-    // タイトル表組みのサイズ（0.8倍スケール）
-    let tb_scale = 0.8;
-    let tb_width = 100.0 * tb_scale;      // 80mm
-    let tb_left = FRAME_RIGHT - tb_width;
-
-    // TOP_NAME下端（上部タイトルの位置から）
-    let name_y = FRAME_TOP - 26.0;        // 261mm
-
-    // 配置可能エリア（タイトル表組みの左側、TOP_NAME下端まで）
-    let area_left = FRAME_LEFT;
-    let area_right = tb_left;
-    let area_bottom = FRAME_BOTTOM;
-    let area_top = name_y;
-    let area_width = area_right - area_left;
-    let area_height = area_top - area_bottom;
-
-    // タイトル表組みの上端
-    let tb_height = 60.0 * tb_scale;      // 48mm
-    let tb_top = FRAME_BOTTOM + tb_height;
-
-    // 表組み上側のスペース
-    let area2_left = tb_left;
-    let area2_right = FRAME_RIGHT;
-    let area2_bottom = tb_top;
-    let area2_top = name_y;
-    let area2_width = area2_right - area2_left;
-    let area2_height = area2_top - area2_bottom;
-
     // ガイド矩形を緑色で描画（デバッグ時のみ）
     if show_debug {
         const COLOR_GREEN: i16 = 3;
-        const COLOR_CYAN: i16 = 4;
 
-        // メインエリア（左側）- 緑
-        add_line_scaled(drawing, area_left, area_bottom, area_right, area_bottom,
-                        COLOR_GREEN, "TITLEBLOCK", scale, origin_x, origin_y);
-        add_line_scaled(drawing, area_left, area_top, area_right, area_top,
-                        COLOR_GREEN, "TITLEBLOCK", scale, origin_x, origin_y);
-        add_line_scaled(drawing, area_left, area_bottom, area_left, area_top,
-                        COLOR_GREEN, "TITLEBLOCK", scale, origin_x, origin_y);
-        add_line_scaled(drawing, area_right, area_bottom, area_right, area_top,
-                        COLOR_GREEN, "TITLEBLOCK", scale, origin_x, origin_y);
+        // 4列の緑色ガイド枠を描画
+        for col in 0..4 {
+            let left = available_area::COLUMN_LEFTS[col];
+            let right = available_area::COLUMN_RIGHTS[col];
+            let bottom = available_area::COLUMN_BOTTOMS[col];
+            let top = available_area::COLUMN_TOP;
+            let width = right - left;
+            let height = top - bottom;
 
-        // メインエリアサイズ表示
-        let size_text = format!("{:.0}x{:.0}", area_width, area_height);
-        add_text_scaled_named(
-            drawing, (area_left + area_right) / 2.0, (area_bottom + area_top) / 2.0,
-            &size_text, text_size, COLOR_GREEN, "TITLEBLOCK",
-            HorizontalTextJustification::Center, VerticalTextJustification::Middle,
-            scale, origin_x, origin_y, Some("AREA_SIZE"), show_debug,
-        );
+            // 4辺を描画
+            add_line_scaled(drawing, left, bottom, right, bottom,
+                            COLOR_GREEN, "TITLEBLOCK", scale, origin_x, origin_y);
+            add_line_scaled(drawing, left, top, right, top,
+                            COLOR_GREEN, "TITLEBLOCK", scale, origin_x, origin_y);
+            add_line_scaled(drawing, left, bottom, left, top,
+                            COLOR_GREEN, "TITLEBLOCK", scale, origin_x, origin_y);
+            add_line_scaled(drawing, right, bottom, right, top,
+                            COLOR_GREEN, "TITLEBLOCK", scale, origin_x, origin_y);
 
-        // 表組み上側エリア - シアン
-        add_line_scaled(drawing, area2_left, area2_bottom, area2_right, area2_bottom,
-                        COLOR_CYAN, "TITLEBLOCK", scale, origin_x, origin_y);
-        add_line_scaled(drawing, area2_left, area2_top, area2_right, area2_top,
-                        COLOR_CYAN, "TITLEBLOCK", scale, origin_x, origin_y);
-        add_line_scaled(drawing, area2_left, area2_bottom, area2_left, area2_top,
-                        COLOR_CYAN, "TITLEBLOCK", scale, origin_x, origin_y);
-        add_line_scaled(drawing, area2_right, area2_bottom, area2_right, area2_top,
-                        COLOR_CYAN, "TITLEBLOCK", scale, origin_x, origin_y);
-
-        // 表組み上側サイズ表示
-        let size_text2 = format!("{:.0}x{:.0}", area2_width, area2_height);
-        add_text_scaled_named(
-            drawing, (area2_left + area2_right) / 2.0, (area2_bottom + area2_top) / 2.0,
-            &size_text2, text_size, COLOR_CYAN, "TITLEBLOCK",
-            HorizontalTextJustification::Center, VerticalTextJustification::Middle,
-            scale, origin_x, origin_y, Some("AREA2_SIZE"), show_debug,
-        );
+            // 列番号とサイズを中央に表示
+            let label = format!("列{} {}x{}", col, width as i32, height as i32);
+            add_text_scaled_named(
+                drawing, (left + right) / 2.0, (bottom + top) / 2.0,
+                &label, text_size, COLOR_GREEN, "TITLEBLOCK",
+                HorizontalTextJustification::Center, VerticalTextJustification::Middle,
+                scale, origin_x, origin_y, Some(&format!("COL{}_SIZE", col)), show_debug,
+            );
+        }
     }
 }
 
