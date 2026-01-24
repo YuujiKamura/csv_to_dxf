@@ -3237,7 +3237,8 @@ impl CrossSectionApp {
                         &filtered, idx, columns, self.column_gap, self.row_gap
                     );
                 }
-                generate_multi_drawing(&filtered, columns, self.column_gap, self.row_gap)
+                // 補間を適用（起終点以外の補完点を勾配補間）
+                generate_multi_drawing_interpolated(&filtered, columns, self.column_gap, self.row_gap)
             }
             _ => { return; }
         };
@@ -3588,7 +3589,14 @@ impl eframe::App for CrossSectionApp {
                                 if self.selected_index.is_some() && ui.button("DXF").clicked() {
                                     if let Some(idx) = self.selected_index {
                                         if let Some(section) = filtered_for_dxf.get(idx) {
-                                            let dxf_content = generate_dxf_bytes(section);
+                                            // 起終点以外は補間を適用
+                                            let is_first = idx == 0;
+                                            let is_last = idx == filtered_for_dxf.len() - 1;
+                                            let mut section = section.clone();
+                                            if !is_first && !is_last {
+                                                section.interpolate_planned_heights();
+                                            }
+                                            let dxf_content = generate_dxf_bytes(&section);
                                             let filename = format!("{}.dxf", section.survey_point_name);
                                             download_file(&filename, &dxf_content);
                                         }
@@ -3845,7 +3853,14 @@ impl eframe::App for CrossSectionApp {
                         if let Some(idx) = self.selected_index {
                             if let Some(section) = filtered_for_download.get(idx) {
                                 if ui.button("Download DXF").clicked() {
-                                    let dxf_content = generate_dxf_bytes(section);
+                                    // 起終点以外は補間を適用
+                                    let is_first = idx == 0;
+                                    let is_last = idx == filtered_for_download.len() - 1;
+                                    let mut section = section.clone();
+                                    if !is_first && !is_last {
+                                        section.interpolate_planned_heights();
+                                    }
+                                    let dxf_content = generate_dxf_bytes(&section);
                                     let filename = format!("{}.dxf", section.survey_point_name);
                                     download_file(&filename, &dxf_content);
                                 }
