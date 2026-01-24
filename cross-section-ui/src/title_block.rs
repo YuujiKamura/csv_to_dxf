@@ -40,13 +40,25 @@ pub mod available_area {
     pub const BOTTOM_MM: f64 = FRAME_BOTTOM;
     /// 配置可能エリアの上端（上部タイトル下端 = 内枠上端 - 26mm = 261mm）
     pub const TOP_MM: f64 = FRAME_TOP - 26.0;
-    /// 配置可能エリアの幅（330mm - 10mm = 320mm）
+    /// 配置可能エリアの幅（330mm - 10mm = 320mm）緑エリアのみ
     pub const WIDTH_MM: f64 = RIGHT_MM - LEFT_MM;
     /// 配置可能エリアの高さ（261mm - 10mm = 251mm）
     pub const HEIGHT_MM: f64 = TOP_MM - BOTTOM_MM;
     /// 配置エリア内のマージン
     pub const MARGIN_MM: f64 = 5.0;
-    /// 有効描画幅（マージン込み）
+
+    // === 内枠全体（緑+水色エリア）の定数 ===
+    /// 内枠全体の幅（410mm - 10mm = 400mm）
+    pub const FRAME_FULL_WIDTH_MM: f64 = FRAME_RIGHT - FRAME_LEFT;
+    /// 内枠全体の有効幅（マージン込み）
+    pub const FRAME_USABLE_WIDTH_MM: f64 = FRAME_FULL_WIDTH_MM - MARGIN_MM * 2.0;  // 390mm
+    /// タイトル枠の高さ（グリッド配置時の下端マージン）
+    pub const TITLE_BLOCK_HEIGHT_MM: f64 = 48.0;
+    /// タイトル枠を避けた有効高さ
+    pub const FRAME_USABLE_HEIGHT_MM: f64 = HEIGHT_MM - MARGIN_MM * 2.0 - TITLE_BLOCK_HEIGHT_MM;  // 193mm
+
+    // === 旧定数（互換性維持）===
+    /// 有効描画幅（マージン込み）- 緑エリアのみ
     pub const USABLE_WIDTH_MM: f64 = WIDTH_MM - MARGIN_MM * 2.0;  // 310mm
     /// 有効描画高さ（マージン込み）
     pub const USABLE_HEIGHT_MM: f64 = HEIGHT_MM - MARGIN_MM * 2.0;  // 241mm
