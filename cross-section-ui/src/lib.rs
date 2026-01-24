@@ -1120,7 +1120,7 @@ pub fn generate_combo_drawing(sections: &[CrossSectionData], _columns: usize, _c
         .with_author("有限会社　三雄建設")
         .with_top_title("面積展開図　縦断図")
         .with_credit("")
-        .with_debug_markers(true);
+        .with_debug_markers(false);
 
     draw_drawing_frame(&mut drawing, &frame_info, frame_origin_x, frame_origin_y, frame_scale, frame_text_size);
 
