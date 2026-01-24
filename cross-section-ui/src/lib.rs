@@ -728,12 +728,17 @@ pub fn calc_sections_per_page(
 /// 複数横断図をグリッド配置したDrawingを生成
 /// 道路工事の配置ルール: 左下起点、列ごとに下から上へ、左から右へ
 pub fn generate_multi_drawing(sections: &[CrossSectionData], columns: usize, column_gap: f64, row_gap: f64) -> Drawing {
-    generate_multi_drawing_internal(sections, columns, column_gap, row_gap, None, None, 1.0)
+    generate_multi_drawing_internal(sections, columns, column_gap, row_gap, None, None, 1.0, false)
 }
 
 /// スケール倍率指定で複数横断図をグリッド配置したDrawingを生成（コンボモード用）
 pub fn generate_multi_drawing_scaled(sections: &[CrossSectionData], columns: usize, column_gap: f64, row_gap: f64, scale_multiplier: f64) -> Drawing {
-    generate_multi_drawing_internal(sections, columns, column_gap, row_gap, None, None, scale_multiplier)
+    generate_multi_drawing_internal(sections, columns, column_gap, row_gap, None, None, scale_multiplier, false)
+}
+
+/// スケール倍率指定で複数横断図をグリッド配置（補完点を勾配補間）
+pub fn generate_multi_drawing_scaled_interpolated(sections: &[CrossSectionData], columns: usize, column_gap: f64, row_gap: f64, scale_multiplier: f64) -> Drawing {
+    generate_multi_drawing_internal(sections, columns, column_gap, row_gap, None, None, scale_multiplier, true)
 }
 
 /// 1:500図枠付きで複数横断図をグリッド配置したDrawingを生成
@@ -744,7 +749,7 @@ pub fn generate_multi_drawing_with_frame(
     row_gap: f64,
     title_info: &TitleBlockInfo,
 ) -> Drawing {
-    generate_multi_drawing_internal(sections, columns, column_gap, row_gap, Some(500.0), Some(title_info), 1.0)
+    generate_multi_drawing_internal(sections, columns, column_gap, row_gap, Some(500.0), Some(title_info), 1.0, false)
 }
 
 /// 任意スケールの図枠付きで複数横断図をグリッド配置したDrawingを生成
@@ -756,12 +761,31 @@ pub fn generate_multi_drawing_with_frame_at_scale(
     title_info: &TitleBlockInfo,
     frame_scale: f64,
 ) -> Drawing {
-    generate_multi_drawing_internal(sections, columns, column_gap, row_gap, Some(frame_scale), Some(title_info), 1.0)
+    generate_multi_drawing_internal(sections, columns, column_gap, row_gap, Some(frame_scale), Some(title_info), 1.0, false)
+}
+
+/// 複数横断図をグリッド配置したDrawingを生成（補完点を勾配補間）
+/// 中間測点の補完点（V2, V4等）を採用点間の勾配で線形補間する
+pub fn generate_multi_drawing_interpolated(sections: &[CrossSectionData], columns: usize, column_gap: f64, row_gap: f64) -> Drawing {
+    generate_multi_drawing_internal(sections, columns, column_gap, row_gap, None, None, 1.0, true)
+}
+
+/// 任意スケールの図枠付きで複数横断図をグリッド配置（補完点を勾配補間）
+pub fn generate_multi_drawing_with_frame_at_scale_interpolated(
+    sections: &[CrossSectionData],
+    columns: usize,
+    column_gap: f64,
+    row_gap: f64,
+    title_info: &TitleBlockInfo,
+    frame_scale: f64,
+) -> Drawing {
+    generate_multi_drawing_internal(sections, columns, column_gap, row_gap, Some(frame_scale), Some(title_info), 1.0, true)
 }
 
 /// 複数横断図をグリッド配置（内部実装）
 /// frame_scale: None=図枠なし、Some(200.0)=1:200、Some(500.0)=1:500
 /// scale_multiplier: 横断図全体のスケール倍率（コンボモード用）
+/// interpolate_intermediate: 中間測点の補完点を勾配補間するか
 fn generate_multi_drawing_internal(
     sections: &[CrossSectionData],
     columns: usize,
@@ -770,6 +794,7 @@ fn generate_multi_drawing_internal(
     frame_scale: Option<f64>,
     title_info: Option<&TitleBlockInfo>,
     scale_multiplier: f64,
+    interpolate_intermediate: bool,
 ) -> Drawing {
     let scale = 1000.0 * scale_multiplier;
 
@@ -876,6 +901,7 @@ fn generate_multi_drawing_internal(
     };
 
     // セクションを描画
+    let section_count = sections.len();
     for (idx, section) in sections.iter().enumerate() {
         if section.survey_data.len() < 2 { continue; }
         let col = idx / rows_per_column;
@@ -896,7 +922,15 @@ fn generate_multi_drawing_internal(
         };
         let offset_y = row_in_col as f64 * cell_height + col_y_offset;
 
-        draw_section_at_offset(&mut drawing, section, offset_x, offset_y, scale, scale_multiplier);
+        // 中間測点（起終点以外）の場合のみ、補完点を勾配補間
+        let is_start_or_end = idx == 0 || idx == section_count - 1;
+        if interpolate_intermediate && !is_start_or_end {
+            let mut section_to_draw = section.clone();
+            section_to_draw.interpolate_planned_heights();
+            draw_section_at_offset(&mut drawing, &section_to_draw, offset_x, offset_y, scale, scale_multiplier);
+        } else {
+            draw_section_at_offset(&mut drawing, section, offset_x, offset_y, scale, scale_multiplier);
+        }
     }
 
     // 図枠を描画
@@ -952,6 +986,37 @@ pub fn generate_all_pages_drawing(
     base_title_info: &TitleBlockInfo,
     drawing_number_base: &str,
 ) -> Drawing {
+    generate_all_pages_drawing_internal(
+        all_sections, columns, column_gap, row_gap, frame_scale, base_title_info, drawing_number_base, false
+    )
+}
+
+/// 全ページを1つのDXFに垂直配置して生成（補完点を勾配補間）
+pub fn generate_all_pages_drawing_interpolated(
+    all_sections: &[CrossSectionData],
+    columns: usize,
+    column_gap: f64,
+    row_gap: f64,
+    frame_scale: f64,
+    base_title_info: &TitleBlockInfo,
+    drawing_number_base: &str,
+) -> Drawing {
+    generate_all_pages_drawing_internal(
+        all_sections, columns, column_gap, row_gap, frame_scale, base_title_info, drawing_number_base, true
+    )
+}
+
+/// 全ページを1つのDXFに垂直配置して生成（内部実装）
+fn generate_all_pages_drawing_internal(
+    all_sections: &[CrossSectionData],
+    columns: usize,
+    column_gap: f64,
+    row_gap: f64,
+    frame_scale: f64,
+    base_title_info: &TitleBlockInfo,
+    drawing_number_base: &str,
+    interpolate_intermediate: bool,
+) -> Drawing {
     let mut drawing = new_drawing();
 
     for (name, color_idx) in [
@@ -980,6 +1045,8 @@ pub fn generate_all_pages_drawing(
     const PAGE_GAP_MM: f64 = 10.0;
     let page_gap_dxf = PAGE_GAP_MM * frame_scale;
 
+    let total_section_count = all_sections.len();
+
     // 各ページを描画
     for page in 0..total_pages {
         let start_idx = page * sections_per_page;
@@ -1000,13 +1067,19 @@ pub fn generate_all_pages_drawing(
             .with_drawing_number(&page_num);
 
         // このページのセクションを描画
-        draw_page_content(&mut drawing, page_sections, columns, column_gap, row_gap, frame_scale, &info, page_offset_y);
+        draw_page_content(
+            &mut drawing, page_sections, columns, column_gap, row_gap, frame_scale, &info, page_offset_y,
+            start_idx, total_section_count, interpolate_intermediate
+        );
     }
 
     drawing
 }
 
 /// 1ページ分のコンテンツを描画（オフセット付き）
+/// global_start_idx: このページの最初のセクションの全体でのインデックス
+/// total_section_count: 全ページを通じた総セクション数
+/// interpolate_intermediate: 中間測点の補完点を勾配補間するか
 fn draw_page_content(
     drawing: &mut Drawing,
     sections: &[CrossSectionData],
@@ -1016,6 +1089,9 @@ fn draw_page_content(
     frame_scale: f64,
     title_info: &TitleBlockInfo,
     page_offset_y: f64,
+    global_start_idx: usize,
+    total_section_count: usize,
+    interpolate_intermediate: bool,
 ) {
     use available_area as area;
 
@@ -1072,7 +1148,16 @@ fn draw_page_content(
         let col_y_offset = col_y_offsets[col.min(columns - 1)];
         let offset_y = row_in_col as f64 * cell_height + col_y_offset + page_offset_y;
 
-        draw_section_at_offset(drawing, section, offset_x, offset_y, scale, 1.0);
+        // 中間測点（起終点以外）の場合のみ、補完点を勾配補間
+        let global_idx = global_start_idx + idx;
+        let is_start_or_end = global_idx == 0 || global_idx == total_section_count - 1;
+        if interpolate_intermediate && !is_start_or_end {
+            let mut section_to_draw = section.clone();
+            section_to_draw.interpolate_planned_heights();
+            draw_section_at_offset(drawing, &section_to_draw, offset_x, offset_y, scale, 1.0);
+        } else {
+            draw_section_at_offset(drawing, section, offset_x, offset_y, scale, 1.0);
+        }
     }
 
     // 図枠を描画
@@ -1090,7 +1175,7 @@ pub fn generate_all_pages_dxf_bytes(
     base_title_info: &TitleBlockInfo,
     drawing_number_base: &str,
 ) -> Vec<u8> {
-    let drawing = generate_all_pages_drawing(
+    let drawing = generate_all_pages_drawing_interpolated(
         all_sections, columns, column_gap, row_gap, frame_scale, base_title_info, drawing_number_base
     );
     let mut output: Vec<u8> = Vec::new();
@@ -1339,7 +1424,7 @@ pub fn generate_multi_dxf_bytes_with_frame_at_scale(
     title_info: &TitleBlockInfo,
     frame_scale: f64,
 ) -> Vec<u8> {
-    let drawing = generate_multi_drawing_with_frame_at_scale(sections, columns, column_gap, row_gap, title_info, frame_scale);
+    let drawing = generate_multi_drawing_with_frame_at_scale_interpolated(sections, columns, column_gap, row_gap, title_info, frame_scale);
     let mut output: Vec<u8> = Vec::new();
     drawing.save(&mut output).expect("Failed to save DXF");
     output
@@ -1639,10 +1724,10 @@ pub fn generate_combo_drawing(sections: &[CrossSectionData], columns: usize, col
     let longitudinal = generate_longitudinal_drawing(sections);
     let (_long_min_x, _long_min_y, long_max_x, long_max_y) = calc_dxf_bounds(&longitudinal);
 
-    // 横断図を生成（ルート2のみ、5倍拡大）
+    // 横断図を生成（ルート2のみ、5倍拡大、補完点を勾配補間）
     let cross_sections = if is_route_2 {
         let row_gap = 1.0;
-        Some(generate_multi_drawing_scaled(sections, columns, column_gap, row_gap, 5.0))
+        Some(generate_multi_drawing_scaled_interpolated(sections, columns, column_gap, row_gap, 5.0))
     } else {
         None
     };
@@ -2501,6 +2586,53 @@ impl CrossSectionData {
             sections,
         })
     }
+
+    /// 補完点の計画高を採用点間の勾配から線形補間する
+    /// - 採用点: V1（左端）、CL（センター）、Vn（右端）は固定
+    /// - 補完点: V2, V4等を勾配で補間
+    pub fn interpolate_planned_heights(&mut self) {
+        let n = self.survey_data.len();
+        if n < 3 { return; }
+
+        let cl = self.cl_index.min(n - 1);
+
+        // 固定点の値を取得
+        let fh_left = self.survey_data[0].planned_height;
+        let fh_center = self.survey_data[cl].planned_height;
+        let fh_right = self.survey_data[n - 1].planned_height;
+
+        let dist_left = self.survey_data[0].cumulative_distance;
+        let dist_center = self.survey_data[cl].cumulative_distance;
+        let dist_right = self.survey_data[n - 1].cumulative_distance;
+
+        // 左側（V1〜CL間）の補間
+        if (dist_center - dist_left).abs() > 1e-9 {
+            for i in 1..cl {
+                // 舗装厚を保持（planned_height更新前に取得）
+                let pavement_thickness = self.survey_data[i].pavement_thickness();
+
+                let d = self.survey_data[i].cumulative_distance;
+                let t = (d - dist_left) / (dist_center - dist_left);
+                self.survey_data[i].planned_height = fh_left + t * (fh_center - fh_left);
+                // cutting_bottomも再計算（舗装厚を維持）
+                self.survey_data[i].cutting_bottom = self.survey_data[i].planned_height - pavement_thickness;
+            }
+        }
+
+        // 右側（CL〜Vn間）の補間
+        if (dist_right - dist_center).abs() > 1e-9 {
+            for i in (cl + 1)..(n - 1) {
+                // 舗装厚を保持（planned_height更新前に取得）
+                let pavement_thickness = self.survey_data[i].pavement_thickness();
+
+                let d = self.survey_data[i].cumulative_distance;
+                let t = (d - dist_center) / (dist_right - dist_center);
+                self.survey_data[i].planned_height = fh_center + t * (fh_right - fh_center);
+                // cutting_bottomも再計算（舗装厚を維持）
+                self.survey_data[i].cutting_bottom = self.survey_data[i].planned_height - pavement_thickness;
+            }
+        }
+    }
 }
 
 /// タイトルブロック情報（JSON用）
@@ -3027,9 +3159,9 @@ impl CrossSectionApp {
                         .with_top_title(&self.drawing_type)
                         .with_scale(&format!("1:{} (A3)", scale))
                         .with_debug_markers(self.show_debug_guides);
-                    generate_multi_drawing_with_frame_at_scale(&page_sections, columns, self.column_gap, self.row_gap, &info, scale as f64)
+                    generate_multi_drawing_with_frame_at_scale_interpolated(&page_sections, columns, self.column_gap, self.row_gap, &info, scale as f64)
                 } else {
-                    generate_multi_drawing(&filtered, columns, self.column_gap, self.row_gap)
+                    generate_multi_drawing_interpolated(&filtered, columns, self.column_gap, self.row_gap)
                 }
             }
             ViewMode::Longitudinal if !filtered.is_empty() => {
