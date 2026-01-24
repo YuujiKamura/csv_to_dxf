@@ -482,6 +482,54 @@ pub fn generate_dxf_bytes(section: &CrossSectionData) -> Vec<u8> {
 // Multi-Section Grid Layout
 // ============================================================================
 
+/// A3図枠(1:500)に収まる最適列数を計算
+///
+/// # Arguments
+/// * `sections` - 横断セクションのリスト
+/// * `column_gap` - 列間ギャップ（メートル）
+/// * `plot_scale` - 印刷縮尺（500 = 1:500）
+///
+/// # Returns
+/// 収容可能な列数
+pub fn calc_optimal_columns_for_frame(
+    sections: &[CrossSectionData],
+    column_gap: f64,
+    plot_scale: f64,
+) -> usize {
+    // タイトルブロック左側の描画可能幅（mm）
+    // 内枠幅400mm - タイトルブロック幅80mm = 320mm
+    const FRAME_AVAILABLE_WIDTH_MM: f64 = 320.0;
+
+    if sections.is_empty() {
+        return 1;
+    }
+
+    // 全セクションの最大幅を取得（左幅 + 右幅 + ギャップ）
+    let max_cell_width_m = sections.iter()
+        .filter(|s| s.survey_data.len() >= 2)
+        .map(|s| {
+            let data = &s.survey_data;
+            let min_dist = data.first().unwrap().cumulative_distance;
+            let max_dist = data.last().unwrap().cumulative_distance;
+            let left = min_dist.abs();
+            let right = max_dist;
+            left + right + column_gap
+        })
+        .fold(0.0_f64, f64::max);
+
+    if max_cell_width_m <= 0.0 {
+        return 1;
+    }
+
+    // 描画可能領域を実寸（メートル）に換算
+    // 1mm（紙上）= plot_scale mm（実寸）
+    let available_m = FRAME_AVAILABLE_WIDTH_MM * plot_scale / 1000.0;
+
+    // 列数計算（最低1列）
+    let columns = (available_m / max_cell_width_m).floor() as usize;
+    columns.max(1)
+}
+
 /// 複数横断図をグリッド配置したDrawingを生成
 /// 道路工事の配置ルール: 左下起点、列ごとに下から上へ、左から右へ
 pub fn generate_multi_drawing(sections: &[CrossSectionData], columns: usize, column_gap: f64) -> Drawing {
@@ -2013,6 +2061,7 @@ pub struct CrossSectionApp {
     view_mode: ViewMode,
     grid_columns: usize,     // グリッドの列数
     column_gap: f64,         // 列間隔（メートル単位）
+    auto_columns_for_500: bool,  // 1:500自動列数計算モード
     status_message: Option<String>,
     needs_fit: bool,         // canvas_rect更新後にfit_to_dxfを呼ぶフラグ
     fit_bounds: Option<(f32, f32, f32, f32)>,  // フィット先のバウンディングボックス（Singleモード用）
@@ -2035,6 +2084,7 @@ impl Default for CrossSectionApp {
             view_mode: ViewMode::Single, // デフォルトで単一横断図（モバイル向け）
             grid_columns: 3,
             column_gap: 2.0,  // 列間隔2メートル（切削厚ラベル分）
+            auto_columns_for_500: false,  // デフォルトは手動列数指定
             status_message: None,
             needs_fit: false,
             fit_bounds: None,
@@ -2148,6 +2198,15 @@ impl CrossSectionApp {
         // fit_boundsをリセット（Singleモード以外はNone）
         self.fit_bounds = None;
 
+        // 1:500自動列数計算モードが有効な場合、列数を自動計算
+        let columns = if self.auto_columns_for_500 && !filtered.is_empty() {
+            let calculated = calc_optimal_columns_for_frame(&filtered, self.column_gap, 500.0);
+            self.grid_columns = calculated;  // UI表示用に保存
+            calculated
+        } else {
+            self.grid_columns
+        };
+
         let drawing = match self.view_mode {
             ViewMode::AlignTest => {
                 generate_alignment_test_drawing()
@@ -2156,10 +2215,10 @@ impl CrossSectionApp {
                 generate_title_block_test_drawing()
             }
             ViewMode::Combo if !filtered.is_empty() => {
-                generate_combo_drawing(&filtered, self.grid_columns, self.column_gap)
+                generate_combo_drawing(&filtered, columns, self.column_gap)
             }
             ViewMode::AllGrid if !filtered.is_empty() => {
-                generate_multi_drawing(&filtered, self.grid_columns, self.column_gap)
+                generate_multi_drawing(&filtered, columns, self.column_gap)
             }
             ViewMode::Longitudinal if !filtered.is_empty() => {
                 generate_longitudinal_drawing(&filtered)
@@ -2171,10 +2230,10 @@ impl CrossSectionApp {
                 // 全横断図を生成し、選択した横断図の位置にフィット
                 if let Some(idx) = self.selected_index {
                     self.fit_bounds = calc_section_bounds_in_grid(
-                        &filtered, idx, self.grid_columns, self.column_gap
+                        &filtered, idx, columns, self.column_gap
                     );
                 }
-                generate_multi_drawing(&filtered, self.grid_columns, self.column_gap)
+                generate_multi_drawing(&filtered, columns, self.column_gap)
             }
             _ => { return; }
         };
@@ -2371,15 +2430,22 @@ impl eframe::App for CrossSectionApp {
 
                     if self.view_mode == ViewMode::AllGrid || self.view_mode == ViewMode::Combo {
                         ui.horizontal_wrapped(|ui| {
+                            // 1:500自動列数計算チェックボックス
+                            if ui.checkbox(&mut self.auto_columns_for_500, "1:500").changed() {
+                                self.update_dxf_preview();
+                            }
                             ui.label(format!("{}列", self.grid_columns));
-                            if ui.small_button("+").clicked() && self.grid_columns < 10 {
-                                self.grid_columns += 1;
-                                self.update_dxf_preview();
-                            }
-                            if ui.small_button("-").clicked() && self.grid_columns > 1 {
-                                self.grid_columns -= 1;
-                                self.update_dxf_preview();
-                            }
+                            // 自動モード時は手動調整を無効化
+                            ui.add_enabled_ui(!self.auto_columns_for_500, |ui| {
+                                if ui.small_button("+").clicked() && self.grid_columns < 10 {
+                                    self.grid_columns += 1;
+                                    self.update_dxf_preview();
+                                }
+                                if ui.small_button("-").clicked() && self.grid_columns > 1 {
+                                    self.grid_columns -= 1;
+                                    self.update_dxf_preview();
+                                }
+                            });
                             ui.label(format!("間隔{:.1}m", self.column_gap));
                             if ui.small_button("+").clicked() && self.column_gap < 5.0 {
                                 self.column_gap += 0.5;
@@ -2530,15 +2596,22 @@ impl eframe::App for CrossSectionApp {
                 // AllGrid/Comboモード時の列数・間隔調整
                 if self.view_mode == ViewMode::AllGrid || self.view_mode == ViewMode::Combo {
                     ui.horizontal(|ui| {
+                        // 1:500自動列数計算チェックボックス
+                        if ui.checkbox(&mut self.auto_columns_for_500, "1:500").changed() {
+                            self.update_dxf_preview();
+                        }
                         ui.label(format!("{}列", self.grid_columns));
-                        if ui.small_button("+").clicked() && self.grid_columns < 10 {
-                            self.grid_columns += 1;
-                            self.update_dxf_preview();
-                        }
-                        if ui.small_button("-").clicked() && self.grid_columns > 1 {
-                            self.grid_columns -= 1;
-                            self.update_dxf_preview();
-                        }
+                        // 自動モード時は手動調整を無効化
+                        ui.add_enabled_ui(!self.auto_columns_for_500, |ui| {
+                            if ui.small_button("+").clicked() && self.grid_columns < 10 {
+                                self.grid_columns += 1;
+                                self.update_dxf_preview();
+                            }
+                            if ui.small_button("-").clicked() && self.grid_columns > 1 {
+                                self.grid_columns -= 1;
+                                self.update_dxf_preview();
+                            }
+                        });
                     });
                     ui.horizontal(|ui| {
                         ui.label(format!("間隔{:.1}m", self.column_gap));
@@ -3199,4 +3272,71 @@ pub fn start() -> Result<(), JsValue> {
     });
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_calc_optimal_columns_for_frame() {
+        // 空のセクションリストは1列を返す
+        let empty: Vec<CrossSectionData> = vec![];
+        assert_eq!(calc_optimal_columns_for_frame(&empty, 2.0, 500.0), 1);
+
+        // テストセクション作成（左右3m幅）
+        let sections = vec![
+            CrossSectionData {
+                survey_point_name: "NO.1".to_string(),
+                dl: 10.0,
+                cl_index: 1,
+                l_to_cl_distance: 3.0,
+                survey_data: vec![
+                    SurveyRow {
+                        unit_distance: 0.0,
+                        elevation: 11.0,
+                        planned_height: 11.0,
+                        cumulative_distance: -3.0,  // 左端
+                        cutting_bottom: 10.95,
+                    },
+                    SurveyRow {
+                        unit_distance: 3.0,
+                        elevation: 11.0,
+                        planned_height: 11.0,
+                        cumulative_distance: 0.0,  // CL
+                        cutting_bottom: 10.95,
+                    },
+                    SurveyRow {
+                        unit_distance: 3.0,
+                        elevation: 11.0,
+                        planned_height: 11.0,
+                        cumulative_distance: 3.0,  // 右端
+                        cutting_bottom: 10.95,
+                    },
+                ],
+                route_distance: None,
+                route_id: "route_1".to_string(),
+            },
+        ];
+
+        // 1:500スケールで計算
+        // 描画可能幅: 320mm × 500 / 1000 = 160m
+        // セル幅: 3m(左) + 3m(右) + 2m(gap) = 8m
+        // 列数: floor(160 / 8) = 20
+        let columns = calc_optimal_columns_for_frame(&sections, 2.0, 500.0);
+        assert_eq!(columns, 20);
+
+        // gap = 0 の場合
+        // セル幅: 3m + 3m + 0m = 6m
+        // 列数: floor(160 / 6) = 26
+        let columns_no_gap = calc_optimal_columns_for_frame(&sections, 0.0, 500.0);
+        assert_eq!(columns_no_gap, 26);
+
+        // 1:200スケールの場合
+        // 描画可能幅: 320mm × 200 / 1000 = 64m
+        // セル幅: 8m
+        // 列数: floor(64 / 8) = 8
+        let columns_200 = calc_optimal_columns_for_frame(&sections, 2.0, 200.0);
+        assert_eq!(columns_200, 8);
+    }
 }
