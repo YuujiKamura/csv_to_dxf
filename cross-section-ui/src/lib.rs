@@ -862,13 +862,17 @@ fn generate_multi_drawing_internal(
 
         draw_drawing_frame(&mut drawing, &info, 0.0, 0.0, fs, TEXT_SIZE_MM);
 
-        // グリッド外形を描画（デバッグ用）- 列ごとに別々の高さで描画
+        // グリッド外形を描画（デバッグ用）
+        // 列ごとに異なるY位置なので、各列のバウンディングボックスを個別に描画
         if info.show_debug_markers {
             if let Some(bounds) = &grid_bounds {
                 const COLOR_RED: i16 = 1;
-                let rows_per_col = (sections.len() + columns - 1) / columns;
-                let col_content_height = rows_per_col as f64 * cell_height;
 
+                // 全体のX範囲
+                let grid_min_x = bounds.min_x + content_offset_x;
+                let grid_max_x = bounds.max_x + content_offset_x;
+
+                // 列ごとにY方向のバウンディングボックスを描画
                 for col in 0..columns {
                     let col_y_offset = if col < col_y_offsets.len() {
                         col_y_offsets[col]
@@ -876,21 +880,26 @@ fn generate_multi_drawing_internal(
                         col_y_offsets.last().copied().unwrap_or(0.0)
                     };
 
-                    // 列ごとのバウンディングボックス
-                    let col_min_x = col_x_offsets[col] + content_offset_x - column_gap * scale / 2.0;
-                    let col_max_x = if col + 1 < col_x_offsets.len() {
-                        col_x_offsets[col + 1] + content_offset_x - column_gap * scale / 2.0
-                    } else {
-                        bounds.max_x + content_offset_x
-                    };
                     let col_min_y = bounds.min_y + col_y_offset;
-                    let col_max_y = col_min_y + col_content_height;
+                    let col_max_y = bounds.max_y + col_y_offset;
+
+                    // 列の左右端を計算
+                    let col_left = if col == 0 {
+                        grid_min_x
+                    } else {
+                        col_x_offsets[col] + content_offset_x - column_gap * scale / 2.0
+                    };
+                    let col_right = if col + 1 >= columns {
+                        grid_max_x
+                    } else {
+                        col_x_offsets[col + 1] + content_offset_x - column_gap * scale / 2.0
+                    };
 
                     // 列ごとに外形を描画
-                    add_line(&mut drawing, col_min_x, col_min_y, col_max_x, col_min_y, COLOR_RED, "DEBUG");
-                    add_line(&mut drawing, col_max_x, col_min_y, col_max_x, col_max_y, COLOR_RED, "DEBUG");
-                    add_line(&mut drawing, col_max_x, col_max_y, col_min_x, col_max_y, COLOR_RED, "DEBUG");
-                    add_line(&mut drawing, col_min_x, col_max_y, col_min_x, col_min_y, COLOR_RED, "DEBUG");
+                    add_line(&mut drawing, col_left, col_min_y, col_right, col_min_y, COLOR_RED, "DEBUG");
+                    add_line(&mut drawing, col_right, col_min_y, col_right, col_max_y, COLOR_RED, "DEBUG");
+                    add_line(&mut drawing, col_right, col_max_y, col_left, col_max_y, COLOR_RED, "DEBUG");
+                    add_line(&mut drawing, col_left, col_max_y, col_left, col_min_y, COLOR_RED, "DEBUG");
                 }
             }
         }
