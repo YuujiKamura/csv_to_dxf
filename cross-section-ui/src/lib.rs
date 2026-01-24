@@ -503,10 +503,11 @@ impl GridBounds {
         (self.width() / plot_scale, self.height() / plot_scale)
     }
 
-    /// 図枠に収まるかチェック
+    /// 図枠に収まるかチェック（内枠全体を使用）
     pub fn fits_in_frame(&self, plot_scale: f64) -> bool {
         let (w_mm, h_mm) = self.to_paper_size(plot_scale);
-        w_mm <= available_area::USABLE_WIDTH_MM && h_mm <= available_area::USABLE_HEIGHT_MM
+        // 幅は内枠全体（390mm）、高さはタイトル枠を避けた領域（193mm）
+        w_mm <= available_area::FRAME_USABLE_WIDTH_MM && h_mm <= available_area::FRAME_USABLE_HEIGHT_MM
     }
 }
 
@@ -786,15 +787,14 @@ fn generate_multi_drawing_internal(
 
             // Y方向は配置可能エリア（緑エリア）でセンタリング
             // 右下タイトル枠（80mm×48mm）と重ならないよう、下端にマージンを追加
-            const TITLE_BLOCK_HEIGHT_MM: f64 = 48.0;
-            let usable_height = area::HEIGHT_MM - area::MARGIN_MM * 2.0 - TITLE_BLOCK_HEIGHT_MM;
+            let usable_height = area::FRAME_USABLE_HEIGHT_MM;
 
             // X: 内枠中心にコンテンツ中心を合わせる
             let content_center_x = content_width_mm / 2.0;
             let target_left = FRAME_CENTER_X_MM - content_center_x;
 
             // Y: 配置可能エリア内でセンタリング（タイトル枠の上から）
-            let target_bottom = area::BOTTOM_MM + area::MARGIN_MM + TITLE_BLOCK_HEIGHT_MM
+            let target_bottom = area::BOTTOM_MM + area::MARGIN_MM + area::TITLE_BLOCK_HEIGHT_MM
                               + (usable_height - content_height_mm) / 2.0;
 
             // オフセット計算（DXF単位）
