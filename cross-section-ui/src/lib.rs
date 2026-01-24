@@ -1692,11 +1692,16 @@ pub fn generate_combo_drawing(sections: &[CrossSectionData], columns: usize, col
         drawing.add_entity(shifted_entity);
     }
 
-    // 横断図: ルート2のみ、縦断図・展開図の右側に配置
+    // 横断図配置前に縦断図＋展開図のバウンディングボックスを取得
+    let (_left_min_x, left_min_y, _left_max_x, left_max_y) = calc_dxf_bounds(&drawing);
+    let left_center_y = (left_min_y as f64 + left_max_y as f64) / 2.0;
+
+    // 横断図: ルート2のみ、縦断図・展開図の右側に配置（縦方向は中央揃え）
     if let Some(ref cs) = cross_sections {
-        let (cs_min_x, cs_min_y, _cs_max_x, _cs_max_y) = calc_dxf_bounds(cs);
+        let (cs_min_x, cs_min_y, _cs_max_x, cs_max_y) = calc_dxf_bounds(cs);
+        let cs_center_y = (cs_min_y as f64 + cs_max_y as f64) / 2.0;
         let cs_x_offset = long_max_x as f64 + spacing * 2.0 - cs_min_x as f64;
-        let cs_y_offset = -cs_min_y as f64;
+        let cs_y_offset = left_center_y - cs_center_y;  // 縦断図＋展開図の中央に合わせる
         for entity in cs.entities() {
             let mut shifted_entity = entity.clone();
             shift_entity_xy(&mut shifted_entity, cs_x_offset, cs_y_offset);
@@ -1744,12 +1749,12 @@ pub fn generate_combo_drawing(sections: &[CrossSectionData], columns: usize, col
 
     // ルート2の場合、横断図範囲に縮尺を表示
     if let Some(ref cs) = cross_sections {
-        let (cs_min_x, cs_min_y, _cs_max_x, _cs_max_y) = calc_dxf_bounds(cs);
-        let cs_x_offset = long_max_x as f64 + spacing * 2.0 - cs_min_x as f64;
-        let cs_y_offset = -cs_min_y as f64;
-        // 横断図の左下に縮尺表示
+        let (cs_min_x, cs_min_y, _cs_max_x, cs_max_y) = calc_dxf_bounds(cs);
+        let cs_center_y = (cs_min_y as f64 + cs_max_y as f64) / 2.0;
+        let cs_y_offset = left_center_y - cs_center_y;
+        // 横断図の左下に縮尺表示（配置後の位置）
         let scale_label_x = long_max_x as f64 + spacing * 2.0;
-        let scale_label_y = 0.0;
+        let scale_label_y = cs_min_y as f64 + cs_y_offset - frame_text_size * frame_scale;
         add_text(&mut drawing, scale_label_x, scale_label_y, "横断図 Scale H=1:100 V=1:200",
             frame_text_size * frame_scale, 7, "TEXT", TextAlign::Left);
     }
