@@ -25,7 +25,7 @@ pub use title_block::{
 
 // dxf crate for proper DXF file generation
 use dxf::Drawing;
-use dxf::entities::{Entity, EntityType, Line, Text};
+use dxf::entities::{Entity, EntityType, Line, Solid, Text};
 use dxf::enums::{HorizontalTextJustification, VerticalTextJustification};
 use dxf::{Color, Point};
 
@@ -90,6 +90,49 @@ fn add_text(drawing: &mut Drawing, x: f64, y: f64, text: &str, height: f64, colo
     drawing.add_entity(entity);
 }
 
+/// テキスト幅を概算（文字数 × 高さ × 係数）
+fn estimate_text_width(text: &str, height: f64) -> f64 {
+    let char_count: f64 = text.chars()
+        .map(|c| if c.is_ascii() { 0.6 } else { 1.0 })
+        .sum();
+    char_count * height
+}
+
+/// 白背景付きテキスト描画（マージンなし）
+fn add_text_with_mask(
+    drawing: &mut Drawing,
+    x: f64, y: f64,
+    text: &str,
+    height: f64,
+    color: i16,
+    layer: &str,
+    align: TextAlign
+) {
+    let width = estimate_text_width(text, height);
+
+    // アライメントに応じたX座標調整
+    let mask_x = match align {
+        TextAlign::Left => x,
+        TextAlign::Center => x - width / 2.0,
+        TextAlign::Right => x - width,
+    };
+
+    // SOLID矩形（白、マージンなし）
+    let mut solid = Solid::default();
+    solid.first_corner = Point::new(mask_x, y - height / 2.0, 0.0);
+    solid.second_corner = Point::new(mask_x + width, y - height / 2.0, 0.0);
+    solid.third_corner = Point::new(mask_x, y + height / 2.0, 0.0);
+    solid.fourth_corner = Point::new(mask_x + width, y + height / 2.0, 0.0);
+
+    let mut entity = Entity::new(EntityType::Solid(solid));
+    entity.common.layer = layer.to_string();
+    entity.common.color = Color::from_index(7);  // 白
+    drawing.add_entity(entity);
+
+    // テキスト本体
+    add_text(drawing, x, y, text, height, color, layer, align);
+}
+
 /// 垂直アライメント
 #[derive(Clone, Copy)]
 enum VerticalAlign { Top, Middle, Bottom }
@@ -149,7 +192,24 @@ fn add_dimension_as_lines(
 
     // 中央にテキスト（寸法線の上にマージン、ボトムアラインメント）
     let mid_x = (x1 + x2) / 2.0;
-    add_text_rotated(drawing, mid_x, y + 50.0, text, text_height, color, layer,
+    let text_y = y + 50.0;
+
+    // 白背景マスク（テキストの下にSOLID矩形）
+    let width = estimate_text_width(text, text_height);
+    let mask_x = mid_x - width / 2.0;  // Center alignment
+    let mut solid = Solid::default();
+    // VerticalAlign::Bottom なので、テキストはyから上に伸びる
+    solid.first_corner = Point::new(mask_x, text_y, 0.0);
+    solid.second_corner = Point::new(mask_x + width, text_y, 0.0);
+    solid.third_corner = Point::new(mask_x, text_y + text_height, 0.0);
+    solid.fourth_corner = Point::new(mask_x + width, text_y + text_height, 0.0);
+
+    let mut entity = Entity::new(EntityType::Solid(solid));
+    entity.common.layer = layer.to_string();
+    entity.common.color = Color::from_index(7);  // 白
+    drawing.add_entity(entity);
+
+    add_text_rotated(drawing, mid_x, text_y, text, text_height, color, layer,
         TextAlign::Center, VerticalAlign::Bottom, 0.0);
 }
 
@@ -356,23 +416,23 @@ pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
         &section.survey_point_name, text_height * 1.5, 7, "TEXT", TextAlign::Center);
 
     // ========== CL GH, FH ==========
-    add_text(&mut drawing, cl_x, flag_y + 800.0,
+    add_text_with_mask(&mut drawing, cl_x, flag_y + 800.0,
         &format!("GH={:.3}", cl_data.elevation), text_height, 7, "TEXT", TextAlign::Center);
-    add_text(&mut drawing, cl_x, flag_y + 400.0,
+    add_text_with_mask(&mut drawing, cl_x, flag_y + 400.0,
         &format!("FH={:.3}", cl_data.planned_height), text_height, 1, "PLAN", TextAlign::Center);
 
     // ========== L側 GH, FH（ポインター分上にオフセット）==========
     let l_ground_y = to_dxf_y(l_data.elevation);
-    add_text(&mut drawing, l_x, l_ground_y + 800.0 + pointer_offset,
+    add_text_with_mask(&mut drawing, l_x, l_ground_y + 800.0 + pointer_offset,
         &format!("GH={:.3}", l_data.elevation), text_height, 7, "TEXT", TextAlign::Left);
-    add_text(&mut drawing, l_x, l_ground_y + 400.0 + pointer_offset,
+    add_text_with_mask(&mut drawing, l_x, l_ground_y + 400.0 + pointer_offset,
         &format!("FH={:.3}", l_data.planned_height), text_height, 1, "PLAN", TextAlign::Left);
 
     // ========== R側 GH, FH（ポインター分上にオフセット）==========
     let r_ground_y = to_dxf_y(r_data.elevation);
-    add_text(&mut drawing, r_x, r_ground_y + 800.0 + pointer_offset,
+    add_text_with_mask(&mut drawing, r_x, r_ground_y + 800.0 + pointer_offset,
         &format!("GH={:.3}", r_data.elevation), text_height, 7, "TEXT", TextAlign::Right);
-    add_text(&mut drawing, r_x, r_ground_y + 400.0 + pointer_offset,
+    add_text_with_mask(&mut drawing, r_x, r_ground_y + 400.0 + pointer_offset,
         &format!("FH={:.3}", r_data.planned_height), text_height, 1, "PLAN", TextAlign::Right);
 
     // ========== 寸法線による旗揚げ（幅員）==========
@@ -398,7 +458,7 @@ pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
     let slope_text_y = flag_y + 500.0 + arrow_offset;  // 矢印分上げる
 
     // 左側勾配
-    add_text(&mut drawing, mid_l_x, slope_text_y,
+    add_text_with_mask(&mut drawing, mid_l_x, slope_text_y,
         &format!("{:.1}%", left_slope), text_height, 7, "TEXT", TextAlign::Center);
     if left_slope.abs() > 0.01 {
         let arrow_y = slope_text_y - arrow_offset;
@@ -415,7 +475,7 @@ pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
     }
 
     // 右側勾配
-    add_text(&mut drawing, mid_r_x, slope_text_y,
+    add_text_with_mask(&mut drawing, mid_r_x, slope_text_y,
         &format!("{:.1}%", right_slope), text_height, 7, "TEXT", TextAlign::Center);
     if right_slope.abs() > 0.01 {
         let arrow_y = slope_text_y - arrow_offset;
@@ -449,11 +509,11 @@ pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
         } else {
             TextAlign::Center
         };
-        add_text(&mut drawing, x, cutting_y,
+        add_text_with_mask(&mut drawing, x, cutting_y,
             &format!("{:.0}", cutting_thickness_mm), cutting_text_height, 5, "CUTTING", align);
     }
     // ラベル「切削厚」を中央下に表示
-    add_text(&mut drawing, cl_x, cutting_y - cutting_text_height - 100.0,
+    add_text_with_mask(&mut drawing, cl_x, cutting_y - cutting_text_height - 100.0,
         "切削厚", cutting_text_height, 5, "CUTTING", TextAlign::Center);
 
     // ========== ガイド線 ==========
@@ -1304,16 +1364,16 @@ fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
     let r_x = to_dxf_x(r_data.cumulative_distance);
 
     add_text(drawing, cl_x, flag_y + 1300.0 * scale_multiplier, &section.survey_point_name, text_height * 1.5, 7, "TEXT", TextAlign::Center);
-    add_text(drawing, cl_x, flag_y + 800.0 * scale_multiplier, &format!("GH={:.3}", cl_data.elevation), text_height, 7, "TEXT", TextAlign::Center);
-    add_text(drawing, cl_x, flag_y + 400.0 * scale_multiplier, &format!("FH={:.3}", cl_data.planned_height), text_height, 1, "PLAN", TextAlign::Center);
+    add_text_with_mask(drawing, cl_x, flag_y + 800.0 * scale_multiplier, &format!("GH={:.3}", cl_data.elevation), text_height, 7, "TEXT", TextAlign::Center);
+    add_text_with_mask(drawing, cl_x, flag_y + 400.0 * scale_multiplier, &format!("FH={:.3}", cl_data.planned_height), text_height, 1, "PLAN", TextAlign::Center);
 
     let l_ground_y = to_dxf_y(l_data.elevation);
-    add_text(drawing, l_x, l_ground_y + 800.0 * scale_multiplier + pointer_offset, &format!("GH={:.3}", l_data.elevation), text_height, 7, "TEXT", TextAlign::Left);
-    add_text(drawing, l_x, l_ground_y + 400.0 * scale_multiplier + pointer_offset, &format!("FH={:.3}", l_data.planned_height), text_height, 1, "PLAN", TextAlign::Left);
+    add_text_with_mask(drawing, l_x, l_ground_y + 800.0 * scale_multiplier + pointer_offset, &format!("GH={:.3}", l_data.elevation), text_height, 7, "TEXT", TextAlign::Left);
+    add_text_with_mask(drawing, l_x, l_ground_y + 400.0 * scale_multiplier + pointer_offset, &format!("FH={:.3}", l_data.planned_height), text_height, 1, "PLAN", TextAlign::Left);
 
     let r_ground_y = to_dxf_y(r_data.elevation);
-    add_text(drawing, r_x, r_ground_y + 800.0 * scale_multiplier + pointer_offset, &format!("GH={:.3}", r_data.elevation), text_height, 7, "TEXT", TextAlign::Right);
-    add_text(drawing, r_x, r_ground_y + 400.0 * scale_multiplier + pointer_offset, &format!("FH={:.3}", r_data.planned_height), text_height, 1, "PLAN", TextAlign::Right);
+    add_text_with_mask(drawing, r_x, r_ground_y + 800.0 * scale_multiplier + pointer_offset, &format!("GH={:.3}", r_data.elevation), text_height, 7, "TEXT", TextAlign::Right);
+    add_text_with_mask(drawing, r_x, r_ground_y + 400.0 * scale_multiplier + pointer_offset, &format!("FH={:.3}", r_data.planned_height), text_height, 1, "PLAN", TextAlign::Right);
 
     let mid_l_x = (l_x + cl_x) / 2.0;
     let mid_r_x = (cl_x + r_x) / 2.0;
@@ -1324,7 +1384,7 @@ fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
     let slope_text_y = flag_y + 500.0 * scale_multiplier + arrow_offset;
 
     // 左側勾配
-    add_text(drawing, mid_l_x, slope_text_y, &format!("{:.1}%", left_slope), text_height, 7, "TEXT", TextAlign::Center);
+    add_text_with_mask(drawing, mid_l_x, slope_text_y, &format!("{:.1}%", left_slope), text_height, 7, "TEXT", TextAlign::Center);
     if left_slope.abs() > 0.01 {
         let arrow_y = slope_text_y - arrow_offset;
         let arrow_x = mid_l_x - arrow_len / 2.0;
@@ -1338,7 +1398,7 @@ fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
     }
 
     // 右側勾配
-    add_text(drawing, mid_r_x, slope_text_y, &format!("{:.1}%", right_slope), text_height, 7, "TEXT", TextAlign::Center);
+    add_text_with_mask(drawing, mid_r_x, slope_text_y, &format!("{:.1}%", right_slope), text_height, 7, "TEXT", TextAlign::Center);
     if right_slope.abs() > 0.01 {
         let arrow_y = slope_text_y - arrow_offset;
         let arrow_x = mid_r_x - arrow_len / 2.0;
@@ -1381,11 +1441,11 @@ fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
         } else {
             TextAlign::Center
         };
-        add_text(drawing, x, cutting_y,
+        add_text_with_mask(drawing, x, cutting_y,
             &format!("{:.0}", cutting_thickness_mm), cutting_text_height, 5, "CUTTING", align);
     }
     // ラベル「切削厚」を中央下に表示
-    add_text(drawing, cl_x, cutting_y - cutting_text_height - 100.0 * scale_multiplier,
+    add_text_with_mask(drawing, cl_x, cutting_y - cutting_text_height - 100.0 * scale_multiplier,
         "切削厚", cutting_text_height, 5, "CUTTING", TextAlign::Center);
 
     // DLライン（幅員と同じ長さ）
