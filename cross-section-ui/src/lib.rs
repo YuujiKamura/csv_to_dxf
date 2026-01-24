@@ -528,7 +528,8 @@ pub fn calc_grid_bounds(
 
     let scale = 1000.0;
     let y_scale = scale * 2.0;
-    let columns = columns.max(1).min(sections.len());
+    // 図枠計算時は4列固定を使用（引数は互換性のため残す）
+    let columns = available_area::COLUMN_COUNT.min(columns.max(1).min(sections.len()));
     let rows_per_column = (sections.len() + columns - 1) / columns;
 
     // 列ごとの最大幅と全体の最大高さを計算（generate_multi_drawing_internalと同じロジック）
@@ -669,13 +670,15 @@ pub fn calc_optimal_columns_for_frame(
 /// 指定された列数とスケールで、A3図枠に収まる最大のセクション数を返す
 pub fn calc_sections_per_page(
     sections: &[CrossSectionData],
-    columns: usize,
+    _columns: usize,  // 無視（4列固定のため）
     column_gap: f64,
     row_gap: f64,
     plot_scale: f64,
 ) -> usize {
     if sections.is_empty() { return 0; }
-    if columns == 0 { return 0; }
+
+    // 図枠付きは4列固定
+    let columns = available_area::COLUMN_COUNT;
 
     // 1個から順にチェックして収まる最大数を探す
     let mut max_fitting = 1;
@@ -750,6 +753,13 @@ fn generate_multi_drawing_internal(
 
     if sections.is_empty() { return drawing; }
 
+    // 図枠付きの場合は4列固定、図枠なしの場合は指定列数を使用
+    let columns = if frame_scale.is_some() {
+        available_area::COLUMN_COUNT  // 4列固定
+    } else {
+        columns
+    };
+
     // 旗揚げ用の固定マージン（0.5m）
     const FLAG_MARGIN: f64 = 0.5;
 
@@ -773,63 +783,61 @@ fn generate_multi_drawing_internal(
         max_height = max_height.max(max_elev - section.dl + row_gap + FLAG_MARGIN);
     }
 
-    // 列ごとのセル幅と累積X位置を計算
-    let mut col_widths: Vec<f64> = Vec::with_capacity(columns);
-    let mut col_x_offsets: Vec<f64> = Vec::with_capacity(columns);
-    let mut cumulative_x = 0.0;
-
-    for col in 0..columns {
-        let cell_width = (col_max_left[col] + col_max_right[col] + column_gap) * scale;
-        col_widths.push(cell_width);
-        // この列のCL位置: 累積X + 列内の左マージン
-        let cl_x = cumulative_x + (col_max_left[col] + column_gap / 2.0) * scale;
-        col_x_offsets.push(cl_x);
-        cumulative_x += cell_width;
-    }
-
     let cell_height = (max_height + row_gap) * scale * 2.0;  // 行間隔を含む（縦スケール2倍）
 
-    // 図枠付きの場合、列ごとにY配置を計算
-    // 列0-2: 15mm〜256mm（高さ241mm）、列3: 58mm〜261mm（高さ203mm）
-    let (content_offset_x, col_y_offsets, grid_bounds) = if let Some(fs) = frame_scale {
-        // グリッド全体の実際のバウンディングボックスを取得
-        if let Some(bounds) = calc_grid_bounds(sections, columns, column_gap, row_gap) {
-            use available_area as area;
+    // 図枠付きの場合: 4列均等分割の中心線を使用
+    // 図枠なしの場合: 従来の動的計算
+    let (col_x_offsets, col_y_offsets, grid_bounds) = if let Some(fs) = frame_scale {
+        use available_area as area;
 
-            // コンテンツサイズを紙上mm換算
-            let content_width_mm = bounds.width() / fs;
-            let content_height_mm = bounds.height() / fs;
+        // 列ごとのCL位置は固定（列の中心 * スケール）
+        let col_centers: Vec<f64> = (0..columns)
+            .map(|col| {
+                if col < 4 {
+                    area::COLUMN_CENTERS[col] * fs
+                } else {
+                    // 4列以上の場合は最後の列の中心を使用
+                    area::COLUMN_CENTERS[3] * fs
+                }
+            })
+            .collect();
 
-            // 内枠全体（緑+水色エリア）の中心でX方向をセンタリング
-            // 内枠: 10mm〜410mm (幅400mm)、中心=210mm
-            const FRAME_CENTER_X_MM: f64 = 210.0;
+        // グリッド全体の実際のバウンディングボックスを取得（Y配置とデバッグ用）
+        let bounds = calc_grid_bounds(sections, columns, column_gap, row_gap);
+        let content_height_mm = bounds.as_ref().map(|b| b.height() / fs).unwrap_or(0.0);
 
-            // X: 内枠中心にコンテンツ中心を合わせる
-            let content_center_x = content_width_mm / 2.0;
-            let target_left = FRAME_CENTER_X_MM - content_center_x;
+        // 列ごとのY方向オフセットを計算
+        let mut col_offsets: Vec<f64> = Vec::with_capacity(columns);
+        for col in 0..columns {
+            // 列ごとの有効高さと下端位置
+            let col_height = area::height_for_column(col);
+            let col_bottom = area::bottom_for_column(col);
 
-            // オフセット計算（DXF単位）
-            let offset_x = target_left * fs - bounds.min_x;
-
-            // 列ごとのY方向オフセットを計算
-            let mut col_offsets: Vec<f64> = Vec::with_capacity(columns);
-            for col in 0..columns {
-                // 列ごとの有効高さと下端位置
-                let col_height = area::height_for_column(col);
-                let col_bottom = area::bottom_for_column(col);
-
-                // Y: 列ごとの利用可能領域でセンタリング
-                let target_bottom = col_bottom + (col_height - content_height_mm) / 2.0;
-                let offset_y = target_bottom * fs - bounds.min_y;
-                col_offsets.push(offset_y);
-            }
-
-            (offset_x, col_offsets, Some(bounds))
-        } else {
-            (0.0, vec![0.0; columns], None)
+            // Y: 列ごとの利用可能領域でセンタリング
+            let target_bottom = col_bottom + (col_height - content_height_mm) / 2.0;
+            let offset_y = if let Some(ref b) = bounds {
+                target_bottom * fs - b.min_y
+            } else {
+                0.0
+            };
+            col_offsets.push(offset_y);
         }
+
+        (col_centers, col_offsets, bounds)
     } else {
-        (0.0, vec![0.0; columns], None)
+        // 図枠なしの場合: 従来の動的計算（列ごとのセル幅と累積X位置を計算）
+        let mut col_x_offsets: Vec<f64> = Vec::with_capacity(columns);
+        let mut cumulative_x = 0.0;
+
+        for col in 0..columns {
+            let cell_width = (col_max_left[col] + col_max_right[col] + column_gap) * scale;
+            // この列のCL位置: 累積X + 列内の左マージン
+            let cl_x = cumulative_x + (col_max_left[col] + column_gap / 2.0) * scale;
+            col_x_offsets.push(cl_x);
+            cumulative_x += cell_width;
+        }
+
+        (col_x_offsets, vec![0.0; columns], None)
     };
 
     // セクションを描画
@@ -838,7 +846,13 @@ fn generate_multi_drawing_internal(
         let col = idx / rows_per_column;
         let row_in_col = idx % rows_per_column;
 
-        let offset_x = col_x_offsets[col] + content_offset_x;
+        // X: 列の中心線を使用（図枠あり）または動的計算（図枠なし）
+        let offset_x = if col < col_x_offsets.len() {
+            col_x_offsets[col]
+        } else {
+            col_x_offsets.last().copied().unwrap_or(0.0)
+        };
+
         // 列ごとのY方向オフセットを適用
         let col_y_offset = if col < col_y_offsets.len() {
             col_y_offsets[col]
@@ -863,13 +877,16 @@ fn generate_multi_drawing_internal(
         draw_drawing_frame(&mut drawing, &info, 0.0, 0.0, fs, TEXT_SIZE_MM);
 
         // グリッド外形を描画（デバッグ用）
-        // 全体のバウンディングボックスを描画（X方向は共通、Y方向は最小オフセット使用）
+        // 各列の中心線から推測したグリッド範囲を描画
         if info.show_debug_markers {
             if let Some(bounds) = &grid_bounds {
                 const COLOR_RED: i16 = 1;
 
-                let grid_min_x = bounds.min_x + content_offset_x;
-                let grid_max_x = bounds.max_x + content_offset_x;
+                // 列の左右端から計算（最初の列の左端〜最後の列の右端）
+                let first_col = 0;
+                let last_col = (columns - 1).min(3);
+                let grid_min_x = available_area::COLUMN_LEFTS[first_col] * fs;
+                let grid_max_x = available_area::COLUMN_RIGHTS[last_col] * fs;
 
                 // 最小のY方向オフセット（左列が最も低い位置）を使用
                 let min_y_offset = col_y_offsets.iter().copied().fold(f64::MAX, f64::min);
