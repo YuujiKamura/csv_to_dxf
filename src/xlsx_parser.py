@@ -41,6 +41,8 @@ class CrossSectionData:
     survey_data: list[SurveyRow]  # 測量データ
     route_distance: Optional[float] = None  # 路線距離（m）
     route_id: str = "route_1"     # ルートID
+    is_route_start: bool = False  # 路線の起点かどうか（補間しない）
+    is_route_end: bool = False    # 路線の終点かどうか（補間しない）
 
 
 @dataclass
@@ -592,7 +594,22 @@ def to_cross_section_ui_format(data: dict) -> list[dict]:
             "survey_data": s["survey_data"],
             "route_distance": s["route_distance"],
             "route_id": s.get("route_id", "route_1"),
+            "is_route_start": False,
+            "is_route_end": False,
         })
+
+    # 各ルートごとに起終点フラグを設定
+    route_indices: dict[str, list[int]] = {}
+    for i, s in enumerate(sections):
+        route_id = s["route_id"]
+        if route_id not in route_indices:
+            route_indices[route_id] = []
+        route_indices[route_id].append(i)
+
+    for indices in route_indices.values():
+        if indices:
+            sections[indices[0]]["is_route_start"] = True
+            sections[indices[-1]]["is_route_end"] = True
 
     return sections
 
