@@ -533,7 +533,7 @@ pub fn calc_optimal_columns_for_frame(
 /// 複数横断図をグリッド配置したDrawingを生成
 /// 道路工事の配置ルール: 左下起点、列ごとに下から上へ、左から右へ
 pub fn generate_multi_drawing(sections: &[CrossSectionData], columns: usize, column_gap: f64) -> Drawing {
-    generate_multi_drawing_internal(sections, columns, column_gap, false, None)
+    generate_multi_drawing_internal(sections, columns, column_gap, None, None)
 }
 
 /// 1:500図枠付きで複数横断図をグリッド配置したDrawingを生成
@@ -543,15 +543,27 @@ pub fn generate_multi_drawing_with_frame(
     column_gap: f64,
     title_info: &TitleBlockInfo,
 ) -> Drawing {
-    generate_multi_drawing_internal(sections, columns, column_gap, true, Some(title_info))
+    generate_multi_drawing_internal(sections, columns, column_gap, Some(500.0), Some(title_info))
+}
+
+/// 任意スケールの図枠付きで複数横断図をグリッド配置したDrawingを生成
+pub fn generate_multi_drawing_with_frame_at_scale(
+    sections: &[CrossSectionData],
+    columns: usize,
+    column_gap: f64,
+    title_info: &TitleBlockInfo,
+    frame_scale: f64,
+) -> Drawing {
+    generate_multi_drawing_internal(sections, columns, column_gap, Some(frame_scale), Some(title_info))
 }
 
 /// 複数横断図をグリッド配置（内部実装）
+/// frame_scale: None=図枠なし、Some(200.0)=1:200、Some(500.0)=1:500
 fn generate_multi_drawing_internal(
     sections: &[CrossSectionData],
     columns: usize,
     column_gap: f64,
-    with_frame: bool,
+    frame_scale: Option<f64>,
     title_info: Option<&TitleBlockInfo>,
 ) -> Drawing {
     let scale = 1000.0;
@@ -608,18 +620,16 @@ fn generate_multi_drawing_internal(
     let cell_height = (max_height + 1.0) * scale * 2.0;  // 旗揚げ部分のマージン（縦スケール2倍）
 
     // 図枠付きの場合、コンテンツを図枠内に配置
-    // 1:500スケール: 1mm(紙) = 500mm(実寸) = 0.5m
-    // フレームスケール: 500 (1mm紙上 = 500 DXF単位)
-    let (content_offset_x, content_offset_y) = if with_frame {
+    // スケール例: 1:200なら1mm(紙) = 200mm(実寸)、1:500なら1mm(紙) = 500mm(実寸)
+    let (content_offset_x, content_offset_y) = if let Some(fs) = frame_scale {
         // 図枠の描画可能エリア（紙上mm）
         // 内枠左下: (10, 10)、タイトルブロック左端まで: (330, 261)
         // → 描画可能エリア: 320mm × 251mm
-        const FRAME_SCALE: f64 = 500.0;
         const CONTENT_LEFT_MM: f64 = 10.0;   // 内枠左端
         const CONTENT_BOTTOM_MM: f64 = 10.0; // 内枠下端
 
         // コンテンツのオフセット（DXF単位）
-        (CONTENT_LEFT_MM * FRAME_SCALE, CONTENT_BOTTOM_MM * FRAME_SCALE)
+        (CONTENT_LEFT_MM * fs, CONTENT_BOTTOM_MM * fs)
     } else {
         (0.0, 0.0)
     };
@@ -636,18 +646,17 @@ fn generate_multi_drawing_internal(
         draw_section_at_offset(&mut drawing, section, offset_x, offset_y, scale);
     }
 
-    // 図枠を描画（1:500スケール）
-    if with_frame {
-        const FRAME_SCALE: f64 = 500.0;
+    // 図枠を描画
+    if let Some(fs) = frame_scale {
         const TEXT_SIZE_MM: f64 = 3.0;
 
         let info = title_info.cloned().unwrap_or_else(|| {
             TitleBlockInfo::new()
                 .with_top_title("横断図")
-                .with_scale("1:500 (A3)")
+                .with_scale(&format!("1:{} (A3)", fs as u32))
         });
 
-        draw_drawing_frame(&mut drawing, &info, 0.0, 0.0, FRAME_SCALE, TEXT_SIZE_MM);
+        draw_drawing_frame(&mut drawing, &info, 0.0, 0.0, fs, TEXT_SIZE_MM);
     }
 
     drawing
@@ -875,6 +884,20 @@ pub fn generate_multi_dxf_bytes_with_frame(
     title_info: &TitleBlockInfo,
 ) -> Vec<u8> {
     let drawing = generate_multi_drawing_with_frame(sections, columns, column_gap, title_info);
+    let mut output: Vec<u8> = Vec::new();
+    drawing.save(&mut output).expect("Failed to save DXF");
+    output
+}
+
+/// 任意スケールの図枠付きDXFバイト列を生成
+pub fn generate_multi_dxf_bytes_with_frame_at_scale(
+    sections: &[CrossSectionData],
+    columns: usize,
+    column_gap: f64,
+    title_info: &TitleBlockInfo,
+    frame_scale: f64,
+) -> Vec<u8> {
+    let drawing = generate_multi_drawing_with_frame_at_scale(sections, columns, column_gap, title_info, frame_scale);
     let mut output: Vec<u8> = Vec::new();
     drawing.save(&mut output).expect("Failed to save DXF");
     output
@@ -2119,6 +2142,9 @@ enum ViewMode {
     TitleBlock,  // タイトル枠テスト
 }
 
+/// 図枠スケール（None=手動、Some(200)=1:200、Some(500)=1:500）
+type PlotScale = Option<u32>;
+
 pub struct CrossSectionApp {
     sections: Vec<CrossSectionData>,
     selected_index: Option<usize>,
@@ -2127,7 +2153,7 @@ pub struct CrossSectionApp {
     view_mode: ViewMode,
     grid_columns: usize,     // グリッドの列数
     column_gap: f64,         // 列間隔（メートル単位）
-    auto_columns_for_500: bool,  // 1:500自動列数計算モード
+    plot_scale: PlotScale,   // 図枠スケール（None=手動、Some(200)=1:200等）
     status_message: Option<String>,
     needs_fit: bool,         // canvas_rect更新後にfit_to_dxfを呼ぶフラグ
     fit_bounds: Option<(f32, f32, f32, f32)>,  // フィット先のバウンディングボックス（Singleモード用）
@@ -2150,7 +2176,7 @@ impl Default for CrossSectionApp {
             view_mode: ViewMode::Single, // デフォルトで単一横断図（モバイル向け）
             grid_columns: 3,
             column_gap: 2.0,  // 列間隔2メートル（切削厚ラベル分）
-            auto_columns_for_500: false,  // デフォルトは手動列数指定
+            plot_scale: None,  // デフォルトは手動列数指定
             status_message: None,
             needs_fit: false,
             fit_bounds: None,
@@ -2264,11 +2290,15 @@ impl CrossSectionApp {
         // fit_boundsをリセット（Singleモード以外はNone）
         self.fit_bounds = None;
 
-        // 1:500自動列数計算モードが有効な場合、列数を自動計算
-        let columns = if self.auto_columns_for_500 && !filtered.is_empty() {
-            let calculated = calc_optimal_columns_for_frame(&filtered, self.column_gap, 500.0);
-            self.grid_columns = calculated;  // UI表示用に保存
-            calculated
+        // 図枠スケールが設定されている場合、列数を自動計算
+        let columns = if let Some(scale) = self.plot_scale {
+            if !filtered.is_empty() {
+                let calculated = calc_optimal_columns_for_frame(&filtered, self.column_gap, scale as f64);
+                self.grid_columns = calculated;  // UI表示用に保存
+                calculated
+            } else {
+                self.grid_columns
+            }
         } else {
             self.grid_columns
         };
@@ -2284,12 +2314,12 @@ impl CrossSectionApp {
                 generate_combo_drawing(&filtered, columns, self.column_gap)
             }
             ViewMode::AllGrid if !filtered.is_empty() => {
-                if self.auto_columns_for_500 {
-                    // 1:500図枠付きで描画
+                if let Some(scale) = self.plot_scale {
+                    // 図枠付きで描画
                     let info = TitleBlockInfo::new()
                         .with_top_title("横断図")
-                        .with_scale("1:500 (A3)");
-                    generate_multi_drawing_with_frame(&filtered, columns, self.column_gap, &info)
+                        .with_scale(&format!("1:{} (A3)", scale));
+                    generate_multi_drawing_with_frame_at_scale(&filtered, columns, self.column_gap, &info, scale as f64)
                 } else {
                     generate_multi_drawing(&filtered, columns, self.column_gap)
                 }
@@ -2504,13 +2534,31 @@ impl eframe::App for CrossSectionApp {
 
                     if self.view_mode == ViewMode::AllGrid || self.view_mode == ViewMode::Combo {
                         ui.horizontal_wrapped(|ui| {
-                            // 1:500自動列数計算チェックボックス
-                            if ui.checkbox(&mut self.auto_columns_for_500, "1:500").changed() {
-                                self.update_dxf_preview();
-                            }
+                            // 図枠スケール選択
+                            let scale_label = match self.plot_scale {
+                                None => "手動".to_string(),
+                                Some(s) => format!("1:{}", s),
+                            };
+                            egui::ComboBox::from_id_salt("scale_select_mobile")
+                                .selected_text(scale_label)
+                                .width(60.0)
+                                .show_ui(ui, |ui| {
+                                    if ui.selectable_label(self.plot_scale.is_none(), "手動").clicked() {
+                                        self.plot_scale = None;
+                                        self.update_dxf_preview();
+                                    }
+                                    if ui.selectable_label(self.plot_scale == Some(200), "1:200").clicked() {
+                                        self.plot_scale = Some(200);
+                                        self.update_dxf_preview();
+                                    }
+                                    if ui.selectable_label(self.plot_scale == Some(500), "1:500").clicked() {
+                                        self.plot_scale = Some(500);
+                                        self.update_dxf_preview();
+                                    }
+                                });
                             ui.label(format!("{}列", self.grid_columns));
                             // 自動モード時は手動調整を無効化
-                            ui.add_enabled_ui(!self.auto_columns_for_500, |ui| {
+                            ui.add_enabled_ui(self.plot_scale.is_none(), |ui| {
                                 if ui.small_button("+").clicked() && self.grid_columns < 10 {
                                     self.grid_columns += 1;
                                     self.update_dxf_preview();
@@ -2545,11 +2593,11 @@ impl eframe::App for CrossSectionApp {
                             }
                             ViewMode::AllGrid if !filtered_for_dxf.is_empty() => {
                                 if ui.button("DXF").clicked() {
-                                    let dxf_content = if self.auto_columns_for_500 {
+                                    let dxf_content = if let Some(scale) = self.plot_scale {
                                         let info = TitleBlockInfo::new()
                                             .with_top_title("横断図")
-                                            .with_scale("1:500 (A3)");
-                                        generate_multi_dxf_bytes_with_frame(&filtered_for_dxf, self.grid_columns, self.column_gap, &info)
+                                            .with_scale(&format!("1:{} (A3)", scale));
+                                        generate_multi_dxf_bytes_with_frame_at_scale(&filtered_for_dxf, self.grid_columns, self.column_gap, &info, scale as f64)
                                     } else {
                                         generate_multi_dxf_bytes(&filtered_for_dxf, self.grid_columns, self.column_gap)
                                     };
@@ -2677,13 +2725,31 @@ impl eframe::App for CrossSectionApp {
                 // AllGrid/Comboモード時の列数・間隔調整
                 if self.view_mode == ViewMode::AllGrid || self.view_mode == ViewMode::Combo {
                     ui.horizontal(|ui| {
-                        // 1:500自動列数計算チェックボックス
-                        if ui.checkbox(&mut self.auto_columns_for_500, "1:500").changed() {
-                            self.update_dxf_preview();
-                        }
+                        // 図枠スケール選択
+                        let scale_label = match self.plot_scale {
+                            None => "手動".to_string(),
+                            Some(s) => format!("1:{}", s),
+                        };
+                        egui::ComboBox::from_id_salt("scale_select_desktop")
+                            .selected_text(scale_label)
+                            .width(70.0)
+                            .show_ui(ui, |ui| {
+                                if ui.selectable_label(self.plot_scale.is_none(), "手動").clicked() {
+                                    self.plot_scale = None;
+                                    self.update_dxf_preview();
+                                }
+                                if ui.selectable_label(self.plot_scale == Some(200), "1:200").clicked() {
+                                    self.plot_scale = Some(200);
+                                    self.update_dxf_preview();
+                                }
+                                if ui.selectable_label(self.plot_scale == Some(500), "1:500").clicked() {
+                                    self.plot_scale = Some(500);
+                                    self.update_dxf_preview();
+                                }
+                            });
                         ui.label(format!("{}列", self.grid_columns));
                         // 自動モード時は手動調整を無効化
-                        ui.add_enabled_ui(!self.auto_columns_for_500, |ui| {
+                        ui.add_enabled_ui(self.plot_scale.is_none(), |ui| {
                             if ui.small_button("+").clicked() && self.grid_columns < 10 {
                                 self.grid_columns += 1;
                                 self.update_dxf_preview();
@@ -2733,11 +2799,11 @@ impl eframe::App for CrossSectionApp {
                     }
                     ViewMode::AllGrid => {
                         if ui.button("Download All DXF").clicked() {
-                            let dxf_content = if self.auto_columns_for_500 {
+                            let dxf_content = if let Some(scale) = self.plot_scale {
                                 let info = TitleBlockInfo::new()
                                     .with_top_title("横断図")
-                                    .with_scale("1:500 (A3)");
-                                generate_multi_dxf_bytes_with_frame(&filtered_for_download, self.grid_columns, self.column_gap, &info)
+                                    .with_scale(&format!("1:{} (A3)", scale));
+                                generate_multi_dxf_bytes_with_frame_at_scale(&filtered_for_download, self.grid_columns, self.column_gap, &info, scale as f64)
                             } else {
                                 generate_multi_dxf_bytes(&filtered_for_download, self.grid_columns, self.column_gap)
                             };
