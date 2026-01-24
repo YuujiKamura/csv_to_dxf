@@ -533,6 +533,27 @@ pub fn calc_optimal_columns_for_frame(
 /// 複数横断図をグリッド配置したDrawingを生成
 /// 道路工事の配置ルール: 左下起点、列ごとに下から上へ、左から右へ
 pub fn generate_multi_drawing(sections: &[CrossSectionData], columns: usize, column_gap: f64) -> Drawing {
+    generate_multi_drawing_internal(sections, columns, column_gap, false, None)
+}
+
+/// 1:500図枠付きで複数横断図をグリッド配置したDrawingを生成
+pub fn generate_multi_drawing_with_frame(
+    sections: &[CrossSectionData],
+    columns: usize,
+    column_gap: f64,
+    title_info: &TitleBlockInfo,
+) -> Drawing {
+    generate_multi_drawing_internal(sections, columns, column_gap, true, Some(title_info))
+}
+
+/// 複数横断図をグリッド配置（内部実装）
+fn generate_multi_drawing_internal(
+    sections: &[CrossSectionData],
+    columns: usize,
+    column_gap: f64,
+    with_frame: bool,
+    title_info: Option<&TitleBlockInfo>,
+) -> Drawing {
     let scale = 1000.0;
 
     let mut drawing = new_drawing();
@@ -586,17 +607,49 @@ pub fn generate_multi_drawing(sections: &[CrossSectionData], columns: usize, col
 
     let cell_height = (max_height + 1.0) * scale * 2.0;  // 旗揚げ部分のマージン（縦スケール2倍）
 
+    // 図枠付きの場合、コンテンツを図枠内に配置
+    // 1:500スケール: 1mm(紙) = 500mm(実寸) = 0.5m
+    // フレームスケール: 500 (1mm紙上 = 500 DXF単位)
+    let (content_offset_x, content_offset_y) = if with_frame {
+        // 図枠の描画可能エリア（紙上mm）
+        // 内枠左下: (10, 10)、タイトルブロック左端まで: (330, 261)
+        // → 描画可能エリア: 320mm × 251mm
+        const FRAME_SCALE: f64 = 500.0;
+        const CONTENT_LEFT_MM: f64 = 10.0;   // 内枠左端
+        const CONTENT_BOTTOM_MM: f64 = 10.0; // 内枠下端
+
+        // コンテンツのオフセット（DXF単位）
+        (CONTENT_LEFT_MM * FRAME_SCALE, CONTENT_BOTTOM_MM * FRAME_SCALE)
+    } else {
+        (0.0, 0.0)
+    };
+
     // セクションを描画
     for (idx, section) in sections.iter().enumerate() {
         if section.survey_data.len() < 2 { continue; }
         let col = idx / rows_per_column;
         let row_in_col = idx % rows_per_column;
 
-        let offset_x = col_x_offsets[col];
-        let offset_y = row_in_col as f64 * cell_height;
+        let offset_x = col_x_offsets[col] + content_offset_x;
+        let offset_y = row_in_col as f64 * cell_height + content_offset_y;
 
         draw_section_at_offset(&mut drawing, section, offset_x, offset_y, scale);
     }
+
+    // 図枠を描画（1:500スケール）
+    if with_frame {
+        const FRAME_SCALE: f64 = 500.0;
+        const TEXT_SIZE_MM: f64 = 3.0;
+
+        let info = title_info.cloned().unwrap_or_else(|| {
+            TitleBlockInfo::new()
+                .with_top_title("横断図")
+                .with_scale("1:500 (A3)")
+        });
+
+        draw_drawing_frame(&mut drawing, &info, 0.0, 0.0, FRAME_SCALE, TEXT_SIZE_MM);
+    }
+
     drawing
 }
 
@@ -809,6 +862,19 @@ fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
 
 pub fn generate_multi_dxf_bytes(sections: &[CrossSectionData], columns: usize, column_gap: f64) -> Vec<u8> {
     let drawing = generate_multi_drawing(sections, columns, column_gap);
+    let mut output: Vec<u8> = Vec::new();
+    drawing.save(&mut output).expect("Failed to save DXF");
+    output
+}
+
+/// 1:500図枠付きDXFバイト列を生成
+pub fn generate_multi_dxf_bytes_with_frame(
+    sections: &[CrossSectionData],
+    columns: usize,
+    column_gap: f64,
+    title_info: &TitleBlockInfo,
+) -> Vec<u8> {
+    let drawing = generate_multi_drawing_with_frame(sections, columns, column_gap, title_info);
     let mut output: Vec<u8> = Vec::new();
     drawing.save(&mut output).expect("Failed to save DXF");
     output
@@ -2218,7 +2284,15 @@ impl CrossSectionApp {
                 generate_combo_drawing(&filtered, columns, self.column_gap)
             }
             ViewMode::AllGrid if !filtered.is_empty() => {
-                generate_multi_drawing(&filtered, columns, self.column_gap)
+                if self.auto_columns_for_500 {
+                    // 1:500図枠付きで描画
+                    let info = TitleBlockInfo::new()
+                        .with_top_title("横断図")
+                        .with_scale("1:500 (A3)");
+                    generate_multi_drawing_with_frame(&filtered, columns, self.column_gap, &info)
+                } else {
+                    generate_multi_drawing(&filtered, columns, self.column_gap)
+                }
             }
             ViewMode::Longitudinal if !filtered.is_empty() => {
                 generate_longitudinal_drawing(&filtered)
@@ -2471,7 +2545,14 @@ impl eframe::App for CrossSectionApp {
                             }
                             ViewMode::AllGrid if !filtered_for_dxf.is_empty() => {
                                 if ui.button("DXF").clicked() {
-                                    let dxf_content = generate_multi_dxf_bytes(&filtered_for_dxf, self.grid_columns, self.column_gap);
+                                    let dxf_content = if self.auto_columns_for_500 {
+                                        let info = TitleBlockInfo::new()
+                                            .with_top_title("横断図")
+                                            .with_scale("1:500 (A3)");
+                                        generate_multi_dxf_bytes_with_frame(&filtered_for_dxf, self.grid_columns, self.column_gap, &info)
+                                    } else {
+                                        generate_multi_dxf_bytes(&filtered_for_dxf, self.grid_columns, self.column_gap)
+                                    };
                                     download_file("cross_sections_all.dxf", &dxf_content);
                                 }
                             }
@@ -2652,7 +2733,14 @@ impl eframe::App for CrossSectionApp {
                     }
                     ViewMode::AllGrid => {
                         if ui.button("Download All DXF").clicked() {
-                            let dxf_content = generate_multi_dxf_bytes(&filtered_for_download, self.grid_columns, self.column_gap);
+                            let dxf_content = if self.auto_columns_for_500 {
+                                let info = TitleBlockInfo::new()
+                                    .with_top_title("横断図")
+                                    .with_scale("1:500 (A3)");
+                                generate_multi_dxf_bytes_with_frame(&filtered_for_download, self.grid_columns, self.column_gap, &info)
+                            } else {
+                                generate_multi_dxf_bytes(&filtered_for_download, self.grid_columns, self.column_gap)
+                            };
                             download_file("cross_sections_all.dxf", &dxf_content);
                         }
                     }
