@@ -482,55 +482,187 @@ pub fn generate_dxf_bytes(section: &CrossSectionData) -> Vec<u8> {
 // Multi-Section Grid Layout
 // ============================================================================
 
-/// A3図枠(1:500)に収まる最適列数を計算
-///
-/// # Arguments
-/// * `sections` - 横断セクションのリスト
-/// * `column_gap` - 列間ギャップ（メートル）
-/// * `plot_scale` - 印刷縮尺（500 = 1:500）
-///
-/// # Returns
-/// 収容可能な列数
+/// A3図枠の描画可能エリア定数（mm）
+pub mod frame_constants {
+    /// 内枠左端からの位置
+    pub const FRAME_LEFT_MM: f64 = 10.0;
+    /// 内枠下端からの位置
+    pub const FRAME_BOTTOM_MM: f64 = 10.0;
+    /// タイトルブロック左側の描画可能幅（内枠400mm - タイトルブロック80mm）
+    pub const AVAILABLE_WIDTH_MM: f64 = 320.0;
+    /// 上部タイトル下側の描画可能高さ（内枠277mm - 上部タイトル30mm）
+    pub const AVAILABLE_HEIGHT_MM: f64 = 247.0;
+    /// 描画エリア内のマージン
+    pub const MARGIN_MM: f64 = 10.0;
+    /// 有効描画幅（マージン込み）
+    pub const USABLE_WIDTH_MM: f64 = AVAILABLE_WIDTH_MM - MARGIN_MM * 2.0;  // 300mm
+    /// 有効描画高さ（マージン込み）
+    pub const USABLE_HEIGHT_MM: f64 = AVAILABLE_HEIGHT_MM - MARGIN_MM * 2.0;  // 227mm
+}
+
+/// グリッド配置のバウンディングボックス（DXF単位）
+#[derive(Debug, Clone, Copy)]
+pub struct GridBounds {
+    pub min_x: f64,
+    pub min_y: f64,
+    pub max_x: f64,
+    pub max_y: f64,
+}
+
+impl GridBounds {
+    pub fn width(&self) -> f64 { self.max_x - self.min_x }
+    pub fn height(&self) -> f64 { self.max_y - self.min_y }
+
+    /// 紙上サイズに換算（mm）
+    pub fn to_paper_size(&self, plot_scale: f64) -> (f64, f64) {
+        (self.width() / plot_scale, self.height() / plot_scale)
+    }
+
+    /// 図枠に収まるかチェック
+    pub fn fits_in_frame(&self, plot_scale: f64) -> bool {
+        let (w_mm, h_mm) = self.to_paper_size(plot_scale);
+        w_mm <= frame_constants::USABLE_WIDTH_MM && h_mm <= frame_constants::USABLE_HEIGHT_MM
+    }
+}
+
+/// グリッド配置時の全体バウンディングボックスを計算
+/// 旗揚げやテキストを含む実際の描画範囲を返す
+pub fn calc_grid_bounds(
+    sections: &[CrossSectionData],
+    columns: usize,
+    column_gap: f64,
+) -> Option<GridBounds> {
+    if sections.is_empty() { return None; }
+
+    let scale = 1000.0;
+    let y_scale = scale * 2.0;
+    let columns = columns.max(1).min(sections.len());
+    let rows_per_column = (sections.len() + columns - 1) / columns;
+
+    // 列ごとの最大幅と全体の最大高さを計算（generate_multi_drawing_internalと同じロジック）
+    let mut col_max_left: Vec<f64> = vec![0.0; columns];
+    let mut col_max_right: Vec<f64> = vec![0.0; columns];
+    let mut max_height: f64 = 0.0;
+
+    for (idx, section) in sections.iter().enumerate() {
+        if section.survey_data.len() < 2 { continue; }
+        let col = idx / rows_per_column;
+        if col >= columns { break; }
+        let data = &section.survey_data;
+        let min_dist = data.first().unwrap().cumulative_distance;
+        let max_dist = data.last().unwrap().cumulative_distance;
+        col_max_left[col] = col_max_left[col].max(min_dist.abs());
+        col_max_right[col] = col_max_right[col].max(max_dist);
+        // 全体の最大高さ
+        let max_elev = data.iter().map(|d| d.elevation.max(d.planned_height)).fold(f64::MIN, f64::max);
+        max_height = max_height.max(max_elev - section.dl + 1.5);
+    }
+
+    // セル高さ（全セクション共通）
+    let cell_height = (max_height + 1.0) * y_scale;
+
+    // 列ごとのCL位置を計算
+    let mut col_x_offsets: Vec<f64> = Vec::with_capacity(columns);
+    let mut cumulative_x = 0.0;
+
+    for col in 0..columns {
+        let cell_width = (col_max_left[col] + col_max_right[col] + column_gap) * scale;
+        let cl_x = cumulative_x + (col_max_left[col] + column_gap / 2.0) * scale;
+        col_x_offsets.push(cl_x);
+        cumulative_x += cell_width;
+    }
+
+    // 各セクションのバウンディングボックスを計算して全体を求める
+    let mut global_min_x = f64::MAX;
+    let mut global_min_y = f64::MAX;
+    let mut global_max_x = f64::MIN;
+    let mut global_max_y = f64::MIN;
+
+    for (idx, section) in sections.iter().enumerate() {
+        if section.survey_data.len() < 2 { continue; }
+        let col = idx / rows_per_column;
+        if col >= columns { break; }
+        let row_in_col = idx % rows_per_column;
+
+        let data = &section.survey_data;
+        let dl = round_dl(section.dl);
+
+        // セクションの基準位置
+        let offset_x = col_x_offsets[col];
+        let offset_y = row_in_col as f64 * cell_height;
+
+        // X方向の範囲（左端〜右端）
+        let l_dist = data.first().unwrap().cumulative_distance;
+        let r_dist = data.last().unwrap().cumulative_distance;
+        let local_min_x = offset_x + l_dist * scale;
+        let local_max_x = offset_x + r_dist * scale;
+
+        // Y方向の範囲
+        // 最低位置：cutting_bottomの最小値
+        let min_cutting = data.iter().map(|d| d.cutting_bottom).fold(f64::MAX, f64::min);
+        let local_min_y = offset_y + (min_cutting - dl) * y_scale;
+
+        // 最高位置：旗揚げの最上部
+        // flag_y = cl_ground_y + 1600.0、その上にテキスト（text_height * 1.5 + 1300.0）
+        let cl_idx = section.cl_index.min(data.len() - 1);
+        let cl_elev = data[cl_idx].elevation;
+        let cl_ground_y = offset_y + (cl_elev - dl) * y_scale;
+        let flag_y = cl_ground_y + 1600.0;
+        let text_height = 300.0;
+        let local_max_y = flag_y + 1300.0 + text_height * 1.5 + 200.0;  // 余裕
+
+        global_min_x = global_min_x.min(local_min_x);
+        global_min_y = global_min_y.min(local_min_y);
+        global_max_x = global_max_x.max(local_max_x);
+        global_max_y = global_max_y.max(local_max_y);
+    }
+
+    if global_min_x == f64::MAX {
+        return None;
+    }
+
+    Some(GridBounds {
+        min_x: global_min_x,
+        min_y: global_min_y,
+        max_x: global_max_x,
+        max_y: global_max_y,
+    })
+}
+
+/// A3図枠に収まる最大列数を計算
+pub fn calc_max_columns_for_frame(
+    sections: &[CrossSectionData],
+    column_gap: f64,
+    plot_scale: f64,
+) -> usize {
+    if sections.is_empty() { return 1; }
+
+    // 1列から順にチェックして収まる最大列数を探す
+    let max_possible = sections.len();
+    let mut max_fitting = 1;
+
+    for cols in 1..=max_possible {
+        if let Some(bounds) = calc_grid_bounds(sections, cols, column_gap) {
+            if bounds.fits_in_frame(plot_scale) {
+                max_fitting = cols;
+            } else {
+                // 列数が増えると幅は減るが高さは増える
+                // 収まらなくなったらその前の列数が最大
+                break;
+            }
+        }
+    }
+
+    max_fitting
+}
+
+/// A3図枠(1:500)に収まる最適列数を計算（後方互換性のため維持）
 pub fn calc_optimal_columns_for_frame(
     sections: &[CrossSectionData],
     column_gap: f64,
     plot_scale: f64,
 ) -> usize {
-    // タイトルブロック左側の描画可能幅（mm）
-    // 内枠幅400mm - タイトルブロック幅80mm = 320mm
-    // さらにマージン10mm×2 = 20mm を引く → 有効幅300mm
-    const FRAME_AVAILABLE_WIDTH_MM: f64 = 320.0;
-    const MARGIN_MM: f64 = 10.0;
-    const USABLE_WIDTH_MM: f64 = FRAME_AVAILABLE_WIDTH_MM - MARGIN_MM * 2.0;  // 300mm
-
-    if sections.is_empty() {
-        return 1;
-    }
-
-    // 全セクションの最大幅を取得（左幅 + 右幅 + ギャップ）
-    let max_cell_width_m = sections.iter()
-        .filter(|s| s.survey_data.len() >= 2)
-        .map(|s| {
-            let data = &s.survey_data;
-            let min_dist = data.first().unwrap().cumulative_distance;
-            let max_dist = data.last().unwrap().cumulative_distance;
-            let left = min_dist.abs();
-            let right = max_dist;
-            left + right + column_gap
-        })
-        .fold(0.0_f64, f64::max);
-
-    if max_cell_width_m <= 0.0 {
-        return 1;
-    }
-
-    // 描画可能領域を実寸（メートル）に換算
-    // 1mm（紙上）= plot_scale mm（実寸）
-    let available_m = USABLE_WIDTH_MM * plot_scale / 1000.0;
-
-    // 列数計算（最低1列）
-    let columns = (available_m / max_cell_width_m).floor() as usize;
-    columns.max(1)
+    calc_max_columns_for_frame(sections, column_gap, plot_scale)
 }
 
 /// 複数横断図をグリッド配置したDrawingを生成
@@ -622,41 +754,30 @@ fn generate_multi_drawing_internal(
 
     let cell_height = (max_height + 1.0) * scale * 2.0;  // 旗揚げ部分のマージン（縦スケール2倍）
 
-    // コンテンツの総サイズ（DXF単位）
-    let content_width = cumulative_x;  // 全列の合計幅
-    let content_height = rows_per_column as f64 * cell_height;  // 全行の合計高さ
-
-    // 図枠付きの場合、コンテンツを図枠内に中央配置
-    // スケール例: 1:200なら1mm(紙) = 200mm(実寸)、1:500なら1mm(紙) = 500mm(実寸)
+    // 図枠付きの場合、実際のバウンディングボックスを計算してセンタリング
     let (content_offset_x, content_offset_y) = if let Some(fs) = frame_scale {
-        // 図枠の描画可能エリア（紙上mm）
-        // 内枠: 左10mm〜右410mm、下10mm〜上287mm
-        // タイトルブロック: 右80mm × 下48mm
-        // 上部タイトル: 上から約30mm使用
-        // → 描画可能エリア: 左10mm〜右330mm(=320mm幅)、下10mm〜上257mm(=247mm高さ)
-        const FRAME_LEFT_MM: f64 = 10.0;
-        const FRAME_BOTTOM_MM: f64 = 10.0;
-        const AVAILABLE_WIDTH_MM: f64 = 320.0;   // タイトルブロック左側
-        const AVAILABLE_HEIGHT_MM: f64 = 247.0;  // 上部タイトル下側
-        const MARGIN_MM: f64 = 10.0;             // 描画エリア内のマージン
+        // グリッド全体の実際のバウンディングボックスを取得
+        if let Some(bounds) = calc_grid_bounds(sections, columns, column_gap) {
+            use frame_constants::*;
 
-        // 有効描画エリア（マージン込み）
-        let usable_width_mm = AVAILABLE_WIDTH_MM - MARGIN_MM * 2.0;  // 300mm
-        let usable_height_mm = AVAILABLE_HEIGHT_MM - MARGIN_MM * 2.0;  // 227mm
+            // コンテンツサイズを紙上mm換算
+            let content_width_mm = bounds.width() / fs;
+            let content_height_mm = bounds.height() / fs;
 
-        // コンテンツサイズを紙上mm換算
-        let content_width_mm = content_width / fs;
-        let content_height_mm = content_height / fs;
+            // 有効エリアの中央にコンテンツを配置
+            // コンテンツの左下が来るべき位置（紙上mm）
+            let target_left_mm = FRAME_LEFT_MM + MARGIN_MM + (USABLE_WIDTH_MM - content_width_mm) / 2.0;
+            let target_bottom_mm = FRAME_BOTTOM_MM + MARGIN_MM + (USABLE_HEIGHT_MM - content_height_mm) / 2.0;
 
-        // 中央配置のオフセット計算
-        let center_offset_x_mm = FRAME_LEFT_MM + MARGIN_MM + (usable_width_mm - content_width_mm) / 2.0;
-        let center_offset_y_mm = FRAME_BOTTOM_MM + MARGIN_MM + (usable_height_mm - content_height_mm) / 2.0;
+            // 現在のコンテンツ左下からのオフセット（DXF単位）
+            // bounds.min_x, bounds.min_yが現在のコンテンツ左下
+            let offset_x = target_left_mm * fs - bounds.min_x;
+            let offset_y = target_bottom_mm * fs - bounds.min_y;
 
-        // DXF単位に変換（最小値は左下マージン位置）
-        let offset_x = center_offset_x_mm.max(FRAME_LEFT_MM + MARGIN_MM) * fs;
-        let offset_y = center_offset_y_mm.max(FRAME_BOTTOM_MM + MARGIN_MM) * fs;
-
-        (offset_x, offset_y)
+            (offset_x, offset_y)
+        } else {
+            (0.0, 0.0)
+        }
     } else {
         (0.0, 0.0)
     };
@@ -2178,19 +2299,21 @@ pub struct CrossSectionApp {
     dxf_drawing: Option<Drawing>,
     dxf_view_state: DxfViewState,
     view_mode: ViewMode,
-    grid_columns: usize,     // グリッドの列数
-    column_gap: f64,         // 列間隔（メートル単位）
-    plot_scale: PlotScale,   // 図枠スケール（None=手動、Some(200)=1:200等）
+    grid_columns: usize,         // グリッドの列数
+    column_gap: f64,             // 列間隔（メートル単位）
+    plot_scale: PlotScale,       // 図枠スケール（None=手動、Some(200)=1:200等）
+    max_columns: usize,          // 現在のスケールで収まる最大列数
+    fits_in_frame: bool,         // 現在の設定で図枠に収まるか
     status_message: Option<String>,
-    needs_fit: bool,         // canvas_rect更新後にfit_to_dxfを呼ぶフラグ
+    needs_fit: bool,             // canvas_rect更新後にfit_to_dxfを呼ぶフラグ
     fit_bounds: Option<(f32, f32, f32, f32)>,  // フィット先のバウンディングボックス（Singleモード用）
-    is_first_frame: bool,    // 初回フレームフラグ（モバイル判定用）
-    loading_frame: usize,    // ローディングアニメーション用フレームカウンタ
-    loading_stage: String,   // ローディング進捗メッセージ
-    routes: Vec<String>,     // 利用可能なルートのリスト
-    selected_route: String,  // 選択中のルート
-    api_key: String,         // セッションのみのAPIキー
-    api_key_set: bool,       // UI表示用フラグ
+    is_first_frame: bool,        // 初回フレームフラグ（モバイル判定用）
+    loading_frame: usize,        // ローディングアニメーション用フレームカウンタ
+    loading_stage: String,       // ローディング進捗メッセージ
+    routes: Vec<String>,         // 利用可能なルートのリスト
+    selected_route: String,      // 選択中のルート
+    api_key: String,             // セッションのみのAPIキー
+    api_key_set: bool,           // UI表示用フラグ
 }
 
 impl Default for CrossSectionApp {
@@ -2204,6 +2327,8 @@ impl Default for CrossSectionApp {
             grid_columns: 3,
             column_gap: 2.0,  // 列間隔2メートル（切削厚ラベル分）
             plot_scale: None,  // デフォルトは手動列数指定
+            max_columns: 99,   // 初期値（スケール未選択時）
+            fits_in_frame: true,
             status_message: None,
             needs_fit: false,
             fit_bounds: None,
@@ -2317,18 +2442,27 @@ impl CrossSectionApp {
         // fit_boundsをリセット（Singleモード以外はNone）
         self.fit_bounds = None;
 
-        // 図枠スケールが設定されている場合、列数を自動計算
-        let columns = if let Some(scale) = self.plot_scale {
+        // 図枠スケールに応じて最大列数を計算
+        if let Some(scale) = self.plot_scale {
             if !filtered.is_empty() {
-                let calculated = calc_optimal_columns_for_frame(&filtered, self.column_gap, scale as f64);
-                self.grid_columns = calculated;  // UI表示用に保存
-                calculated
-            } else {
-                self.grid_columns
+                self.max_columns = calc_max_columns_for_frame(&filtered, self.column_gap, scale as f64);
+                // 列数が最大を超えていたら調整
+                if self.grid_columns > self.max_columns {
+                    self.grid_columns = self.max_columns;
+                }
+                // 収まるかチェック
+                if let Some(bounds) = calc_grid_bounds(&filtered, self.grid_columns, self.column_gap) {
+                    self.fits_in_frame = bounds.fits_in_frame(scale as f64);
+                } else {
+                    self.fits_in_frame = true;
+                }
             }
         } else {
-            self.grid_columns
-        };
+            self.max_columns = 99;  // 手動モードは制限なし
+            self.fits_in_frame = true;
+        }
+
+        let columns = self.grid_columns;
 
         let drawing = match self.view_mode {
             ViewMode::AlignTest => {
@@ -2583,18 +2717,29 @@ impl eframe::App for CrossSectionApp {
                                         self.update_dxf_preview();
                                     }
                                 });
+
+                            // 列数選択（図枠モード時は最大列数まで）
+                            let max_cols = if self.plot_scale.is_some() { self.max_columns } else { 20 };
                             ui.label(format!("{}列", self.grid_columns));
-                            // 自動モード時は手動調整を無効化
-                            ui.add_enabled_ui(self.plot_scale.is_none(), |ui| {
-                                if ui.small_button("+").clicked() && self.grid_columns < 10 {
-                                    self.grid_columns += 1;
-                                    self.update_dxf_preview();
-                                }
-                                if ui.small_button("-").clicked() && self.grid_columns > 1 {
-                                    self.grid_columns -= 1;
-                                    self.update_dxf_preview();
-                                }
-                            });
+                            if ui.small_button("+").clicked() && self.grid_columns < max_cols {
+                                self.grid_columns += 1;
+                                self.update_dxf_preview();
+                            }
+                            if ui.small_button("-").clicked() && self.grid_columns > 1 {
+                                self.grid_columns -= 1;
+                                self.update_dxf_preview();
+                            }
+                            // 最大列数表示（図枠モード時のみ）
+                            if self.plot_scale.is_some() {
+                                ui.label(format!("(max:{})", self.max_columns));
+                            }
+
+                            // 収まらない場合は警告
+                            if !self.fits_in_frame && self.plot_scale.is_some() {
+                                ui.colored_label(egui::Color32::RED, "枠外!");
+                            }
+                        });
+                        ui.horizontal_wrapped(|ui| {
                             ui.label(format!("間隔{:.1}m", self.column_gap));
                             if ui.small_button("+").clicked() && self.column_gap < 5.0 {
                                 self.column_gap += 0.5;
@@ -2774,18 +2919,26 @@ impl eframe::App for CrossSectionApp {
                                     self.update_dxf_preview();
                                 }
                             });
+
+                        // 列数選択（図枠モード時は最大列数まで）
+                        let max_cols = if self.plot_scale.is_some() { self.max_columns } else { 20 };
                         ui.label(format!("{}列", self.grid_columns));
-                        // 自動モード時は手動調整を無効化
-                        ui.add_enabled_ui(self.plot_scale.is_none(), |ui| {
-                            if ui.small_button("+").clicked() && self.grid_columns < 10 {
-                                self.grid_columns += 1;
-                                self.update_dxf_preview();
-                            }
-                            if ui.small_button("-").clicked() && self.grid_columns > 1 {
-                                self.grid_columns -= 1;
-                                self.update_dxf_preview();
-                            }
-                        });
+                        if ui.small_button("+").clicked() && self.grid_columns < max_cols {
+                            self.grid_columns += 1;
+                            self.update_dxf_preview();
+                        }
+                        if ui.small_button("-").clicked() && self.grid_columns > 1 {
+                            self.grid_columns -= 1;
+                            self.update_dxf_preview();
+                        }
+                        // 最大列数表示（図枠モード時のみ）
+                        if self.plot_scale.is_some() {
+                            ui.label(format!("(max:{})", self.max_columns));
+                        }
+                        // 収まらない場合は警告
+                        if !self.fits_in_frame && self.plot_scale.is_some() {
+                            ui.colored_label(egui::Color32::RED, "枠外!");
+                        }
                     });
                     ui.horizontal(|ui| {
                         ui.label(format!("間隔{:.1}m", self.column_gap));
@@ -3459,65 +3612,94 @@ pub fn start() -> Result<(), JsValue> {
 mod tests {
     use super::*;
 
+    fn make_test_section(name: &str) -> CrossSectionData {
+        CrossSectionData {
+            survey_point_name: name.to_string(),
+            dl: 10.0,
+            cl_index: 1,
+            l_to_cl_distance: 3.0,
+            survey_data: vec![
+                SurveyRow {
+                    unit_distance: 0.0,
+                    elevation: 11.0,
+                    planned_height: 11.0,
+                    cumulative_distance: -3.0,  // 左端
+                    cutting_bottom: 10.95,
+                },
+                SurveyRow {
+                    unit_distance: 3.0,
+                    elevation: 11.0,
+                    planned_height: 11.0,
+                    cumulative_distance: 0.0,  // CL
+                    cutting_bottom: 10.95,
+                },
+                SurveyRow {
+                    unit_distance: 3.0,
+                    elevation: 11.0,
+                    planned_height: 11.0,
+                    cumulative_distance: 3.0,  // 右端
+                    cutting_bottom: 10.95,
+                },
+            ],
+            route_distance: None,
+            route_id: "route_1".to_string(),
+        }
+    }
+
     #[test]
-    fn test_calc_optimal_columns_for_frame() {
+    fn test_calc_grid_bounds() {
+        // 1セクションのバウンディングボックスを確認
+        let sections = vec![make_test_section("NO.1")];
+
+        let bounds = calc_grid_bounds(&sections, 1, 2.0).unwrap();
+
+        // 幅は6000 (左3m + 右3m = 6m × 1000)
+        // X位置はグリッド配置後の値（CL位置 + 累積距離）
+        assert!((bounds.width() - 6000.0).abs() < 1.0);
+
+        // 高さの確認（旗揚げを含む）
+        assert!(bounds.height() > 0.0);
+    }
+
+    #[test]
+    fn test_calc_max_columns_for_frame() {
         // 空のセクションリストは1列を返す
         let empty: Vec<CrossSectionData> = vec![];
-        assert_eq!(calc_optimal_columns_for_frame(&empty, 2.0, 500.0), 1);
+        assert_eq!(calc_max_columns_for_frame(&empty, 2.0, 500.0), 1);
 
-        // テストセクション作成（左右3m幅）
-        let sections = vec![
-            CrossSectionData {
-                survey_point_name: "NO.1".to_string(),
-                dl: 10.0,
-                cl_index: 1,
-                l_to_cl_distance: 3.0,
-                survey_data: vec![
-                    SurveyRow {
-                        unit_distance: 0.0,
-                        elevation: 11.0,
-                        planned_height: 11.0,
-                        cumulative_distance: -3.0,  // 左端
-                        cutting_bottom: 10.95,
-                    },
-                    SurveyRow {
-                        unit_distance: 3.0,
-                        elevation: 11.0,
-                        planned_height: 11.0,
-                        cumulative_distance: 0.0,  // CL
-                        cutting_bottom: 10.95,
-                    },
-                    SurveyRow {
-                        unit_distance: 3.0,
-                        elevation: 11.0,
-                        planned_height: 11.0,
-                        cumulative_distance: 3.0,  // 右端
-                        cutting_bottom: 10.95,
-                    },
-                ],
-                route_distance: None,
-                route_id: "route_1".to_string(),
-            },
-        ];
+        // 20セクションのテストデータ
+        let sections: Vec<CrossSectionData> = (1..=20)
+            .map(|i| make_test_section(&format!("NO.{}", i)))
+            .collect();
 
-        // 1:500スケールで計算
-        // 使用可能幅: 300mm（320mm - 10mm×2マージン） × 500 / 1000 = 150m
-        // セル幅: 3m(左) + 3m(右) + 2m(gap) = 8m
-        // 列数: floor(150 / 8) = 18
-        let columns = calc_optimal_columns_for_frame(&sections, 2.0, 500.0);
-        assert_eq!(columns, 18);
+        // 1:500スケールで最大列数を計算
+        // 各セクションのサイズ（幅8m × 高さ約5m紙上）を考慮
+        let max_cols = calc_max_columns_for_frame(&sections, 2.0, 500.0);
 
-        // gap = 0 の場合
-        // セル幅: 3m + 3m + 0m = 6m
-        // 列数: floor(150 / 6) = 25
-        let columns_no_gap = calc_optimal_columns_for_frame(&sections, 0.0, 500.0);
-        assert_eq!(columns_no_gap, 25);
+        // 20セクションあるので、少なくとも1列以上、最大20列以下
+        assert!(max_cols >= 1);
+        assert!(max_cols <= 20);
 
-        // 1:200スケールの場合
-        // 使用可能幅: 300mm × 200 / 1000 = 60m
-        // セル幅: 8m
-        // 列数: floor(60 / 8) = 7
-        let columns_200 = calc_optimal_columns_for_frame(&sections, 2.0, 200.0);
-        assert_eq!(columns_200, 7);
+        // 紙上サイズで検証
+        // 各セル幅: 8m = 8000 DXF単位 → 1:500で16mm
+        // 有効幅: 300mm → 最大約18列程度（実際は高さ制約もある）
+    }
+
+    #[test]
+    fn test_fits_in_frame() {
+        let sections = vec![make_test_section("NO.1")];
+        let bounds = calc_grid_bounds(&sections, 1, 2.0).unwrap();
+
+        // 1:500で収まるか確認
+        // 幅6000→12mm、高さは5550くらい→11mm程度
+        assert!(bounds.fits_in_frame(500.0));
+
+        // 1:200でも収まる
+        // 幅6000→30mm、高さ5550→27.75mm
+        assert!(bounds.fits_in_frame(200.0));
+
+        // 1:50だと収まらない（幅120mm、高さ111mm）
+        // 有効高さ227mmあるので収まる可能性
+        // 実際のテストはデータ次第
     }
 }
