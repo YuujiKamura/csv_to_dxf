@@ -2629,22 +2629,48 @@ impl CrossSectionData {
 
 
     pub fn from_json(json: &str) -> Result<Vec<Self>, String> {
-        serde_json::from_str(json).map_err(|e| format!("JSON parse error: {e}"))
+        let mut sections: Vec<Self> = serde_json::from_str(json)
+            .map_err(|e| format!("JSON parse error: {e}"))?;
+        Self::set_route_start_end_flags(&mut sections);
+        Ok(sections)
     }
 
     /// 新形式JSON（タイトルブロック情報付き）をパース
     pub fn from_json_with_title(json: &str) -> Result<SectionsData, String> {
         // まず新形式（オブジェクト）でパースを試みる
-        if let Ok(data) = serde_json::from_str::<SectionsData>(json) {
+        if let Ok(mut data) = serde_json::from_str::<SectionsData>(json) {
+            Self::set_route_start_end_flags(&mut data.sections);
             return Ok(data);
         }
         // 旧形式（配列）でパース
-        let sections: Vec<Self> = serde_json::from_str(json)
+        let mut sections: Vec<Self> = serde_json::from_str(json)
             .map_err(|e| format!("JSON parse error: {e}"))?;
+        Self::set_route_start_end_flags(&mut sections);
         Ok(SectionsData {
             title_block: None,
             sections,
         })
+    }
+
+    /// 各ルートごとに起終点フラグを設定
+    fn set_route_start_end_flags(sections: &mut [Self]) {
+        use std::collections::HashMap;
+
+        // 各ルートの最初と最後のインデックスを収集
+        let mut route_indices: HashMap<String, (usize, usize)> = HashMap::new();
+        for (i, section) in sections.iter().enumerate() {
+            let route_id = &section.route_id;
+            route_indices
+                .entry(route_id.clone())
+                .and_modify(|(_, last)| *last = i)
+                .or_insert((i, i));
+        }
+
+        // フラグを設定
+        for (first, last) in route_indices.values() {
+            sections[*first].is_route_start = true;
+            sections[*last].is_route_end = true;
+        }
     }
 
     /// 補完点の計画高を採用点間の勾配から線形補間する
