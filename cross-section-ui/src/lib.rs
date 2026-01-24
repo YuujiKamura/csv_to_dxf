@@ -933,6 +933,163 @@ fn generate_multi_drawing_internal(
     drawing
 }
 
+/// 全ページを1つのDXFに垂直配置して生成
+/// 各ページはA3図枠付きで、下から上に向かって配置される
+pub fn generate_all_pages_drawing(
+    all_sections: &[CrossSectionData],
+    columns: usize,
+    column_gap: f64,
+    row_gap: f64,
+    frame_scale: f64,
+    base_title_info: &TitleBlockInfo,
+    drawing_number_base: &str,
+) -> Drawing {
+    let mut drawing = new_drawing();
+
+    for (name, color_idx) in [
+        ("GROUND", 7), ("PLAN", 1), ("TEXT", 7),
+        ("DIMENSION", 8), ("CUTTING", 5), ("FRAME", 9), ("TITLEBLOCK", 7), ("DEBUG", 1)
+    ] {
+        drawing.add_layer(dxf::tables::Layer {
+            name: name.to_string(),
+            color: Color::from_index(color_idx),
+            ..Default::default()
+        });
+    }
+
+    if all_sections.is_empty() { return drawing; }
+
+    // ページあたりのセクション数を計算
+    let sections_per_page = calc_sections_per_page(all_sections, columns, column_gap, row_gap, frame_scale);
+    if sections_per_page == 0 { return drawing; }
+
+    let total_pages = (all_sections.len() + sections_per_page - 1) / sections_per_page;
+
+    // A3の高さ（mm）をDXF単位に変換
+    const A3_HEIGHT_MM: f64 = 297.0;
+    let page_height_dxf = A3_HEIGHT_MM * frame_scale;
+    // ページ間のギャップ（10mm）
+    const PAGE_GAP_MM: f64 = 10.0;
+    let page_gap_dxf = PAGE_GAP_MM * frame_scale;
+
+    // 各ページを描画
+    for page in 0..total_pages {
+        let start_idx = page * sections_per_page;
+        let end_idx = (start_idx + sections_per_page).min(all_sections.len());
+        let page_sections = &all_sections[start_idx..end_idx];
+
+        // ページのY方向オフセット（下から上に配置）
+        let page_offset_y = page as f64 * (page_height_dxf + page_gap_dxf);
+
+        // ページ番号付きの図番
+        let page_num = if total_pages > 1 {
+            format!("{}-{}", drawing_number_base, page + 1)
+        } else {
+            drawing_number_base.to_string()
+        };
+
+        let info = base_title_info.clone()
+            .with_drawing_number(&page_num);
+
+        // このページのセクションを描画
+        draw_page_content(&mut drawing, page_sections, columns, column_gap, row_gap, frame_scale, &info, page_offset_y);
+    }
+
+    drawing
+}
+
+/// 1ページ分のコンテンツを描画（オフセット付き）
+fn draw_page_content(
+    drawing: &mut Drawing,
+    sections: &[CrossSectionData],
+    _columns: usize,
+    column_gap: f64,
+    row_gap: f64,
+    frame_scale: f64,
+    title_info: &TitleBlockInfo,
+    page_offset_y: f64,
+) {
+    use available_area as area;
+
+    let scale = 1000.0;
+    let columns = area::COLUMN_COUNT;  // 4列固定
+
+    if sections.is_empty() { return; }
+
+    // 旗揚げ用の固定マージン（0.5m）
+    const FLAG_MARGIN: f64 = 0.5;
+
+    let rows_per_column = (sections.len() + columns - 1) / columns;
+
+    // 全体の最大高さを計算
+    let mut max_height: f64 = 0.0;
+    for section in sections.iter() {
+        if section.survey_data.len() < 2 { continue; }
+        let data = &section.survey_data;
+        let max_elev = data.iter().map(|d| d.elevation.max(d.planned_height)).fold(f64::MIN, f64::max);
+        max_height = max_height.max(max_elev - section.dl + row_gap + FLAG_MARGIN);
+    }
+
+    let cell_height = (max_height + row_gap) * scale * 2.0;
+
+    // 列ごとのCL位置（固定）
+    let col_centers: Vec<f64> = (0..columns)
+        .map(|col| area::COLUMN_CENTERS[col] * frame_scale)
+        .collect();
+
+    // グリッドバウンドを計算してY方向オフセットを決定
+    let bounds = calc_grid_bounds(sections, columns, column_gap, row_gap);
+    let content_height_mm = bounds.as_ref().map(|b| b.height() / frame_scale).unwrap_or(0.0);
+
+    let mut col_y_offsets: Vec<f64> = Vec::with_capacity(columns);
+    for col in 0..columns {
+        let col_height = area::height_for_column(col);
+        let col_bottom = area::bottom_for_column(col);
+        let target_bottom = col_bottom + (col_height - content_height_mm) / 2.0;
+        let offset_y = if let Some(ref b) = bounds {
+            target_bottom * frame_scale - b.min_y
+        } else {
+            0.0
+        };
+        col_y_offsets.push(offset_y);
+    }
+
+    // セクションを描画
+    for (idx, section) in sections.iter().enumerate() {
+        if section.survey_data.len() < 2 { continue; }
+        let col = idx / rows_per_column;
+        let row_in_col = idx % rows_per_column;
+
+        let offset_x = col_centers[col.min(columns - 1)];
+        let col_y_offset = col_y_offsets[col.min(columns - 1)];
+        let offset_y = row_in_col as f64 * cell_height + col_y_offset + page_offset_y;
+
+        draw_section_at_offset(drawing, section, offset_x, offset_y, scale);
+    }
+
+    // 図枠を描画
+    const TEXT_SIZE_MM: f64 = 3.0;
+    draw_drawing_frame(drawing, title_info, 0.0, page_offset_y, frame_scale, TEXT_SIZE_MM);
+}
+
+/// 全ページを1つのDXFに垂直配置してバイト配列で返す
+pub fn generate_all_pages_dxf_bytes(
+    all_sections: &[CrossSectionData],
+    columns: usize,
+    column_gap: f64,
+    row_gap: f64,
+    frame_scale: f64,
+    base_title_info: &TitleBlockInfo,
+    drawing_number_base: &str,
+) -> Vec<u8> {
+    let drawing = generate_all_pages_drawing(
+        all_sections, columns, column_gap, row_gap, frame_scale, base_title_info, drawing_number_base
+    );
+    let mut output: Vec<u8> = Vec::new();
+    drawing.save(&mut output).expect("Failed to save DXF");
+    output
+}
+
 /// グリッド配置内の特定セクションのバウンディングボックスを計算
 /// generate_multi_drawingと同じ配置ロジックを使用
 fn calc_section_bounds_in_grid(
@@ -3079,30 +3236,17 @@ impl eframe::App for CrossSectionApp {
                             ViewMode::AllGrid if !filtered_for_dxf.is_empty() => {
                                 if ui.button("DXF").clicked() {
                                     let (dxf_content, filename) = if let Some(scale) = self.plot_scale {
-                                        // 現在のページのセクションのみ使用
-                                        let page_sections: Vec<CrossSectionData> = self.current_page_sections()
-                                            .into_iter().cloned().collect();
-                                        let page_num = if self.total_pages > 1 {
-                                            format!("{}-{}", self.drawing_number, self.current_page + 1)
-                                        } else {
-                                            self.drawing_number.clone()
-                                        };
+                                        // 全ページを1つのDXFに垂直配置
                                         let info = TitleBlockInfo::new()
                                             .with_project_name(&self.project_name)
                                             .with_drawing_type(&self.drawing_type)
                                             .with_route_name(&self.route_name)
                                             .with_author(&self.author)
                                             .with_date(&self.date)
-                                            .with_drawing_number(&page_num)
                                             .with_top_title(&self.drawing_type)
                                             .with_scale(&format!("1:{} (A3)", scale))
-                                            .with_debug_markers(false);  // ダウンロード用はガイドなし
-                                        let fname = if self.total_pages > 1 {
-                                            format!("cross_sections_page{}.dxf", self.current_page + 1)
-                                        } else {
-                                            "cross_sections.dxf".to_string()
-                                        };
-                                        (generate_multi_dxf_bytes_with_frame_at_scale(&page_sections, self.grid_columns, self.column_gap, self.row_gap, &info, scale as f64), fname)
+                                            .with_debug_markers(false);
+                                        (generate_all_pages_dxf_bytes(&filtered_for_dxf, self.grid_columns, self.column_gap, self.row_gap, scale as f64, &info, &self.drawing_number), "cross_sections.dxf".to_string())
                                     } else {
                                         (generate_multi_dxf_bytes(&filtered_for_dxf, self.grid_columns, self.column_gap, self.row_gap), "cross_sections_all.dxf".to_string())
                                     };
@@ -3347,37 +3491,19 @@ impl eframe::App for CrossSectionApp {
                         }
                     }
                     ViewMode::AllGrid => {
-                        let btn_label = if self.total_pages > 1 && self.plot_scale.is_some() {
-                            format!("Download Page {} DXF", self.current_page + 1)
-                        } else {
-                            "Download All DXF".to_string()
-                        };
-                        if ui.button(btn_label).clicked() {
+                        if ui.button("Download All DXF").clicked() {
                             let (dxf_content, filename) = if let Some(scale) = self.plot_scale {
-                                // 現在のページのセクションのみ使用
-                                let page_sections: Vec<CrossSectionData> = self.current_page_sections()
-                                    .into_iter().cloned().collect();
-                                let page_num = if self.total_pages > 1 {
-                                    format!("{}-{}", self.drawing_number, self.current_page + 1)
-                                } else {
-                                    self.drawing_number.clone()
-                                };
+                                // 全ページを1つのDXFに垂直配置
                                 let info = TitleBlockInfo::new()
                                     .with_project_name(&self.project_name)
                                     .with_drawing_type(&self.drawing_type)
                                     .with_route_name(&self.route_name)
                                     .with_author(&self.author)
                                     .with_date(&self.date)
-                                    .with_drawing_number(&page_num)
                                     .with_top_title(&self.drawing_type)
                                     .with_scale(&format!("1:{} (A3)", scale))
                                     .with_debug_markers(false);
-                                let fname = if self.total_pages > 1 {
-                                    format!("cross_sections_page{}.dxf", self.current_page + 1)
-                                } else {
-                                    "cross_sections.dxf".to_string()
-                                };
-                                (generate_multi_dxf_bytes_with_frame_at_scale(&page_sections, self.grid_columns, self.column_gap, self.row_gap, &info, scale as f64), fname)
+                                (generate_all_pages_dxf_bytes(&filtered_for_download, self.grid_columns, self.column_gap, self.row_gap, scale as f64, &info, &self.drawing_number), "cross_sections.dxf".to_string())
                             } else {
                                 (generate_multi_dxf_bytes(&filtered_for_download, self.grid_columns, self.column_gap, self.row_gap), "cross_sections_all.dxf".to_string())
                             };
