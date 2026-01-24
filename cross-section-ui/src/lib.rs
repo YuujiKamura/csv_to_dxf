@@ -486,12 +486,14 @@ pub fn generate_dxf_bytes(section: &CrossSectionData) -> Vec<u8> {
 pub use title_block::available_area;
 
 /// グリッド配置のバウンディングボックス（DXF単位）
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct GridBounds {
     pub min_x: f64,
     pub min_y: f64,
     pub max_x: f64,
     pub max_y: f64,
+    /// 列ごとの高さ（DXF単位）- 使用している列のみ有効
+    pub column_heights: Vec<f64>,
 }
 
 impl GridBounds {
@@ -503,16 +505,21 @@ impl GridBounds {
         (self.width() / plot_scale, self.height() / plot_scale)
     }
 
-    /// 図枠に収まるかチェック（内枠全体を使用）
-    /// columns: 列数（4列以上の場合、最も制限が厳しい列3の高さでチェック）
-    pub fn fits_in_frame(&self, plot_scale: f64, columns: usize) -> bool {
-        let (w_mm, h_mm) = self.to_paper_size(plot_scale);
+    /// 図枠に収まるかチェック（列ごとの有効高さでチェック）
+    pub fn fits_in_frame(&self, plot_scale: f64, _columns: usize) -> bool {
+        let (w_mm, _) = self.to_paper_size(plot_scale);
         if w_mm > available_area::FRAME_USABLE_WIDTH_MM {
             return false;
         }
-        // 列数に応じた高さでチェック
-        let max_height = available_area::max_height_for_columns(columns);
-        h_mm <= max_height
+        // 列ごとに有効高さをチェック
+        for (col, &col_height_dxf) in self.column_heights.iter().enumerate() {
+            let col_height_mm = col_height_dxf / plot_scale;
+            let max_height = available_area::height_for_column(col);
+            if col_height_mm > max_height {
+                return false;
+            }
+        }
+        true
     }
 }
 
@@ -568,11 +575,15 @@ pub fn calc_grid_bounds(
         cumulative_x += cell_width;
     }
 
-    // 各セクションのバウンディングボックスを計算して全体を求める
+    // 各セクションのバウンディングボックスを計算して全体と列ごとを求める
     let mut global_min_x = f64::MAX;
     let mut global_min_y = f64::MAX;
     let mut global_max_x = f64::MIN;
     let mut global_max_y = f64::MIN;
+
+    // 列ごとのmin/max Y
+    let mut col_min_y: Vec<f64> = vec![f64::MAX; columns];
+    let mut col_max_y: Vec<f64> = vec![f64::MIN; columns];
 
     for (idx, section) in sections.iter().enumerate() {
         if section.survey_data.len() < 2 { continue; }
@@ -614,17 +625,33 @@ pub fn calc_grid_bounds(
         global_min_y = global_min_y.min(local_min_y);
         global_max_x = global_max_x.max(local_max_x);
         global_max_y = global_max_y.max(local_max_y);
+
+        // 列ごとのY範囲を更新
+        col_min_y[col] = col_min_y[col].min(local_min_y);
+        col_max_y[col] = col_max_y[col].max(local_max_y);
     }
 
     if global_min_x == f64::MAX {
         return None;
     }
 
+    // 列ごとの高さを計算
+    let column_heights: Vec<f64> = (0..columns)
+        .map(|col| {
+            if col_min_y[col] == f64::MAX {
+                0.0
+            } else {
+                col_max_y[col] - col_min_y[col]
+            }
+        })
+        .collect();
+
     Some(GridBounds {
         min_x: global_min_x,
         min_y: global_min_y,
         max_x: global_max_x,
         max_y: global_max_y,
+        column_heights,
     })
 }
 
