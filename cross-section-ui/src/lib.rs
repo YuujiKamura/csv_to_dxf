@@ -147,9 +147,10 @@ fn add_dimension_as_lines(
     // 右端の縦線（端点マーク）
     add_line(drawing, x2, y - tick_down, x2, y + tick_up, color, layer);
 
-    // 中央にテキスト（寸法線の上にマージンを取る）
+    // 中央にテキスト（寸法線の上にマージン、ボトムアラインメント）
     let mid_x = (x1 + x2) / 2.0;
-    add_text(drawing, mid_x, y + 250.0, text, text_height, color, layer, TextAlign::Center);
+    add_text_rotated(drawing, mid_x, y + 50.0, text, text_height, color, layer,
+        TextAlign::Center, VerticalAlign::Bottom, 0.0);
 }
 
 /// DL値を1m刻みに丸める（最小標高との差が0.2以下なら1m下げる）
