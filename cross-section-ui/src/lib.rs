@@ -1360,7 +1360,6 @@ pub fn generate_area_expansion_drawing(sections: &[CrossSectionData]) -> Drawing
     }
 
     // 幅員寸法（-90°回転、幅員線の外側）
-    let marker_size = 200.0;  // デバッグ用マーカーサイズ
     for station in &stations {
         let x = station.x;
 
@@ -1368,9 +1367,6 @@ pub fn generate_area_expansion_drawing(sections: &[CrossSectionData]) -> Drawing
         if station.wl > 0.0 {
             let y_text = station.wl * scale_y + station_text_offset;
             let text = format!("{:.2}", station.wl);
-            // デバッグ: アンカーポイントに十字マーカー（赤）
-            add_line(&mut drawing, x - marker_size, y_text, x + marker_size, y_text, 1, "DEBUG");
-            add_line(&mut drawing, x, y_text - marker_size, x, y_text + marker_size, 1, "DEBUG");
             add_text_rotated(&mut drawing, x, y_text, &text, text_height,
                 7, "TENKAI_DIM", TextAlign::Left, VerticalAlign::Top, -90.0);
         }
@@ -1379,9 +1375,6 @@ pub fn generate_area_expansion_drawing(sections: &[CrossSectionData]) -> Drawing
         if station.wr > 0.0 {
             let y_text = -station.wr * scale_y - station_text_offset;
             let text = format!("{:.2}", station.wr);
-            // デバッグ: アンカーポイントに十字マーカー（赤）
-            add_line(&mut drawing, x - marker_size, y_text, x + marker_size, y_text, 1, "DEBUG");
-            add_line(&mut drawing, x, y_text - marker_size, x, y_text + marker_size, 1, "DEBUG");
             add_text_rotated(&mut drawing, x, y_text, &text, text_height,
                 7, "TENKAI_DIM", TextAlign::Right, VerticalAlign::Top, -90.0);
         }
