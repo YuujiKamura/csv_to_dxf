@@ -482,23 +482,8 @@ pub fn generate_dxf_bytes(section: &CrossSectionData) -> Vec<u8> {
 // Multi-Section Grid Layout
 // ============================================================================
 
-/// A3図枠の描画可能エリア定数（mm）
-pub mod frame_constants {
-    /// 内枠左端からの位置
-    pub const FRAME_LEFT_MM: f64 = 10.0;
-    /// 内枠下端からの位置
-    pub const FRAME_BOTTOM_MM: f64 = 10.0;
-    /// タイトルブロック左側の描画可能幅（内枠400mm - タイトルブロック80mm）
-    pub const AVAILABLE_WIDTH_MM: f64 = 320.0;
-    /// 上部タイトル下側の描画可能高さ（内枠277mm - 上部タイトル30mm）
-    pub const AVAILABLE_HEIGHT_MM: f64 = 247.0;
-    /// 描画エリア内のマージン
-    pub const MARGIN_MM: f64 = 10.0;
-    /// 有効描画幅（マージン込み）
-    pub const USABLE_WIDTH_MM: f64 = AVAILABLE_WIDTH_MM - MARGIN_MM * 2.0;  // 300mm
-    /// 有効描画高さ（マージン込み）
-    pub const USABLE_HEIGHT_MM: f64 = AVAILABLE_HEIGHT_MM - MARGIN_MM * 2.0;  // 227mm
-}
+// 配置可能エリア定数はtitle_block::available_areaを使用
+pub use title_block::available_area;
 
 /// グリッド配置のバウンディングボックス（DXF単位）
 #[derive(Debug, Clone, Copy)]
@@ -521,7 +506,7 @@ impl GridBounds {
     /// 図枠に収まるかチェック
     pub fn fits_in_frame(&self, plot_scale: f64) -> bool {
         let (w_mm, h_mm) = self.to_paper_size(plot_scale);
-        w_mm <= frame_constants::USABLE_WIDTH_MM && h_mm <= frame_constants::USABLE_HEIGHT_MM
+        w_mm <= available_area::USABLE_WIDTH_MM && h_mm <= available_area::USABLE_HEIGHT_MM
     }
 }
 
@@ -598,9 +583,12 @@ pub fn calc_grid_bounds(
         let local_max_x = offset_x + r_dist * scale;
 
         // Y方向の範囲
-        // 最低位置：cutting_bottomの最小値
+        // 最低位置：cutting_bottomまたは切削厚ラベルの下端のいずれか低い方
         let min_cutting = data.iter().map(|d| d.cutting_bottom).fold(f64::MAX, f64::min);
-        let local_min_y = offset_y + (min_cutting - dl) * y_scale;
+        let cutting_bottom_y = offset_y + (min_cutting - dl) * y_scale;
+        // 切削厚ラベルの下端（DL線から300+300+100=700mm下、さらにテキスト高さ300mm）
+        let cutting_label_bottom_y = offset_y - 1000.0;  // DL基準なのでoffset_yから直接引く
+        let local_min_y = cutting_bottom_y.min(cutting_label_bottom_y);
 
         // 最高位置：旗揚げの最上部
         // flag_y = cl_ground_y + 1600.0、その上にテキスト（text_height * 1.5 + 1300.0）
@@ -663,6 +651,34 @@ pub fn calc_optimal_columns_for_frame(
     plot_scale: f64,
 ) -> usize {
     calc_max_columns_for_frame(sections, column_gap, plot_scale)
+}
+
+/// 1ページに収まる最大セクション数を計算
+/// 指定された列数とスケールで、A3図枠に収まる最大のセクション数を返す
+pub fn calc_sections_per_page(
+    sections: &[CrossSectionData],
+    columns: usize,
+    column_gap: f64,
+    plot_scale: f64,
+) -> usize {
+    if sections.is_empty() { return 0; }
+    if columns == 0 { return 0; }
+
+    // 1個から順にチェックして収まる最大数を探す
+    let mut max_fitting = 1;
+
+    for n in 1..=sections.len() {
+        let test_sections = &sections[0..n];
+        if let Some(bounds) = calc_grid_bounds(test_sections, columns, column_gap) {
+            if bounds.fits_in_frame(plot_scale) {
+                max_fitting = n;
+            } else {
+                break;
+            }
+        }
+    }
+
+    max_fitting
 }
 
 /// 複数横断図をグリッド配置したDrawingを生成
@@ -755,31 +771,40 @@ fn generate_multi_drawing_internal(
     let cell_height = (max_height + 1.0) * scale * 2.0;  // 旗揚げ部分のマージン（縦スケール2倍）
 
     // 図枠付きの場合、実際のバウンディングボックスを計算してセンタリング
-    let (content_offset_x, content_offset_y) = if let Some(fs) = frame_scale {
+    let (content_offset_x, content_offset_y, grid_bounds) = if let Some(fs) = frame_scale {
         // グリッド全体の実際のバウンディングボックスを取得
         if let Some(bounds) = calc_grid_bounds(sections, columns, column_gap) {
-            use frame_constants::*;
+            use available_area as area;
 
             // コンテンツサイズを紙上mm換算
             let content_width_mm = bounds.width() / fs;
             let content_height_mm = bounds.height() / fs;
 
-            // 有効エリアの中央にコンテンツを配置
-            // コンテンツの左下が来るべき位置（紙上mm）
-            let target_left_mm = FRAME_LEFT_MM + MARGIN_MM + (USABLE_WIDTH_MM - content_width_mm) / 2.0;
-            let target_bottom_mm = FRAME_BOTTOM_MM + MARGIN_MM + (USABLE_HEIGHT_MM - content_height_mm) / 2.0;
+            // 内枠全体（緑+水色エリア）の中心でX方向をセンタリング
+            // 内枠: 10mm〜410mm (幅400mm)、中心=210mm
+            const FRAME_CENTER_X_MM: f64 = 210.0;
 
-            // 現在のコンテンツ左下からのオフセット（DXF単位）
-            // bounds.min_x, bounds.min_yが現在のコンテンツ左下
-            let offset_x = target_left_mm * fs - bounds.min_x;
-            let offset_y = target_bottom_mm * fs - bounds.min_y;
+            // Y方向は配置可能エリア（緑エリア）でセンタリング
+            let usable_height = area::HEIGHT_MM - area::MARGIN_MM * 2.0;
 
-            (offset_x, offset_y)
+            // X: 内枠中心にコンテンツ中心を合わせる
+            let content_center_x = content_width_mm / 2.0;
+            let target_left = FRAME_CENTER_X_MM - content_center_x;
+
+            // Y: 配置可能エリア内でセンタリング
+            let target_bottom = area::BOTTOM_MM + area::MARGIN_MM
+                              + (usable_height - content_height_mm) / 2.0;
+
+            // オフセット計算（DXF単位）
+            let offset_x = target_left * fs - bounds.min_x;
+            let offset_y = target_bottom * fs - bounds.min_y;
+
+            (offset_x, offset_y, Some(bounds))
         } else {
-            (0.0, 0.0)
+            (0.0, 0.0, None)
         }
     } else {
-        (0.0, 0.0)
+        (0.0, 0.0, None)
     };
 
     // セクションを描画
@@ -805,6 +830,24 @@ fn generate_multi_drawing_internal(
         });
 
         draw_drawing_frame(&mut drawing, &info, 0.0, 0.0, fs, TEXT_SIZE_MM);
+
+        // グリッド外形を描画（デバッグ用）
+        if info.show_debug_markers {
+            if let Some(bounds) = grid_bounds {
+                // オフセット適用後のバウンディングボックス
+                let grid_min_x = bounds.min_x + content_offset_x;
+                let grid_min_y = bounds.min_y + content_offset_y;
+                let grid_max_x = bounds.max_x + content_offset_x;
+                let grid_max_y = bounds.max_y + content_offset_y;
+
+                // 赤色（ACI 1）でグリッド外形を描画
+                const COLOR_RED: i16 = 1;
+                add_line(&mut drawing, grid_min_x, grid_min_y, grid_max_x, grid_min_y, COLOR_RED, "DEBUG");
+                add_line(&mut drawing, grid_max_x, grid_min_y, grid_max_x, grid_max_y, COLOR_RED, "DEBUG");
+                add_line(&mut drawing, grid_max_x, grid_max_y, grid_min_x, grid_max_y, COLOR_RED, "DEBUG");
+                add_line(&mut drawing, grid_min_x, grid_max_y, grid_min_x, grid_min_y, COLOR_RED, "DEBUG");
+            }
+        }
     }
 
     drawing
@@ -2076,6 +2119,48 @@ impl CrossSectionData {
         serde_json::from_str(json).map_err(|e| format!("JSON parse error: {e}"))
     }
 
+    /// 新形式JSON（タイトルブロック情報付き）をパース
+    pub fn from_json_with_title(json: &str) -> Result<SectionsData, String> {
+        // まず新形式（オブジェクト）でパースを試みる
+        if let Ok(data) = serde_json::from_str::<SectionsData>(json) {
+            return Ok(data);
+        }
+        // 旧形式（配列）でパース
+        let sections: Vec<Self> = serde_json::from_str(json)
+            .map_err(|e| format!("JSON parse error: {e}"))?;
+        Ok(SectionsData {
+            title_block: None,
+            sections,
+        })
+    }
+}
+
+/// タイトルブロック情報（JSON用）
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct TitleBlockJson {
+    #[serde(default)]
+    pub project_name: String,
+    #[serde(default)]
+    pub drawing_type: String,
+    #[serde(default)]
+    pub route_name: String,
+    #[serde(default)]
+    pub author: String,
+    #[serde(default)]
+    pub date: String,
+    #[serde(default)]
+    pub drawing_number: String,
+}
+
+/// セクションデータ（タイトルブロック情報付き）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SectionsData {
+    #[serde(default)]
+    pub title_block: Option<TitleBlockJson>,
+    pub sections: Vec<CrossSectionData>,
+}
+
+impl CrossSectionData {
     fn from_csv_section(section: &CsvSection) -> Result<Self, String> {
         let count = section.unit_distances.len();
         if count == 0 {
@@ -2314,6 +2399,18 @@ pub struct CrossSectionApp {
     selected_route: String,      // 選択中のルート
     api_key: String,             // セッションのみのAPIキー
     api_key_set: bool,           // UI表示用フラグ
+    // タイトルブロック情報
+    project_name: String,        // 工事名
+    drawing_type: String,        // 図面名
+    route_name: String,          // 路線名
+    author: String,              // 施工者
+    date: String,                // 作成日
+    drawing_number: String,      // 図面番号
+    show_debug_guides: bool,     // デバッグガイド表示
+    // ページ分割
+    current_page: usize,         // 現在のページ（0始まり）
+    total_pages: usize,          // 総ページ数
+    sections_per_page: usize,    // 1ページあたりのセクション数
 }
 
 impl Default for CrossSectionApp {
@@ -2339,6 +2436,18 @@ impl Default for CrossSectionApp {
             selected_route: "route_1".to_string(),
             api_key: String::new(),
             api_key_set: false,
+            // タイトルブロック情報（デフォルト）
+            project_name: String::new(),
+            drawing_type: "横断図".to_string(),
+            route_name: String::new(),
+            author: String::new(),
+            date: String::new(),
+            drawing_number: String::new(),
+            show_debug_guides: true,  // デフォルトでON
+            // ページ分割
+            current_page: 0,
+            total_pages: 1,
+            sections_per_page: 6,  // デフォルト6個/ページ
         }
     }
 }
@@ -2435,6 +2544,56 @@ impl CrossSectionApp {
             .collect()
     }
 
+    /// 現在のページに表示するセクションを返す
+    fn current_page_sections(&self) -> Vec<&CrossSectionData> {
+        let filtered = self.filtered_sections();
+        if self.total_pages <= 1 || self.sections_per_page == 0 {
+            return filtered;
+        }
+        let start = self.current_page * self.sections_per_page;
+        let end = (start + self.sections_per_page).min(filtered.len());
+        filtered[start..end].to_vec()
+    }
+
+    /// ページ数を再計算
+    fn recalc_pages(&mut self) {
+        let filtered: Vec<CrossSectionData> = self.filtered_sections()
+            .into_iter().cloned().collect();
+
+        if filtered.is_empty() {
+            self.sections_per_page = 0;
+            self.total_pages = 1;
+            self.current_page = 0;
+            return;
+        }
+
+        // スケールが指定されている場合のみページ分割
+        if let Some(scale) = self.plot_scale {
+            self.sections_per_page = calc_sections_per_page(
+                &filtered,
+                self.grid_columns,
+                self.column_gap,
+                scale as f64,
+            );
+
+            if self.sections_per_page > 0 {
+                self.total_pages = (filtered.len() + self.sections_per_page - 1) / self.sections_per_page;
+            } else {
+                self.total_pages = 1;
+            }
+
+            // 現在のページが範囲外なら調整
+            if self.current_page >= self.total_pages {
+                self.current_page = self.total_pages.saturating_sub(1);
+            }
+        } else {
+            // 手動モードはページ分割なし
+            self.sections_per_page = filtered.len();
+            self.total_pages = 1;
+            self.current_page = 0;
+        }
+    }
+
     fn update_dxf_preview(&mut self) {
         let filtered: Vec<CrossSectionData> = self.filtered_sections()
             .into_iter().cloned().collect();
@@ -2478,11 +2637,26 @@ impl CrossSectionApp {
             }
             ViewMode::AllGrid if !filtered.is_empty() => {
                 if let Some(scale) = self.plot_scale {
+                    // 現在のページのセクションのみ使用
+                    let page_sections: Vec<CrossSectionData> = self.current_page_sections()
+                        .into_iter().cloned().collect();
                     // 図枠付きで描画
+                    let page_num = if self.total_pages > 1 {
+                        format!("{}-{}", self.drawing_number, self.current_page + 1)
+                    } else {
+                        self.drawing_number.clone()
+                    };
                     let info = TitleBlockInfo::new()
-                        .with_top_title("横断図")
-                        .with_scale(&format!("1:{} (A3)", scale));
-                    generate_multi_drawing_with_frame_at_scale(&filtered, columns, self.column_gap, &info, scale as f64)
+                        .with_project_name(&self.project_name)
+                        .with_drawing_type(&self.drawing_type)
+                        .with_route_name(&self.route_name)
+                        .with_author(&self.author)
+                        .with_date(&self.date)
+                        .with_drawing_number(&page_num)
+                        .with_top_title(&self.drawing_type)
+                        .with_scale(&format!("1:{} (A3)", scale))
+                        .with_debug_markers(self.show_debug_guides);
+                    generate_multi_drawing_with_frame_at_scale(&page_sections, columns, self.column_gap, &info, scale as f64)
                 } else {
                     generate_multi_drawing(&filtered, columns, self.column_gap)
                 }
@@ -2518,8 +2692,19 @@ impl eframe::App for CrossSectionApp {
         // JSONのfetch結果を処理
         if let Some(json_text) = take_pending_json() {
             self.loading_stage = "JSONをパース中".to_string();
-            match CrossSectionData::from_json(&json_text) {
-                Ok(sections) => {
+            match CrossSectionData::from_json_with_title(&json_text) {
+                Ok(data) => {
+                    let sections = data.sections;
+                    // タイトルブロック情報を適用
+                    if let Some(tb) = data.title_block {
+                        if !tb.project_name.is_empty() { self.project_name = tb.project_name; }
+                        if !tb.drawing_type.is_empty() { self.drawing_type = tb.drawing_type; }
+                        if !tb.route_name.is_empty() { self.route_name = tb.route_name; }
+                        if !tb.author.is_empty() { self.author = tb.author; }
+                        if !tb.date.is_empty() { self.date = tb.date; }
+                        if !tb.drawing_number.is_empty() { self.drawing_number = tb.drawing_number; }
+                    }
+
                     self.loading_stage = format!("{}測点のデータを処理中", sections.len());
                     let dump = if sections.is_empty() {
                         "JSONデータなし".to_string()
@@ -2551,6 +2736,7 @@ impl eframe::App for CrossSectionApp {
                     self.selected_index = Some(0);
                     self.loading_stage = "DXFプレビューを生成中".to_string();
                     self.status_message = Some(dump);
+                    self.recalc_pages();
                     self.update_dxf_preview();
                 }
                 Err(e) => {
@@ -2708,14 +2894,22 @@ impl eframe::App for CrossSectionApp {
                                 .show_ui(ui, |ui| {
                                     if ui.selectable_label(self.plot_scale.is_none(), "手動").clicked() {
                                         self.plot_scale = None;
+                                        self.recalc_pages();
+                                        self.update_dxf_preview();
+                                    }
+                                    if ui.selectable_label(self.plot_scale == Some(100), "1:100").clicked() {
+                                        self.plot_scale = Some(100);
+                                        self.recalc_pages();
                                         self.update_dxf_preview();
                                     }
                                     if ui.selectable_label(self.plot_scale == Some(200), "1:200").clicked() {
                                         self.plot_scale = Some(200);
+                                        self.recalc_pages();
                                         self.update_dxf_preview();
                                     }
                                     if ui.selectable_label(self.plot_scale == Some(500), "1:500").clicked() {
                                         self.plot_scale = Some(500);
+                                        self.recalc_pages();
                                         self.update_dxf_preview();
                                     }
                                 });
@@ -2724,29 +2918,49 @@ impl eframe::App for CrossSectionApp {
                             ui.label(format!("{}列", self.grid_columns));
                             if ui.small_button("+").clicked() && self.grid_columns < self.max_columns {
                                 self.grid_columns += 1;
+                                self.recalc_pages();
                                 self.update_dxf_preview();
                             }
                             if ui.small_button("-").clicked() && self.grid_columns > 1 {
                                 self.grid_columns -= 1;
+                                self.recalc_pages();
                                 self.update_dxf_preview();
                             }
 
-                            // 収まらない場合は警告
-                            if !self.fits_in_frame && self.plot_scale.is_some() {
-                                ui.colored_label(egui::Color32::RED, "枠外!");
-                            }
                         });
                         ui.horizontal_wrapped(|ui| {
                             ui.label(format!("間隔{:.1}m", self.column_gap));
                             if ui.small_button("+").clicked() && self.column_gap < 5.0 {
                                 self.column_gap += 0.5;
+                                self.recalc_pages();
                                 self.update_dxf_preview();
                             }
                             if ui.small_button("-").clicked() && self.column_gap > -5.0 {
                                 self.column_gap -= 0.5;
+                                self.recalc_pages();
                                 self.update_dxf_preview();
                             }
+                            // デバッグガイド表示切替
+                            if self.plot_scale.is_some() {
+                                if ui.checkbox(&mut self.show_debug_guides, "ガイド").changed() {
+                                    self.update_dxf_preview();
+                                }
+                            }
                         });
+                        // ページナビゲーション（複数ページある場合のみ）
+                        if self.total_pages > 1 && self.plot_scale.is_some() {
+                            ui.horizontal_wrapped(|ui| {
+                                if ui.small_button("<").clicked() && self.current_page > 0 {
+                                    self.current_page -= 1;
+                                    self.update_dxf_preview();
+                                }
+                                ui.label(format!("{}/{}", self.current_page + 1, self.total_pages));
+                                if ui.small_button(">").clicked() && self.current_page < self.total_pages - 1 {
+                                    self.current_page += 1;
+                                    self.update_dxf_preview();
+                                }
+                            });
+                        }
                     }
 
                     ui.horizontal_wrapped(|ui| {
@@ -2762,15 +2976,35 @@ impl eframe::App for CrossSectionApp {
                             }
                             ViewMode::AllGrid if !filtered_for_dxf.is_empty() => {
                                 if ui.button("DXF").clicked() {
-                                    let dxf_content = if let Some(scale) = self.plot_scale {
+                                    let (dxf_content, filename) = if let Some(scale) = self.plot_scale {
+                                        // 現在のページのセクションのみ使用
+                                        let page_sections: Vec<CrossSectionData> = self.current_page_sections()
+                                            .into_iter().cloned().collect();
+                                        let page_num = if self.total_pages > 1 {
+                                            format!("{}-{}", self.drawing_number, self.current_page + 1)
+                                        } else {
+                                            self.drawing_number.clone()
+                                        };
                                         let info = TitleBlockInfo::new()
-                                            .with_top_title("横断図")
-                                            .with_scale(&format!("1:{} (A3)", scale));
-                                        generate_multi_dxf_bytes_with_frame_at_scale(&filtered_for_dxf, self.grid_columns, self.column_gap, &info, scale as f64)
+                                            .with_project_name(&self.project_name)
+                                            .with_drawing_type(&self.drawing_type)
+                                            .with_route_name(&self.route_name)
+                                            .with_author(&self.author)
+                                            .with_date(&self.date)
+                                            .with_drawing_number(&page_num)
+                                            .with_top_title(&self.drawing_type)
+                                            .with_scale(&format!("1:{} (A3)", scale))
+                                            .with_debug_markers(false);  // ダウンロード用はガイドなし
+                                        let fname = if self.total_pages > 1 {
+                                            format!("cross_sections_page{}.dxf", self.current_page + 1)
+                                        } else {
+                                            "cross_sections.dxf".to_string()
+                                        };
+                                        (generate_multi_dxf_bytes_with_frame_at_scale(&page_sections, self.grid_columns, self.column_gap, &info, scale as f64), fname)
                                     } else {
-                                        generate_multi_dxf_bytes(&filtered_for_dxf, self.grid_columns, self.column_gap)
+                                        (generate_multi_dxf_bytes(&filtered_for_dxf, self.grid_columns, self.column_gap), "cross_sections_all.dxf".to_string())
                                     };
-                                    download_file("cross_sections_all.dxf", &dxf_content);
+                                    download_file(&filename, &dxf_content);
                                 }
                             }
                             ViewMode::Longitudinal if !filtered_for_dxf.is_empty() => {
@@ -2905,14 +3139,22 @@ impl eframe::App for CrossSectionApp {
                             .show_ui(ui, |ui| {
                                 if ui.selectable_label(self.plot_scale.is_none(), "手動").clicked() {
                                     self.plot_scale = None;
+                                    self.recalc_pages();
+                                    self.update_dxf_preview();
+                                }
+                                if ui.selectable_label(self.plot_scale == Some(100), "1:100").clicked() {
+                                    self.plot_scale = Some(100);
+                                    self.recalc_pages();
                                     self.update_dxf_preview();
                                 }
                                 if ui.selectable_label(self.plot_scale == Some(200), "1:200").clicked() {
                                     self.plot_scale = Some(200);
+                                    self.recalc_pages();
                                     self.update_dxf_preview();
                                 }
                                 if ui.selectable_label(self.plot_scale == Some(500), "1:500").clicked() {
                                     self.plot_scale = Some(500);
+                                    self.recalc_pages();
                                     self.update_dxf_preview();
                                 }
                             });
@@ -2921,26 +3163,45 @@ impl eframe::App for CrossSectionApp {
                         ui.label(format!("{}列", self.grid_columns));
                         if ui.small_button("+").clicked() && self.grid_columns < self.max_columns {
                             self.grid_columns += 1;
+                            self.recalc_pages();
                             self.update_dxf_preview();
                         }
                         if ui.small_button("-").clicked() && self.grid_columns > 1 {
                             self.grid_columns -= 1;
+                            self.recalc_pages();
                             self.update_dxf_preview();
-                        }
-                        // 収まらない場合は警告
-                        if !self.fits_in_frame && self.plot_scale.is_some() {
-                            ui.colored_label(egui::Color32::RED, "枠外!");
                         }
                     });
                     ui.horizontal(|ui| {
                         ui.label(format!("間隔{:.1}m", self.column_gap));
                         if ui.small_button("+").clicked() && self.column_gap < 5.0 {
                             self.column_gap += 0.5;
+                            self.recalc_pages();
                             self.update_dxf_preview();
                         }
                         if ui.small_button("-").clicked() && self.column_gap > -5.0 {
                             self.column_gap -= 0.5;
+                            self.recalc_pages();
                             self.update_dxf_preview();
+                        }
+                        // デバッグガイド表示切替
+                        if self.plot_scale.is_some() {
+                            if ui.checkbox(&mut self.show_debug_guides, "ガイド").changed() {
+                                self.update_dxf_preview();
+                            }
+                        }
+                        // ページナビゲーション（複数ページある場合のみ）
+                        if self.total_pages > 1 && self.plot_scale.is_some() {
+                            ui.separator();
+                            if ui.small_button("<").clicked() && self.current_page > 0 {
+                                self.current_page -= 1;
+                                self.update_dxf_preview();
+                            }
+                            ui.label(format!("{}/{}", self.current_page + 1, self.total_pages));
+                            if ui.small_button(">").clicked() && self.current_page < self.total_pages - 1 {
+                                self.current_page += 1;
+                                self.update_dxf_preview();
+                            }
                         }
                     });
                 }
@@ -2970,16 +3231,41 @@ impl eframe::App for CrossSectionApp {
                         }
                     }
                     ViewMode::AllGrid => {
-                        if ui.button("Download All DXF").clicked() {
-                            let dxf_content = if let Some(scale) = self.plot_scale {
+                        let btn_label = if self.total_pages > 1 && self.plot_scale.is_some() {
+                            format!("Download Page {} DXF", self.current_page + 1)
+                        } else {
+                            "Download All DXF".to_string()
+                        };
+                        if ui.button(btn_label).clicked() {
+                            let (dxf_content, filename) = if let Some(scale) = self.plot_scale {
+                                // 現在のページのセクションのみ使用
+                                let page_sections: Vec<CrossSectionData> = self.current_page_sections()
+                                    .into_iter().cloned().collect();
+                                let page_num = if self.total_pages > 1 {
+                                    format!("{}-{}", self.drawing_number, self.current_page + 1)
+                                } else {
+                                    self.drawing_number.clone()
+                                };
                                 let info = TitleBlockInfo::new()
-                                    .with_top_title("横断図")
-                                    .with_scale(&format!("1:{} (A3)", scale));
-                                generate_multi_dxf_bytes_with_frame_at_scale(&filtered_for_download, self.grid_columns, self.column_gap, &info, scale as f64)
+                                    .with_project_name(&self.project_name)
+                                    .with_drawing_type(&self.drawing_type)
+                                    .with_route_name(&self.route_name)
+                                    .with_author(&self.author)
+                                    .with_date(&self.date)
+                                    .with_drawing_number(&page_num)
+                                    .with_top_title(&self.drawing_type)
+                                    .with_scale(&format!("1:{} (A3)", scale))
+                                    .with_debug_markers(false);
+                                let fname = if self.total_pages > 1 {
+                                    format!("cross_sections_page{}.dxf", self.current_page + 1)
+                                } else {
+                                    "cross_sections.dxf".to_string()
+                                };
+                                (generate_multi_dxf_bytes_with_frame_at_scale(&page_sections, self.grid_columns, self.column_gap, &info, scale as f64), fname)
                             } else {
-                                generate_multi_dxf_bytes(&filtered_for_download, self.grid_columns, self.column_gap)
+                                (generate_multi_dxf_bytes(&filtered_for_download, self.grid_columns, self.column_gap), "cross_sections_all.dxf".to_string())
                             };
-                            download_file("cross_sections_all.dxf", &dxf_content);
+                            download_file(&filename, &dxf_content);
                         }
                     }
                     ViewMode::Longitudinal => {
