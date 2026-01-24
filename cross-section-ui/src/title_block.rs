@@ -59,6 +59,59 @@ pub mod available_area {
     /// 水色エリアの高さをフルに使用（上部タイトル下端 - タイトル枠上端 = 203mm）
     pub const FRAME_USABLE_HEIGHT_MM: f64 = TOP_MM - TITLE_BLOCK_TOP_MM;  // 203mm
 
+    // === 4列分割の列ごとの高さ定数 ===
+    /// 列ごとの有効高さ（4列分割）
+    /// 列0-2: タイトル枠がないため縦をフルに使える（241mm）
+    /// 列3: タイトル枠があるため高さが制限される（203mm）
+    pub const COLUMN_HEIGHTS: [f64; 4] = [
+        HEIGHT_MM - MARGIN_MM * 2.0,  // 列0: 241mm
+        HEIGHT_MM - MARGIN_MM * 2.0,  // 列1: 241mm
+        HEIGHT_MM - MARGIN_MM * 2.0,  // 列2: 241mm
+        FRAME_USABLE_HEIGHT_MM,       // 列3: 203mm (タイトル枠を避ける)
+    ];
+
+    /// 列ごとの下端Y座標
+    /// 列0-2: 内枠下端 + マージン = 15mm
+    /// 列3: タイトル枠上端 = 58mm
+    pub const COLUMN_BOTTOMS: [f64; 4] = [
+        BOTTOM_MM + MARGIN_MM,        // 列0: 15mm
+        BOTTOM_MM + MARGIN_MM,        // 列1: 15mm
+        BOTTOM_MM + MARGIN_MM,        // 列2: 15mm
+        TITLE_BLOCK_TOP_MM,           // 列3: 58mm
+    ];
+
+    /// 指定列数に対する最大使用可能高さを返す
+    /// 4列以上の場合は最も制限が厳しい列3の高さ（203mm）
+    /// 3列以下の場合は列0-2の高さ（241mm）
+    #[inline]
+    pub fn max_height_for_columns(columns: usize) -> f64 {
+        if columns >= 4 {
+            FRAME_USABLE_HEIGHT_MM  // 203mm
+        } else {
+            HEIGHT_MM - MARGIN_MM * 2.0  // 241mm
+        }
+    }
+
+    /// 指定列に対する下端Y座標を返す
+    #[inline]
+    pub fn bottom_for_column(col: usize) -> f64 {
+        if col >= 3 {
+            TITLE_BLOCK_TOP_MM  // 58mm
+        } else {
+            BOTTOM_MM + MARGIN_MM  // 15mm
+        }
+    }
+
+    /// 指定列に対する有効高さを返す
+    #[inline]
+    pub fn height_for_column(col: usize) -> f64 {
+        if col >= 3 {
+            FRAME_USABLE_HEIGHT_MM  // 203mm
+        } else {
+            HEIGHT_MM - MARGIN_MM * 2.0  // 241mm
+        }
+    }
+
     // === 旧定数（互換性維持）===
     /// 有効描画幅（マージン込み）- 緑エリアのみ
     pub const USABLE_WIDTH_MM: f64 = WIDTH_MM - MARGIN_MM * 2.0;  // 310mm
