@@ -20,6 +20,7 @@ pub use title_block::{
     draw_drawing_frame,
     generate_title_block_test_drawing,
     generate_title_block_test_dxf_bytes,
+    generate_title_block_dxf_for_download,
 };
 
 // dxf crate for proper DXF file generation
@@ -1041,10 +1042,9 @@ pub fn generate_longitudinal_dxf_bytes(sections: &[CrossSectionData]) -> Vec<u8>
     output
 }
 
-/// コンボビュー（縦断図＋全横断図）を生成
-/// 縦断図を上部に、全横断図グリッドを下部に配置（横断図は2行で横長配置）
-/// レイアウトマネージャ：センタリング揃え＋適切な間隔
-pub fn generate_combo_drawing(sections: &[CrossSectionData], columns: usize, column_gap: f64) -> Drawing {
+/// コンボビュー（展開図＋縦断図）を生成
+/// 展開図を上部に、縦断図を下部に配置し、図枠内に収める
+pub fn generate_combo_drawing(sections: &[CrossSectionData], _columns: usize, _column_gap: f64) -> Drawing {
     if sections.is_empty() {
         return new_drawing();
     }
@@ -1052,20 +1052,10 @@ pub fn generate_combo_drawing(sections: &[CrossSectionData], columns: usize, col
     // 面積展開図を生成し、バウンディングボックスを取得
     let area_expansion = generate_area_expansion_drawing(sections);
     let (area_min_x, area_min_y, area_max_x, area_max_y) = calc_dxf_bounds(&area_expansion);
-    let area_height = area_max_y - area_min_y;
-    let area_center_x = (area_min_x + area_max_x) / 2.0;
 
     // 縦断図を生成し、バウンディングボックスを取得
     let longitudinal = generate_longitudinal_drawing(sections);
     let (long_min_x, long_min_y, long_max_x, long_max_y) = calc_dxf_bounds(&longitudinal);
-    let long_height = long_max_y - long_min_y;
-    let long_center_x = (long_min_x + long_max_x) / 2.0;
-
-    // 横断図グリッド（指定列数・間隔を使用）
-    let multi = generate_multi_drawing(sections, columns, column_gap);
-    let (multi_min_x, multi_min_y, multi_max_x, multi_max_y) = calc_dxf_bounds(&multi);
-    let multi_height = multi_max_y - multi_min_y;
-    let multi_center_x = (multi_min_x + multi_max_x) / 2.0;
 
     // 新しいDrawingを作成
     let mut drawing = new_drawing();
@@ -1085,42 +1075,54 @@ pub fn generate_combo_drawing(sections: &[CrossSectionData], columns: usize, col
             drawing.add_layer(new_layer);
         }
     }
-    for layer in multi.layers() {
-        if drawing.layers().find(|l| l.name == layer.name).is_none() {
-            let mut new_layer = dxf::tables::Layer::default();
-            new_layer.name = layer.name.clone();
-            new_layer.color = layer.color.clone();
-            drawing.add_layer(new_layer);
-        }
-    }
 
     // === レイアウト計算 ===
-    // 間隔（図面間のスペース）（×10）
-    let spacing = 5000.0; // 5m間隔（mm単位）
+    let spacing = 5000.0; // 5m間隔
 
-    // 基準: 縦断図を原点に配置
-    // 縦断図のエンティティをそのままコピー
+    // 縦断図を原点に配置
     for entity in longitudinal.entities() {
         drawing.add_entity(entity.clone());
     }
 
-    // 面積展開図: 縦断図の上に配置（両方label_width=750から開始なのでXオフセット不要）
-    let area_x_offset = 0.0;
-    let area_y_offset = long_max_y + spacing - area_min_y;
+    // 面積展開図: 縦断図の上に配置
+    let area_x_offset = 0.0_f64;
+    let area_y_offset = long_max_y as f64 + spacing - area_min_y as f64;
     for entity in area_expansion.entities() {
         let mut shifted_entity = entity.clone();
-        shift_entity_xy(&mut shifted_entity, area_x_offset as f64, area_y_offset as f64);
+        shift_entity_xy(&mut shifted_entity, area_x_offset, area_y_offset);
         drawing.add_entity(shifted_entity);
     }
 
-    // 横断図グリッド: 縦断図の下に配置
-    let multi_x_offset = long_center_x - multi_center_x;
-    let multi_y_offset = long_min_y - spacing - multi_height;
-    for entity in multi.entities() {
-        let mut shifted_entity = entity.clone();
-        shift_entity_xy(&mut shifted_entity, multi_x_offset as f64, (multi_y_offset - multi_min_y) as f64);
-        drawing.add_entity(shifted_entity);
-    }
+    // 配置後の全体バウンディングボックスを計算
+    let (data_min_x, data_min_y, data_max_x, data_max_y) = calc_dxf_bounds(&drawing);
+    let data_center_x = (data_min_x as f64 + data_max_x as f64) / 2.0;
+    let data_center_y = (data_min_y as f64 + data_max_y as f64) / 2.0;
+
+    // 図枠を追加（1:700スケール）
+    let frame_scale = 700.0;
+    let frame_text_size = 3.0;
+
+    // 図枠の内枠中心（A3: 420x297mm, マージン10mm）
+    let frame_center_x = 210.0;
+    let frame_center_y = 148.5;
+
+    // 図枠の原点（図枠中心とデータ中心を一致させる）
+    let frame_origin_x = data_center_x - frame_center_x * frame_scale;
+    let frame_origin_y = data_center_y - frame_center_y * frame_scale;
+
+    let frame_info = TitleBlockInfo::new()
+        .with_project_name("市道 南千反畑町第１号線舗装補修工事")
+        .with_drawing_type("面積展開図　縦断図")
+        .with_route_name("熊本市中央区南千反畑町外地内")
+        .with_date("2026年1月")
+        .with_scale("H=1:700 V=1:140")
+        .with_drawing_number("1/1")
+        .with_author("有限会社　三雄建設")
+        .with_top_title("面積展開図　縦断図")
+        .with_credit("")
+        .with_debug_markers(true);
+
+    draw_drawing_frame(&mut drawing, &frame_info, frame_origin_x, frame_origin_y, frame_scale, frame_text_size);
 
     drawing
 }
@@ -1237,6 +1239,7 @@ pub fn generate_area_expansion_drawing(sections: &[CrossSectionData]) -> Drawing
     let scale_y = 1000.0;     // 縦方向スケール（1m = 1000単位）縦横比 H1:V1
     let text_height = 1500.0; // 基本テキスト高さ（×10）
     let label_width = 7500.0; // 左側ラベル幅（×10）
+    let margin_x = 2000.0;    // 縦断図と同じ左マージン
     let station_text_offset = 3000.0; // 測点名のオフセット（×10）
 
     let mut drawing = new_drawing();
@@ -1287,7 +1290,7 @@ pub fn generate_area_expansion_drawing(sections: &[CrossSectionData]) -> Drawing
     for section in &sorted_sections {
         let dist = section.route_distance.unwrap_or_else(|| parse_station_distance(&section.survey_point_name));
         // 縦断図と同じX計算方式（相対距離）
-        let x = label_width + (dist - base_distance) * scale_x;
+        let x = label_width + margin_x + (dist - base_distance) * scale_x;
 
         // 左幅員: L端からCLまでの距離
         let wl = section.l_to_cl_distance;
@@ -2444,7 +2447,7 @@ impl eframe::App for CrossSectionApp {
                             }
                             ViewMode::TitleBlock => {
                                 if ui.button("DXF").clicked() {
-                                    let dxf_content = generate_title_block_test_dxf_bytes();
+                                    let dxf_content = generate_title_block_dxf_for_download();
                                     download_file("title_block.dxf", &dxf_content);
                                 }
                             }
@@ -2570,7 +2573,7 @@ impl eframe::App for CrossSectionApp {
                     }
                     ViewMode::TitleBlock => {
                         if ui.button("Download Title Block DXF").clicked() {
-                            let dxf_content = generate_title_block_test_dxf_bytes();
+                            let dxf_content = generate_title_block_dxf_for_download();
                             download_file("title_block.dxf", &dxf_content);
                         }
                     }
