@@ -504,10 +504,15 @@ impl GridBounds {
     }
 
     /// 図枠に収まるかチェック（内枠全体を使用）
-    pub fn fits_in_frame(&self, plot_scale: f64) -> bool {
+    /// columns: 列数（4列以上の場合、最も制限が厳しい列3の高さでチェック）
+    pub fn fits_in_frame(&self, plot_scale: f64, columns: usize) -> bool {
         let (w_mm, h_mm) = self.to_paper_size(plot_scale);
-        // 幅は内枠全体（390mm）、高さはタイトル枠を避けた領域（193mm）
-        w_mm <= available_area::FRAME_USABLE_WIDTH_MM && h_mm <= available_area::FRAME_USABLE_HEIGHT_MM
+        if w_mm > available_area::FRAME_USABLE_WIDTH_MM {
+            return false;
+        }
+        // 列数に応じた高さでチェック
+        let max_height = available_area::max_height_for_columns(columns);
+        h_mm <= max_height
     }
 }
 
@@ -637,7 +642,7 @@ pub fn calc_max_columns_for_frame(
 
     for cols in 1..=max_possible {
         if let Some(bounds) = calc_grid_bounds(sections, cols, column_gap, row_gap) {
-            if bounds.fits_in_frame(plot_scale) {
+            if bounds.fits_in_frame(plot_scale, cols) {
                 max_fitting = cols;
             } else {
                 // 列数が増えると幅は減るが高さは増える
@@ -678,7 +683,7 @@ pub fn calc_sections_per_page(
     for n in 1..=sections.len() {
         let test_sections = &sections[0..n];
         if let Some(bounds) = calc_grid_bounds(test_sections, columns, column_gap, row_gap) {
-            if bounds.fits_in_frame(plot_scale) {
+            if bounds.fits_in_frame(plot_scale, columns) {
                 max_fitting = n;
             } else {
                 break;
@@ -784,8 +789,9 @@ fn generate_multi_drawing_internal(
 
     let cell_height = (max_height + row_gap) * scale * 2.0;  // 行間隔を含む（縦スケール2倍）
 
-    // 図枠付きの場合、実際のバウンディングボックスを計算してセンタリング
-    let (content_offset_x, content_offset_y, grid_bounds) = if let Some(fs) = frame_scale {
+    // 図枠付きの場合、列ごとにY配置を計算
+    // 列0-2: 15mm〜256mm（高さ241mm）、列3: 58mm〜261mm（高さ203mm）
+    let (content_offset_x, col_y_offsets, grid_bounds) = if let Some(fs) = frame_scale {
         // グリッド全体の実際のバウンディングボックスを取得
         if let Some(bounds) = calc_grid_bounds(sections, columns, column_gap, row_gap) {
             use available_area as area;
@@ -798,27 +804,32 @@ fn generate_multi_drawing_internal(
             // 内枠: 10mm〜410mm (幅400mm)、中心=210mm
             const FRAME_CENTER_X_MM: f64 = 210.0;
 
-            // Y方向は水色エリア（タイトル枠上端〜上部タイトル下端）でセンタリング
-            let usable_height = area::FRAME_USABLE_HEIGHT_MM;  // 203mm
-
             // X: 内枠中心にコンテンツ中心を合わせる
             let content_center_x = content_width_mm / 2.0;
             let target_left = FRAME_CENTER_X_MM - content_center_x;
 
-            // Y: タイトル枠上端（58mm）からセンタリング
-            let target_bottom = area::TITLE_BLOCK_TOP_MM
-                              + (usable_height - content_height_mm) / 2.0;
-
             // オフセット計算（DXF単位）
             let offset_x = target_left * fs - bounds.min_x;
-            let offset_y = target_bottom * fs - bounds.min_y;
 
-            (offset_x, offset_y, Some(bounds))
+            // 列ごとのY方向オフセットを計算
+            let mut col_offsets: Vec<f64> = Vec::with_capacity(columns);
+            for col in 0..columns {
+                // 列ごとの有効高さと下端位置
+                let col_height = area::height_for_column(col);
+                let col_bottom = area::bottom_for_column(col);
+
+                // Y: 列ごとの利用可能領域でセンタリング
+                let target_bottom = col_bottom + (col_height - content_height_mm) / 2.0;
+                let offset_y = target_bottom * fs - bounds.min_y;
+                col_offsets.push(offset_y);
+            }
+
+            (offset_x, col_offsets, Some(bounds))
         } else {
-            (0.0, 0.0, None)
+            (0.0, vec![0.0; columns], None)
         }
     } else {
-        (0.0, 0.0, None)
+        (0.0, vec![0.0; columns], None)
     };
 
     // セクションを描画
@@ -828,7 +839,13 @@ fn generate_multi_drawing_internal(
         let row_in_col = idx % rows_per_column;
 
         let offset_x = col_x_offsets[col] + content_offset_x;
-        let offset_y = row_in_col as f64 * cell_height + content_offset_y;
+        // 列ごとのY方向オフセットを適用
+        let col_y_offset = if col < col_y_offsets.len() {
+            col_y_offsets[col]
+        } else {
+            col_y_offsets.last().copied().unwrap_or(0.0)
+        };
+        let offset_y = row_in_col as f64 * cell_height + col_y_offset;
 
         draw_section_at_offset(&mut drawing, section, offset_x, offset_y, scale);
     }
@@ -845,21 +862,36 @@ fn generate_multi_drawing_internal(
 
         draw_drawing_frame(&mut drawing, &info, 0.0, 0.0, fs, TEXT_SIZE_MM);
 
-        // グリッド外形を描画（デバッグ用）
+        // グリッド外形を描画（デバッグ用）- 列ごとに別々の高さで描画
         if info.show_debug_markers {
-            if let Some(bounds) = grid_bounds {
-                // オフセット適用後のバウンディングボックス
-                let grid_min_x = bounds.min_x + content_offset_x;
-                let grid_min_y = bounds.min_y + content_offset_y;
-                let grid_max_x = bounds.max_x + content_offset_x;
-                let grid_max_y = bounds.max_y + content_offset_y;
-
-                // 赤色（ACI 1）でグリッド外形を描画
+            if let Some(bounds) = &grid_bounds {
                 const COLOR_RED: i16 = 1;
-                add_line(&mut drawing, grid_min_x, grid_min_y, grid_max_x, grid_min_y, COLOR_RED, "DEBUG");
-                add_line(&mut drawing, grid_max_x, grid_min_y, grid_max_x, grid_max_y, COLOR_RED, "DEBUG");
-                add_line(&mut drawing, grid_max_x, grid_max_y, grid_min_x, grid_max_y, COLOR_RED, "DEBUG");
-                add_line(&mut drawing, grid_min_x, grid_max_y, grid_min_x, grid_min_y, COLOR_RED, "DEBUG");
+                let rows_per_col = (sections.len() + columns - 1) / columns;
+                let col_content_height = rows_per_col as f64 * cell_height;
+
+                for col in 0..columns {
+                    let col_y_offset = if col < col_y_offsets.len() {
+                        col_y_offsets[col]
+                    } else {
+                        col_y_offsets.last().copied().unwrap_or(0.0)
+                    };
+
+                    // 列ごとのバウンディングボックス
+                    let col_min_x = col_x_offsets[col] + content_offset_x - column_gap * scale / 2.0;
+                    let col_max_x = if col + 1 < col_x_offsets.len() {
+                        col_x_offsets[col + 1] + content_offset_x - column_gap * scale / 2.0
+                    } else {
+                        bounds.max_x + content_offset_x
+                    };
+                    let col_min_y = bounds.min_y + col_y_offset;
+                    let col_max_y = col_min_y + col_content_height;
+
+                    // 列ごとに外形を描画
+                    add_line(&mut drawing, col_min_x, col_min_y, col_max_x, col_min_y, COLOR_RED, "DEBUG");
+                    add_line(&mut drawing, col_max_x, col_min_y, col_max_x, col_max_y, COLOR_RED, "DEBUG");
+                    add_line(&mut drawing, col_max_x, col_max_y, col_min_x, col_max_y, COLOR_RED, "DEBUG");
+                    add_line(&mut drawing, col_min_x, col_max_y, col_min_x, col_min_y, COLOR_RED, "DEBUG");
+                }
             }
         }
     }
@@ -2636,7 +2668,7 @@ impl CrossSectionApp {
         if let Some(scale) = self.plot_scale {
             if !filtered.is_empty() {
                 if let Some(bounds) = calc_grid_bounds(&filtered, self.grid_columns, self.column_gap, self.row_gap) {
-                    self.fits_in_frame = bounds.fits_in_frame(scale as f64);
+                    self.fits_in_frame = bounds.fits_in_frame(scale as f64, self.grid_columns);
                 } else {
                     self.fits_in_frame = true;
                 }
@@ -3979,7 +4011,7 @@ mod tests {
         // 1セクションのバウンディングボックスを確認
         let sections = vec![make_test_section("NO.1")];
 
-        let bounds = calc_grid_bounds(&sections, 1, 2.0).unwrap();
+        let bounds = calc_grid_bounds(&sections, 1, 2.0, 1.0).unwrap();
 
         // 幅は6000 (左3m + 右3m = 6m × 1000)
         // X位置はグリッド配置後の値（CL位置 + 累積距離）
@@ -3993,7 +4025,7 @@ mod tests {
     fn test_calc_max_columns_for_frame() {
         // 空のセクションリストは1列を返す
         let empty: Vec<CrossSectionData> = vec![];
-        assert_eq!(calc_max_columns_for_frame(&empty, 2.0, 500.0), 1);
+        assert_eq!(calc_max_columns_for_frame(&empty, 2.0, 1.0, 500.0), 1);
 
         // 20セクションのテストデータ
         let sections: Vec<CrossSectionData> = (1..=20)
@@ -4002,7 +4034,7 @@ mod tests {
 
         // 1:500スケールで最大列数を計算
         // 各セクションのサイズ（幅8m × 高さ約5m紙上）を考慮
-        let max_cols = calc_max_columns_for_frame(&sections, 2.0, 500.0);
+        let max_cols = calc_max_columns_for_frame(&sections, 2.0, 1.0, 500.0);
 
         // 20セクションあるので、少なくとも1列以上、最大20列以下
         assert!(max_cols >= 1);
@@ -4016,15 +4048,19 @@ mod tests {
     #[test]
     fn test_fits_in_frame() {
         let sections = vec![make_test_section("NO.1")];
-        let bounds = calc_grid_bounds(&sections, 1, 2.0).unwrap();
+        let bounds = calc_grid_bounds(&sections, 1, 2.0, 1.0).unwrap();
 
-        // 1:500で収まるか確認
+        // 1:500で収まるか確認（1列なので高さ制限は241mm）
         // 幅6000→12mm、高さは5550くらい→11mm程度
-        assert!(bounds.fits_in_frame(500.0));
+        assert!(bounds.fits_in_frame(500.0, 1));
 
         // 1:200でも収まる
         // 幅6000→30mm、高さ5550→27.75mm
-        assert!(bounds.fits_in_frame(200.0));
+        assert!(bounds.fits_in_frame(200.0, 1));
+
+        // 4列の場合は高さ制限が203mmになる
+        // 1列でテストしているので4列制限は適用されない
+        assert!(bounds.fits_in_frame(500.0, 4));  // 4列でも収まる
 
         // 1:50だと収まらない（幅120mm、高さ111mm）
         // 有効高さ227mmあるので収まる可能性
