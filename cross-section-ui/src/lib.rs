@@ -1709,8 +1709,8 @@ pub fn generate_combo_drawing(sections: &[CrossSectionData], columns: usize, col
     let data_center_x = (data_min_x as f64 + data_max_x as f64) / 2.0;
     let data_center_y = (data_min_y as f64 + data_max_y as f64) / 2.0;
 
-    // 図枠を追加（1:700スケール）
-    let frame_scale = 700.0;
+    // 図枠スケール（ルート2は1:500、それ以外は1:700）
+    let frame_scale = if is_route_2 { 500.0 } else { 700.0 };
     let frame_text_size = 3.0;
 
     // 図枠の内枠中心（A3: 420x297mm, マージン10mm）
@@ -1721,19 +1721,38 @@ pub fn generate_combo_drawing(sections: &[CrossSectionData], columns: usize, col
     let frame_origin_x = data_center_x - frame_center_x * frame_scale;
     let frame_origin_y = data_center_y - frame_center_y * frame_scale;
 
+    // ルート2のときはタイトルに横断図も含める
+    let (drawing_type, top_title, scale_text) = if is_route_2 {
+        ("縦断図　横断図", "縦断図　横断図", "H=1:500 V=1:100")
+    } else {
+        ("縦断図", "縦断図", "H=1:700 V=1:140")
+    };
+
     let frame_info = TitleBlockInfo::new()
         .with_project_name("市道 南千反畑町第１号線舗装補修工事")
-        .with_drawing_type("縦断図")
+        .with_drawing_type(drawing_type)
         .with_route_name("熊本市中央区南千反畑町外地内")
         .with_date("2026年1月")
-        .with_scale("H=1:700 V=1:140")
+        .with_scale(scale_text)
         .with_drawing_number("1/1")
         .with_author("有限会社　三雄建設")
-        .with_top_title("縦断図")
+        .with_top_title(top_title)
         .with_credit("")
         .with_debug_markers(false);
 
     draw_drawing_frame(&mut drawing, &frame_info, frame_origin_x, frame_origin_y, frame_scale, frame_text_size);
+
+    // ルート2の場合、横断図範囲に縮尺を表示
+    if let Some(ref cs) = cross_sections {
+        let (cs_min_x, cs_min_y, _cs_max_x, _cs_max_y) = calc_dxf_bounds(cs);
+        let cs_x_offset = long_max_x as f64 + spacing * 2.0 - cs_min_x as f64;
+        let cs_y_offset = -cs_min_y as f64;
+        // 横断図の左下に縮尺表示
+        let scale_label_x = long_max_x as f64 + spacing * 2.0;
+        let scale_label_y = 0.0;
+        add_text(&mut drawing, scale_label_x, scale_label_y, "横断図 Scale H=1:100 V=1:200",
+            frame_text_size * frame_scale, 7, "TEXT", TextAlign::Left);
+    }
 
     drawing
 }
