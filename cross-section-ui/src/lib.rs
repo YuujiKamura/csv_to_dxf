@@ -1727,17 +1727,17 @@ pub fn generate_combo_drawing(sections: &[CrossSectionData], columns: usize, col
     let frame_origin_x = data_center_x - frame_center_x * frame_scale;
     let frame_origin_y = data_center_y - frame_center_y * frame_scale;
 
-    // ルート2のときはタイトルに横断図も含める
-    let (drawing_type, top_title, scale_text) = if is_route_2 {
-        ("縦断図　横断図", "縦断図　横断図", "H=1:500 V=1:100")
+    // ルート2のときはタイトルに横断図も含める、路線名も変更
+    let (drawing_type, top_title, scale_text, route_name) = if is_route_2 {
+        ("縦断図　横断図", "縦断図　横断図", "H=1:500 V=1:100", "東側取付道路")
     } else {
-        ("縦断図", "縦断図", "H=1:700 V=1:140")
+        ("縦断図", "縦断図", "H=1:700 V=1:140", "市道南千反畑第１号線　本線")
     };
 
     let frame_info = TitleBlockInfo::new()
         .with_project_name("市道 南千反畑町第１号線舗装補修工事")
         .with_drawing_type(drawing_type)
-        .with_route_name("熊本市中央区南千反畑町外地内")
+        .with_route_name(route_name)
         .with_date("2026年1月")
         .with_scale(scale_text)
         .with_drawing_number("1/1")
