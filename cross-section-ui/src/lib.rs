@@ -727,7 +727,12 @@ pub fn calc_sections_per_page(
 /// 複数横断図をグリッド配置したDrawingを生成
 /// 道路工事の配置ルール: 左下起点、列ごとに下から上へ、左から右へ
 pub fn generate_multi_drawing(sections: &[CrossSectionData], columns: usize, column_gap: f64, row_gap: f64) -> Drawing {
-    generate_multi_drawing_internal(sections, columns, column_gap, row_gap, None, None)
+    generate_multi_drawing_internal(sections, columns, column_gap, row_gap, None, None, 1.0)
+}
+
+/// スケール倍率指定で複数横断図をグリッド配置したDrawingを生成（コンボモード用）
+pub fn generate_multi_drawing_scaled(sections: &[CrossSectionData], columns: usize, column_gap: f64, row_gap: f64, scale_multiplier: f64) -> Drawing {
+    generate_multi_drawing_internal(sections, columns, column_gap, row_gap, None, None, scale_multiplier)
 }
 
 /// 1:500図枠付きで複数横断図をグリッド配置したDrawingを生成
@@ -738,7 +743,7 @@ pub fn generate_multi_drawing_with_frame(
     row_gap: f64,
     title_info: &TitleBlockInfo,
 ) -> Drawing {
-    generate_multi_drawing_internal(sections, columns, column_gap, row_gap, Some(500.0), Some(title_info))
+    generate_multi_drawing_internal(sections, columns, column_gap, row_gap, Some(500.0), Some(title_info), 1.0)
 }
 
 /// 任意スケールの図枠付きで複数横断図をグリッド配置したDrawingを生成
@@ -750,11 +755,12 @@ pub fn generate_multi_drawing_with_frame_at_scale(
     title_info: &TitleBlockInfo,
     frame_scale: f64,
 ) -> Drawing {
-    generate_multi_drawing_internal(sections, columns, column_gap, row_gap, Some(frame_scale), Some(title_info))
+    generate_multi_drawing_internal(sections, columns, column_gap, row_gap, Some(frame_scale), Some(title_info), 1.0)
 }
 
 /// 複数横断図をグリッド配置（内部実装）
 /// frame_scale: None=図枠なし、Some(200.0)=1:200、Some(500.0)=1:500
+/// scale_multiplier: 横断図全体のスケール倍率（コンボモード用）
 fn generate_multi_drawing_internal(
     sections: &[CrossSectionData],
     columns: usize,
@@ -762,8 +768,9 @@ fn generate_multi_drawing_internal(
     row_gap: f64,
     frame_scale: Option<f64>,
     title_info: Option<&TitleBlockInfo>,
+    scale_multiplier: f64,
 ) -> Drawing {
-    let scale = 1000.0;
+    let scale = 1000.0 * scale_multiplier;
 
     let mut drawing = new_drawing();
 
@@ -888,7 +895,7 @@ fn generate_multi_drawing_internal(
         };
         let offset_y = row_in_col as f64 * cell_height + col_y_offset;
 
-        draw_section_at_offset(&mut drawing, section, offset_x, offset_y, scale);
+        draw_section_at_offset(&mut drawing, section, offset_x, offset_y, scale, scale_multiplier);
     }
 
     // 図枠を描画
@@ -1064,7 +1071,7 @@ fn draw_page_content(
         let col_y_offset = col_y_offsets[col.min(columns - 1)];
         let offset_y = row_in_col as f64 * cell_height + col_y_offset + page_offset_y;
 
-        draw_section_at_offset(drawing, section, offset_x, offset_y, scale);
+        draw_section_at_offset(drawing, section, offset_x, offset_y, scale, 1.0);
     }
 
     // 図枠を描画
@@ -1161,7 +1168,7 @@ fn calc_section_bounds_in_grid(
 }
 
 fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
-                          offset_x: f64, offset_y: f64, scale: f64) {
+                          offset_x: f64, offset_y: f64, scale: f64, scale_multiplier: f64) {
     let data = &section.survey_data;
     let dl = round_dl(section.dl);
     let to_dxf_x = |d: f64| offset_x + d * scale;
@@ -1186,11 +1193,12 @@ fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
             to_dxf_x(data[i + 1].cumulative_distance), to_dxf_y(data[i + 1].cutting_bottom), 5, "CUTTING");
     }
 
-    let text_height = 300.0;  // モバイル表示用に2倍
-    let pointer_offset = 500.0;  // ポインター分の上方オフセット
+    // テキスト・スペーサー関連の値にscale_multiplierを適用
+    let text_height = 300.0 * scale_multiplier;
+    let pointer_offset = 500.0 * scale_multiplier;
 
     // ========== 測点ポインター（逆三角形 + Vラベル）==========
-    let pointer_size = 150.0;
+    let pointer_size = 150.0 * scale_multiplier;
     for (i, pt) in data.iter().enumerate() {
         let x = to_dxf_x(pt.cumulative_distance);
         let y = to_dxf_y(pt.planned_height);  // 計画高を基準
@@ -1200,34 +1208,34 @@ fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
         add_line(drawing, x - half_w, top_y, x, y, 5, "CUTTING");
         add_line(drawing, x + half_w, top_y, x, y, 5, "CUTTING");
         let label = format!("V{}", i + 1);
-        add_text(drawing, x, top_y + 300.0, &label, text_height, 5, "CUTTING", TextAlign::Center);
+        add_text(drawing, x, top_y + 300.0 * scale_multiplier, &label, text_height, 5, "CUTTING", TextAlign::Center);
     }
 
     let cl_ground_y = to_dxf_y(cl_data.elevation);
-    let flag_y = cl_ground_y + 1600.0;  // 2倍
+    let flag_y = cl_ground_y + 1600.0 * scale_multiplier;
     let l_x = to_dxf_x(l_data.cumulative_distance);
     let cl_x = to_dxf_x(cl_data.cumulative_distance);
     let r_x = to_dxf_x(r_data.cumulative_distance);
 
-    add_text(drawing, cl_x, flag_y + 1300.0, &section.survey_point_name, text_height * 1.5, 7, "TEXT", TextAlign::Center);
-    add_text(drawing, cl_x, flag_y + 800.0, &format!("GH={:.3}", cl_data.elevation), text_height, 7, "TEXT", TextAlign::Center);
-    add_text(drawing, cl_x, flag_y + 400.0, &format!("FH={:.3}", cl_data.planned_height), text_height, 1, "PLAN", TextAlign::Center);
+    add_text(drawing, cl_x, flag_y + 1300.0 * scale_multiplier, &section.survey_point_name, text_height * 1.5, 7, "TEXT", TextAlign::Center);
+    add_text(drawing, cl_x, flag_y + 800.0 * scale_multiplier, &format!("GH={:.3}", cl_data.elevation), text_height, 7, "TEXT", TextAlign::Center);
+    add_text(drawing, cl_x, flag_y + 400.0 * scale_multiplier, &format!("FH={:.3}", cl_data.planned_height), text_height, 1, "PLAN", TextAlign::Center);
 
     let l_ground_y = to_dxf_y(l_data.elevation);
-    add_text(drawing, l_x, l_ground_y + 800.0 + pointer_offset, &format!("GH={:.3}", l_data.elevation), text_height, 7, "TEXT", TextAlign::Left);
-    add_text(drawing, l_x, l_ground_y + 400.0 + pointer_offset, &format!("FH={:.3}", l_data.planned_height), text_height, 1, "PLAN", TextAlign::Left);
+    add_text(drawing, l_x, l_ground_y + 800.0 * scale_multiplier + pointer_offset, &format!("GH={:.3}", l_data.elevation), text_height, 7, "TEXT", TextAlign::Left);
+    add_text(drawing, l_x, l_ground_y + 400.0 * scale_multiplier + pointer_offset, &format!("FH={:.3}", l_data.planned_height), text_height, 1, "PLAN", TextAlign::Left);
 
     let r_ground_y = to_dxf_y(r_data.elevation);
-    add_text(drawing, r_x, r_ground_y + 800.0 + pointer_offset, &format!("GH={:.3}", r_data.elevation), text_height, 7, "TEXT", TextAlign::Right);
-    add_text(drawing, r_x, r_ground_y + 400.0 + pointer_offset, &format!("FH={:.3}", r_data.planned_height), text_height, 1, "PLAN", TextAlign::Right);
+    add_text(drawing, r_x, r_ground_y + 800.0 * scale_multiplier + pointer_offset, &format!("GH={:.3}", r_data.elevation), text_height, 7, "TEXT", TextAlign::Right);
+    add_text(drawing, r_x, r_ground_y + 400.0 * scale_multiplier + pointer_offset, &format!("FH={:.3}", r_data.planned_height), text_height, 1, "PLAN", TextAlign::Right);
 
     let mid_l_x = (l_x + cl_x) / 2.0;
     let mid_r_x = (cl_x + r_x) / 2.0;
-    let arrow_len = 600.0;
-    let arrow_drop = 20.0;
-    let arrow_head = 180.0;
-    let arrow_offset = 300.0;
-    let slope_text_y = flag_y + 500.0 + arrow_offset;
+    let arrow_len = 600.0 * scale_multiplier;
+    let arrow_drop = 20.0 * scale_multiplier;
+    let arrow_head = 180.0 * scale_multiplier;
+    let arrow_offset = 300.0 * scale_multiplier;
+    let slope_text_y = flag_y + 500.0 * scale_multiplier + arrow_offset;
 
     // 左側勾配
     add_text(drawing, mid_l_x, slope_text_y, &format!("{:.1}%", left_slope), text_height, 7, "TEXT", TextAlign::Center);
@@ -1276,7 +1284,7 @@ fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
 
     // ========== 切削厚表示（DLライン上部） ==========
     let cutting_text_height = text_height;  // GH等と同じサイズ
-    let cutting_y = to_dxf_y(dl) - 300.0;  // 2倍
+    let cutting_y = to_dxf_y(dl) - 300.0 * scale_multiplier;
     for (i, pt) in data.iter().enumerate() {
         let x = to_dxf_x(pt.cumulative_distance);
         let cutting_thickness_mm = (pt.elevation - pt.cutting_bottom) * 1000.0;
@@ -1291,7 +1299,7 @@ fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
             &format!("{:.0}", cutting_thickness_mm), cutting_text_height, 5, "CUTTING", align);
     }
     // ラベル「切削厚」を中央下に表示
-    add_text(drawing, cl_x, cutting_y - cutting_text_height - 100.0,
+    add_text(drawing, cl_x, cutting_y - cutting_text_height - 100.0 * scale_multiplier,
         "切削厚", cutting_text_height, 5, "CUTTING", TextAlign::Center);
 
     // DLライン（幅員と同じ長さ）
@@ -1363,8 +1371,8 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
     // スケール設定（DXF単位: mm単位に統一、1m = 1000単位）
     let scale_x = 1000.0;     // 横方向スケール（1m = 1000単位）
     let scale_y = 5000.0;     // 縦方向スケール（1m = 5000単位）縦横比 H1:V5
-    let text_height = 1500.0; // 基本テキスト高さ（×10）
-    let label_width = 7500.0; // 左側のラベル幅（×10）
+    let text_height = 2250.0; // 基本テキスト高さ（×10）1.5倍拡大
+    let label_width = 11250.0; // 左側のラベル幅（×10）1.5倍拡大
     let _title_height = 0.0; // タイトルなし（ピッチリ）
 
     let mut drawing = new_drawing();
@@ -1397,7 +1405,7 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
     if points.is_empty() { return drawing; }
 
     // 通常行の高さ（固定）（×10）
-    let row_height = 5500.0;  // フォントメトリクス補正後の適正値
+    let row_height = 8250.0;  // 1.5倍拡大（5500 * 1.5）
     // 測点名行の高さ（最大文字数に基づいて計算）
     let max_name_len = points.iter().map(|p| p.3.chars().count()).max().unwrap_or(6);
     let station_row_height = (max_name_len as f64 * text_height * 0.73).max(row_height);
@@ -1413,7 +1421,7 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
     let graph_top = (max_elev + 2.0).ceil();
 
     // 左右マージン（最初と最後の測点が表枠境界から離れるように）
-    let margin_x = 2000.0;  // 2m分のマージン
+    let margin_x = 3000.0;  // 3m分のマージン（テキスト1.5倍拡大に対応）
 
     // 座標変換
     let to_dxf_x = |d: f64| label_width + margin_x + (d - min_dist) * scale_x;
@@ -1457,13 +1465,13 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
         } else {
             format!("{:.0}", elev)
         };
-        let label_color = if is_dl_row { 8 } else { 7 };  // DL行はグレー
-        let label_size = if is_dl_row { text_height * 1.8 } else { text_height * 0.9 };  // DL行は2倍
-        add_text_rotated(&mut drawing, label_width - 800.0, y, &label_text,
+        let label_color = if is_dl_row { 5 } else { 7 };  // DL行は青
+        let label_size = if is_dl_row { text_height * 0.9 } else { text_height * 0.9 };  // DL行は半分サイズ
+        add_text_rotated(&mut drawing, label_width - 1200.0, y, &label_text,
             label_size, label_color, "TEXT", TextAlign::Right, VerticalAlign::Bottom, 0.0);
 
         // 標高ラベル（右側）
-        add_text_rotated(&mut drawing, label_width + graph_width + 800.0, y, &format!("{:.0}", elev),
+        add_text_rotated(&mut drawing, label_width + graph_width + 1200.0, y, &format!("{:.0}", elev),
             text_height * 0.9, 7, "TEXT", TextAlign::Left, VerticalAlign::Bottom, 0.0);
         elev += grid_step;
     }
@@ -1472,10 +1480,10 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
     let dl_y = to_dxf_y(dl);
     let annotation_x = 500.0;  // 左端寄り（×10）
     // 縮尺比率: V:H=5:1
-    add_text_rotated(&mut drawing, annotation_x, dl_y + scale_y * 0.3,
+    add_text_rotated(&mut drawing, annotation_x, dl_y + scale_y * 0.8,
         "V:H=5:1", text_height * 0.8, 5, "ANNOTATION", TextAlign::Left, VerticalAlign::Bottom, 0.0);
     // 単位 (m)
-    add_text_rotated(&mut drawing, annotation_x, dl_y + scale_y * 0.8,
+    add_text_rotated(&mut drawing, annotation_x, dl_y + scale_y * 1.3,
         "単位(m)", text_height * 0.8, 7, "TEXT", TextAlign::Left, VerticalAlign::Bottom, 0.0);
 
     // グラフ枠線
@@ -1612,20 +1620,31 @@ pub fn generate_longitudinal_dxf_bytes(sections: &[CrossSectionData]) -> Vec<u8>
     output
 }
 
-/// コンボビュー（展開図＋縦断図）を生成
+/// コンボビュー（展開図＋縦断図、ルート2のみ横断図も追加）を生成
 /// 展開図を上部に、縦断図を下部に配置し、図枠内に収める
-pub fn generate_combo_drawing(sections: &[CrossSectionData], _columns: usize, _column_gap: f64) -> Drawing {
+pub fn generate_combo_drawing(sections: &[CrossSectionData], columns: usize, column_gap: f64) -> Drawing {
     if sections.is_empty() {
         return new_drawing();
     }
 
-    // 面積展開図を生成し、バウンディングボックスを取得
-    let area_expansion = generate_area_expansion_drawing(sections);
-    let (area_min_x, area_min_y, area_max_x, area_max_y) = calc_dxf_bounds(&area_expansion);
+    // ルートIDを判定（ルート2かどうか）
+    let is_route_2 = sections.first().map(|s| s.route_id == "route_2").unwrap_or(false);
+
+    // 面積展開図を生成し、バウンディングボックスを取得（コンボでは測点名非表示）
+    let area_expansion = generate_area_expansion_drawing(sections, false);
+    let (_area_min_x, area_min_y, _area_max_x, _area_max_y) = calc_dxf_bounds(&area_expansion);
 
     // 縦断図を生成し、バウンディングボックスを取得
     let longitudinal = generate_longitudinal_drawing(sections);
-    let (long_min_x, long_min_y, long_max_x, long_max_y) = calc_dxf_bounds(&longitudinal);
+    let (_long_min_x, _long_min_y, long_max_x, long_max_y) = calc_dxf_bounds(&longitudinal);
+
+    // 横断図を生成（ルート2のみ、5倍拡大）
+    let cross_sections = if is_route_2 {
+        let row_gap = 1.0;
+        Some(generate_multi_drawing_scaled(sections, columns, column_gap, row_gap, 5.0))
+    } else {
+        None
+    };
 
     // 新しいDrawingを作成
     let mut drawing = new_drawing();
@@ -1645,9 +1664,19 @@ pub fn generate_combo_drawing(sections: &[CrossSectionData], _columns: usize, _c
             drawing.add_layer(new_layer);
         }
     }
+    if let Some(ref cs) = cross_sections {
+        for layer in cs.layers() {
+            if drawing.layers().find(|l| l.name == layer.name).is_none() {
+                let mut new_layer = dxf::tables::Layer::default();
+                new_layer.name = layer.name.clone();
+                new_layer.color = layer.color.clone();
+                drawing.add_layer(new_layer);
+            }
+        }
+    }
 
     // === レイアウト計算 ===
-    let spacing = 5000.0; // 5m間隔
+    let spacing = 2000.0; // 2m間隔（測点名非表示のため縮小）
 
     // 縦断図を原点に配置
     for entity in longitudinal.entities() {
@@ -1661,6 +1690,18 @@ pub fn generate_combo_drawing(sections: &[CrossSectionData], _columns: usize, _c
         let mut shifted_entity = entity.clone();
         shift_entity_xy(&mut shifted_entity, area_x_offset, area_y_offset);
         drawing.add_entity(shifted_entity);
+    }
+
+    // 横断図: ルート2のみ、縦断図・展開図の右側に配置
+    if let Some(ref cs) = cross_sections {
+        let (cs_min_x, cs_min_y, _cs_max_x, _cs_max_y) = calc_dxf_bounds(cs);
+        let cs_x_offset = long_max_x as f64 + spacing * 2.0 - cs_min_x as f64;
+        let cs_y_offset = -cs_min_y as f64;
+        for entity in cs.entities() {
+            let mut shifted_entity = entity.clone();
+            shift_entity_xy(&mut shifted_entity, cs_x_offset, cs_y_offset);
+            drawing.add_entity(shifted_entity);
+        }
     }
 
     // 配置後の全体バウンディングボックスを計算
@@ -1682,13 +1723,13 @@ pub fn generate_combo_drawing(sections: &[CrossSectionData], _columns: usize, _c
 
     let frame_info = TitleBlockInfo::new()
         .with_project_name("市道 南千反畑町第１号線舗装補修工事")
-        .with_drawing_type("面積展開図　縦断図")
+        .with_drawing_type("縦断図")
         .with_route_name("熊本市中央区南千反畑町外地内")
         .with_date("2026年1月")
         .with_scale("H=1:700 V=1:140")
         .with_drawing_number("1/1")
         .with_author("有限会社　三雄建設")
-        .with_top_title("面積展開図　縦断図")
+        .with_top_title("縦断図")
         .with_credit("")
         .with_debug_markers(false);
 
@@ -1796,6 +1837,64 @@ pub fn generate_combo_dxf_bytes(sections: &[CrossSectionData], columns: usize, c
     output
 }
 
+/// 全ルートを縦に並べたコンボDXFを生成（図枠ごと）
+pub fn generate_all_routes_combo_dxf_bytes(sections: &[CrossSectionData], columns: usize, column_gap: f64) -> Vec<u8> {
+    use std::collections::BTreeSet;
+
+    // ルートIDを収集（ソート済み）
+    let route_ids: BTreeSet<String> = sections.iter().map(|s| s.route_id.clone()).collect();
+
+    if route_ids.is_empty() {
+        return Vec::new();
+    }
+
+    let mut combined_drawing = new_drawing();
+    let spacing = 10000.0; // ルート間の垂直スペース（10m）
+    let mut current_y_offset = 0.0;
+
+    for route_id in route_ids {
+        // このルートのセクションをフィルター
+        let route_sections: Vec<CrossSectionData> = sections.iter()
+            .filter(|s| s.route_id == route_id)
+            .cloned()
+            .collect();
+
+        if route_sections.is_empty() {
+            continue;
+        }
+
+        // このルートのコンボ図面を生成
+        let route_drawing = generate_combo_drawing(&route_sections, columns, column_gap);
+        let (_, min_y, _, max_y) = calc_dxf_bounds(&route_drawing);
+        let route_height = max_y as f64 - min_y as f64;
+
+        // レイヤーをマージ（最初のルートのみ）
+        if current_y_offset == 0.0 {
+            for layer in route_drawing.layers() {
+                let mut new_layer = dxf::tables::Layer::default();
+                new_layer.name = layer.name.clone();
+                new_layer.color = layer.color.clone();
+                combined_drawing.add_layer(new_layer);
+            }
+        }
+
+        // エンティティをY方向にシフトして追加
+        let y_shift = current_y_offset - min_y as f64;
+        for entity in route_drawing.entities() {
+            let mut shifted_entity = entity.clone();
+            shift_entity_xy(&mut shifted_entity, 0.0, y_shift);
+            combined_drawing.add_entity(shifted_entity);
+        }
+
+        // 次のルートのY位置を更新
+        current_y_offset += route_height + spacing;
+    }
+
+    let mut output: Vec<u8> = Vec::new();
+    combined_drawing.save(&mut output).expect("Failed to save DXF");
+    output
+}
+
 // ============================================================================
 // Area Expansion Drawing (面積展開図)
 // ============================================================================
@@ -1803,14 +1902,14 @@ pub fn generate_combo_dxf_bytes(sections: &[CrossSectionData], columns: usize, c
 /// 面積展開図を生成
 /// X軸: 縦断図と同じスケール（相対距離 * scale_x）
 /// Y軸: 左幅員が正、右幅員が負（縦断図と同じscale_yで5:1）
-pub fn generate_area_expansion_drawing(sections: &[CrossSectionData]) -> Drawing {
+pub fn generate_area_expansion_drawing(sections: &[CrossSectionData], show_station_names: bool) -> Drawing {
     // スケール設定（DXF単位: mm単位に統一、1m = 1000単位）
     let scale_x = 1000.0;     // 横方向スケール（1m = 1000単位）
     let scale_y = 1000.0;     // 縦方向スケール（1m = 1000単位）縦横比 H1:V1
-    let text_height = 1500.0; // 基本テキスト高さ（×10）
-    let label_width = 7500.0; // 左側ラベル幅（×10）
-    let margin_x = 2000.0;    // 縦断図と同じ左マージン
-    let station_text_offset = 3000.0; // 測点名のオフセット（×10）
+    let text_height = 2250.0; // 基本テキスト高さ（×10）1.5倍拡大
+    let label_width = 11250.0; // 左側ラベル幅（×10）1.5倍拡大
+    let margin_x = 3000.0;    // 縦断図と同じマージン
+    let station_text_offset = 4500.0; // 測点名のオフセット（×10）1.5倍拡大
 
     let mut drawing = new_drawing();
 
@@ -1925,7 +2024,7 @@ pub fn generate_area_expansion_drawing(sections: &[CrossSectionData]) -> Drawing
         let x2 = stations[i + 1].x;
         let mid_x = (x1 + x2) / 2.0;
         let extension = (stations[i + 1].dist - stations[i].dist).abs();
-        let text = format!("{:.2}", extension);
+        let text = format!("{:.1}", extension);
         add_text(&mut drawing, mid_x, text_height * 0.5, &text, text_height, 7, "TENKAI_DIM", TextAlign::Center);
     }
 
@@ -1950,23 +2049,25 @@ pub fn generate_area_expansion_drawing(sections: &[CrossSectionData]) -> Drawing
         }
     }
 
-    // 測点名（-90°回転、青色、上端オフセット）
-    // 最大文字数から高さを計算
-    let max_name_len = stations.iter().map(|s| s.name.chars().count()).max().unwrap_or(6);
-    let station_name_height = max_name_len as f64 * text_height * 0.8;
-    let max_wl = stations.iter().map(|s| s.wl).fold(0.0_f64, f64::max);
-    let y_name_base = max_wl * scale_y + station_text_offset + station_name_height;
+    // 測点名（-90°回転、青色、上端オフセット）- オプションで非表示可能
+    if show_station_names {
+        // 最大文字数から高さを計算
+        let max_name_len = stations.iter().map(|s| s.name.chars().count()).max().unwrap_or(6);
+        let station_name_height = max_name_len as f64 * text_height * 0.8;
+        let max_wl = stations.iter().map(|s| s.wl).fold(0.0_f64, f64::max);
+        let y_name_base = max_wl * scale_y + station_text_offset + station_name_height;
 
-    for station in &stations {
-        let x = station.x;
-        let name_len = station.name.chars().count() as f64;
-        // アンダーライン（テキストの左側に縦線）
-        let underline_y1 = y_name_base;
-        let underline_y2 = y_name_base - name_len * text_height * 0.8;
-        add_line(&mut drawing, x, underline_y1, x, underline_y2, 5, "TENKAI_STATION");
-        // 測点名テキスト（アンダーラインの右側）
-        add_text_rotated(&mut drawing, x, y_name_base, &station.name, text_height * 1.2,
-            5, "TENKAI_STATION", TextAlign::Left, VerticalAlign::Bottom, -90.0);
+        for station in &stations {
+            let x = station.x;
+            let name_len = station.name.chars().count() as f64;
+            // アンダーライン（テキストの左側に縦線）
+            let underline_y1 = y_name_base;
+            let underline_y2 = y_name_base - name_len * text_height * 0.8;
+            add_line(&mut drawing, x, underline_y1, x, underline_y2, 5, "TENKAI_STATION");
+            // 測点名テキスト（アンダーラインの右側）
+            add_text_rotated(&mut drawing, x, y_name_base, &station.name, text_height * 1.2,
+                5, "TENKAI_STATION", TextAlign::Left, VerticalAlign::Bottom, -90.0);
+        }
     }
 
     drawing
@@ -1974,7 +2075,7 @@ pub fn generate_area_expansion_drawing(sections: &[CrossSectionData]) -> Drawing
 
 /// 面積展開図のDXFバイト列を生成
 pub fn generate_area_expansion_dxf_bytes(sections: &[CrossSectionData]) -> Vec<u8> {
-    let drawing = generate_area_expansion_drawing(sections);
+    let drawing = generate_area_expansion_drawing(sections, true);
     let mut output: Vec<u8> = Vec::new();
     drawing.save(&mut output).expect("Failed to save DXF");
     output
@@ -2910,7 +3011,7 @@ impl CrossSectionApp {
                 generate_longitudinal_drawing(&filtered)
             }
             ViewMode::AreaExpansion if !filtered.is_empty() => {
-                generate_area_expansion_drawing(&filtered)
+                generate_area_expansion_drawing(&filtered, true)
             }
             ViewMode::Single if !filtered.is_empty() => {
                 // 全横断図を生成し、選択した横断図の位置にフィット
@@ -3229,7 +3330,8 @@ impl eframe::App for CrossSectionApp {
                         match self.view_mode {
                             ViewMode::Combo if !filtered_for_dxf.is_empty() => {
                                 if ui.button("DXF").clicked() {
-                                    let dxf_content = generate_combo_dxf_bytes(&filtered_for_dxf, self.grid_columns, self.column_gap);
+                                    // 全ルートを図枠ごと縦に並べたDXFを生成
+                                    let dxf_content = generate_all_routes_combo_dxf_bytes(&self.sections, self.grid_columns, self.column_gap);
                                     download_file("combo.dxf", &dxf_content);
                                 }
                             }
