@@ -2442,15 +2442,18 @@ impl CrossSectionApp {
         // fit_boundsをリセット（Singleモード以外はNone）
         self.fit_bounds = None;
 
-        // 図枠スケールに応じて最大列数を計算
+        // 最大列数はセクション数（それ以上は意味がない）
+        if !filtered.is_empty() {
+            self.max_columns = filtered.len();
+            // 列数がセクション数を超えていたら調整
+            if self.grid_columns > self.max_columns {
+                self.grid_columns = self.max_columns;
+            }
+        }
+
+        // 図枠スケール選択時は収まるかチェック
         if let Some(scale) = self.plot_scale {
             if !filtered.is_empty() {
-                self.max_columns = calc_max_columns_for_frame(&filtered, self.column_gap, scale as f64);
-                // 列数が最大を超えていたら調整
-                if self.grid_columns > self.max_columns {
-                    self.grid_columns = self.max_columns;
-                }
-                // 収まるかチェック
                 if let Some(bounds) = calc_grid_bounds(&filtered, self.grid_columns, self.column_gap) {
                     self.fits_in_frame = bounds.fits_in_frame(scale as f64);
                 } else {
@@ -2458,7 +2461,6 @@ impl CrossSectionApp {
                 }
             }
         } else {
-            self.max_columns = 99;  // 手動モードは制限なし
             self.fits_in_frame = true;
         }
 
@@ -2718,20 +2720,15 @@ impl eframe::App for CrossSectionApp {
                                     }
                                 });
 
-                            // 列数選択（図枠モード時は最大列数まで）
-                            let max_cols = if self.plot_scale.is_some() { self.max_columns } else { 20 };
+                            // 列数選択（セクション数まで）
                             ui.label(format!("{}列", self.grid_columns));
-                            if ui.small_button("+").clicked() && self.grid_columns < max_cols {
+                            if ui.small_button("+").clicked() && self.grid_columns < self.max_columns {
                                 self.grid_columns += 1;
                                 self.update_dxf_preview();
                             }
                             if ui.small_button("-").clicked() && self.grid_columns > 1 {
                                 self.grid_columns -= 1;
                                 self.update_dxf_preview();
-                            }
-                            // 最大列数表示（図枠モード時のみ）
-                            if self.plot_scale.is_some() {
-                                ui.label(format!("(max:{})", self.max_columns));
                             }
 
                             // 収まらない場合は警告
@@ -2920,20 +2917,15 @@ impl eframe::App for CrossSectionApp {
                                 }
                             });
 
-                        // 列数選択（図枠モード時は最大列数まで）
-                        let max_cols = if self.plot_scale.is_some() { self.max_columns } else { 20 };
+                        // 列数選択（セクション数まで）
                         ui.label(format!("{}列", self.grid_columns));
-                        if ui.small_button("+").clicked() && self.grid_columns < max_cols {
+                        if ui.small_button("+").clicked() && self.grid_columns < self.max_columns {
                             self.grid_columns += 1;
                             self.update_dxf_preview();
                         }
                         if ui.small_button("-").clicked() && self.grid_columns > 1 {
                             self.grid_columns -= 1;
                             self.update_dxf_preview();
-                        }
-                        // 最大列数表示（図枠モード時のみ）
-                        if self.plot_scale.is_some() {
-                            ui.label(format!("(max:{})", self.max_columns));
                         }
                         // 収まらない場合は警告
                         if !self.fits_in_frame && self.plot_scale.is_some() {
