@@ -785,16 +785,15 @@ fn generate_multi_drawing_internal(
             // 内枠: 10mm〜410mm (幅400mm)、中心=210mm
             const FRAME_CENTER_X_MM: f64 = 210.0;
 
-            // Y方向は配置可能エリア（緑エリア）でセンタリング
-            // 右下タイトル枠（80mm×48mm）と重ならないよう、下端にマージンを追加
-            let usable_height = area::FRAME_USABLE_HEIGHT_MM;
+            // Y方向は水色エリア（タイトル枠上端〜上部タイトル下端）でセンタリング
+            let usable_height = area::FRAME_USABLE_HEIGHT_MM;  // 203mm
 
             // X: 内枠中心にコンテンツ中心を合わせる
             let content_center_x = content_width_mm / 2.0;
             let target_left = FRAME_CENTER_X_MM - content_center_x;
 
-            // Y: 配置可能エリア内でセンタリング（タイトル枠の上から）
-            let target_bottom = area::BOTTOM_MM + area::MARGIN_MM + area::TITLE_BLOCK_HEIGHT_MM
+            // Y: タイトル枠上端（58mm）からセンタリング
+            let target_bottom = area::TITLE_BLOCK_TOP_MM
                               + (usable_height - content_height_mm) / 2.0;
 
             // オフセット計算（DXF単位）

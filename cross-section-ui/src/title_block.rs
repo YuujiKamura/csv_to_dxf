@@ -54,8 +54,10 @@ pub mod available_area {
     pub const FRAME_USABLE_WIDTH_MM: f64 = FRAME_FULL_WIDTH_MM - MARGIN_MM * 2.0;  // 390mm
     /// タイトル枠の高さ（グリッド配置時の下端マージン）
     pub const TITLE_BLOCK_HEIGHT_MM: f64 = 48.0;
-    /// タイトル枠を避けた有効高さ
-    pub const FRAME_USABLE_HEIGHT_MM: f64 = HEIGHT_MM - MARGIN_MM * 2.0 - TITLE_BLOCK_HEIGHT_MM;  // 193mm
+    /// タイトル枠上端のY座標（内枠下端 + タイトル枠高さ = 58mm）
+    pub const TITLE_BLOCK_TOP_MM: f64 = FRAME_BOTTOM + TITLE_BLOCK_HEIGHT_MM;
+    /// 水色エリアの高さをフルに使用（上部タイトル下端 - タイトル枠上端 = 203mm）
+    pub const FRAME_USABLE_HEIGHT_MM: f64 = TOP_MM - TITLE_BLOCK_TOP_MM;  // 203mm
 
     // === 旧定数（互換性維持）===
     /// 有効描画幅（マージン込み）- 緑エリアのみ
