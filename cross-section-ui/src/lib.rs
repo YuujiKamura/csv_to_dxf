@@ -517,6 +517,7 @@ pub fn calc_grid_bounds(
     sections: &[CrossSectionData],
     columns: usize,
     column_gap: f64,
+    row_gap: f64,
 ) -> Option<GridBounds> {
     if sections.is_empty() { return None; }
 
@@ -530,6 +531,9 @@ pub fn calc_grid_bounds(
     let mut col_max_right: Vec<f64> = vec![0.0; columns];
     let mut max_height: f64 = 0.0;
 
+    // 旗揚げ用の固定マージン（0.5m）
+    const FLAG_MARGIN: f64 = 0.5;
+
     for (idx, section) in sections.iter().enumerate() {
         if section.survey_data.len() < 2 { continue; }
         let col = idx / rows_per_column;
@@ -539,13 +543,13 @@ pub fn calc_grid_bounds(
         let max_dist = data.last().unwrap().cumulative_distance;
         col_max_left[col] = col_max_left[col].max(min_dist.abs());
         col_max_right[col] = col_max_right[col].max(max_dist);
-        // 全体の最大高さ
+        // 全体の最大高さ（旗揚げマージン込み）
         let max_elev = data.iter().map(|d| d.elevation.max(d.planned_height)).fold(f64::MIN, f64::max);
-        max_height = max_height.max(max_elev - section.dl + 1.5);
+        max_height = max_height.max(max_elev - section.dl + row_gap + FLAG_MARGIN);
     }
 
-    // セル高さ（全セクション共通）
-    let cell_height = (max_height + 1.0) * y_scale;
+    // セル高さ（全セクション共通、行間隔を含む）
+    let cell_height = (max_height + row_gap) * y_scale;
 
     // 列ごとのCL位置を計算
     let mut col_x_offsets: Vec<f64> = Vec::with_capacity(columns);
@@ -622,6 +626,7 @@ pub fn calc_grid_bounds(
 pub fn calc_max_columns_for_frame(
     sections: &[CrossSectionData],
     column_gap: f64,
+    row_gap: f64,
     plot_scale: f64,
 ) -> usize {
     if sections.is_empty() { return 1; }
@@ -631,7 +636,7 @@ pub fn calc_max_columns_for_frame(
     let mut max_fitting = 1;
 
     for cols in 1..=max_possible {
-        if let Some(bounds) = calc_grid_bounds(sections, cols, column_gap) {
+        if let Some(bounds) = calc_grid_bounds(sections, cols, column_gap, row_gap) {
             if bounds.fits_in_frame(plot_scale) {
                 max_fitting = cols;
             } else {
@@ -649,9 +654,10 @@ pub fn calc_max_columns_for_frame(
 pub fn calc_optimal_columns_for_frame(
     sections: &[CrossSectionData],
     column_gap: f64,
+    row_gap: f64,
     plot_scale: f64,
 ) -> usize {
-    calc_max_columns_for_frame(sections, column_gap, plot_scale)
+    calc_max_columns_for_frame(sections, column_gap, row_gap, plot_scale)
 }
 
 /// 1ページに収まる最大セクション数を計算
@@ -660,6 +666,7 @@ pub fn calc_sections_per_page(
     sections: &[CrossSectionData],
     columns: usize,
     column_gap: f64,
+    row_gap: f64,
     plot_scale: f64,
 ) -> usize {
     if sections.is_empty() { return 0; }
@@ -670,7 +677,7 @@ pub fn calc_sections_per_page(
 
     for n in 1..=sections.len() {
         let test_sections = &sections[0..n];
-        if let Some(bounds) = calc_grid_bounds(test_sections, columns, column_gap) {
+        if let Some(bounds) = calc_grid_bounds(test_sections, columns, column_gap, row_gap) {
             if bounds.fits_in_frame(plot_scale) {
                 max_fitting = n;
             } else {
@@ -684,8 +691,8 @@ pub fn calc_sections_per_page(
 
 /// 複数横断図をグリッド配置したDrawingを生成
 /// 道路工事の配置ルール: 左下起点、列ごとに下から上へ、左から右へ
-pub fn generate_multi_drawing(sections: &[CrossSectionData], columns: usize, column_gap: f64) -> Drawing {
-    generate_multi_drawing_internal(sections, columns, column_gap, None, None)
+pub fn generate_multi_drawing(sections: &[CrossSectionData], columns: usize, column_gap: f64, row_gap: f64) -> Drawing {
+    generate_multi_drawing_internal(sections, columns, column_gap, row_gap, None, None)
 }
 
 /// 1:500図枠付きで複数横断図をグリッド配置したDrawingを生成
@@ -693,9 +700,10 @@ pub fn generate_multi_drawing_with_frame(
     sections: &[CrossSectionData],
     columns: usize,
     column_gap: f64,
+    row_gap: f64,
     title_info: &TitleBlockInfo,
 ) -> Drawing {
-    generate_multi_drawing_internal(sections, columns, column_gap, Some(500.0), Some(title_info))
+    generate_multi_drawing_internal(sections, columns, column_gap, row_gap, Some(500.0), Some(title_info))
 }
 
 /// 任意スケールの図枠付きで複数横断図をグリッド配置したDrawingを生成
@@ -703,10 +711,11 @@ pub fn generate_multi_drawing_with_frame_at_scale(
     sections: &[CrossSectionData],
     columns: usize,
     column_gap: f64,
+    row_gap: f64,
     title_info: &TitleBlockInfo,
     frame_scale: f64,
 ) -> Drawing {
-    generate_multi_drawing_internal(sections, columns, column_gap, Some(frame_scale), Some(title_info))
+    generate_multi_drawing_internal(sections, columns, column_gap, row_gap, Some(frame_scale), Some(title_info))
 }
 
 /// 複数横断図をグリッド配置（内部実装）
@@ -715,6 +724,7 @@ fn generate_multi_drawing_internal(
     sections: &[CrossSectionData],
     columns: usize,
     column_gap: f64,
+    row_gap: f64,
     frame_scale: Option<f64>,
     title_info: Option<&TitleBlockInfo>,
 ) -> Drawing {
@@ -735,6 +745,9 @@ fn generate_multi_drawing_internal(
 
     if sections.is_empty() { return drawing; }
 
+    // 旗揚げ用の固定マージン（0.5m）
+    const FLAG_MARGIN: f64 = 0.5;
+
     // 道路工事の配置: 左下起点、列ごとに下から上
     let rows_per_column = (sections.len() + columns - 1) / columns;  // ceil division
 
@@ -752,7 +765,7 @@ fn generate_multi_drawing_internal(
         col_max_left[col] = col_max_left[col].max(min_dist.abs());
         col_max_right[col] = col_max_right[col].max(max_dist);
         let max_elev = data.iter().map(|d| d.elevation.max(d.planned_height)).fold(f64::MIN, f64::max);
-        max_height = max_height.max(max_elev - section.dl + 1.5);
+        max_height = max_height.max(max_elev - section.dl + row_gap + FLAG_MARGIN);
     }
 
     // 列ごとのセル幅と累積X位置を計算
@@ -769,12 +782,12 @@ fn generate_multi_drawing_internal(
         cumulative_x += cell_width;
     }
 
-    let cell_height = (max_height + 1.0) * scale * 2.0;  // 旗揚げ部分のマージン（縦スケール2倍）
+    let cell_height = (max_height + row_gap) * scale * 2.0;  // 行間隔を含む（縦スケール2倍）
 
     // 図枠付きの場合、実際のバウンディングボックスを計算してセンタリング
     let (content_offset_x, content_offset_y, grid_bounds) = if let Some(fs) = frame_scale {
         // グリッド全体の実際のバウンディングボックスを取得
-        if let Some(bounds) = calc_grid_bounds(sections, columns, column_gap) {
+        if let Some(bounds) = calc_grid_bounds(sections, columns, column_gap, row_gap) {
             use available_area as area;
 
             // コンテンツサイズを紙上mm換算
@@ -857,12 +870,15 @@ fn generate_multi_drawing_internal(
 /// グリッド配置内の特定セクションのバウンディングボックスを計算
 /// generate_multi_drawingと同じ配置ロジックを使用
 fn calc_section_bounds_in_grid(
-    sections: &[CrossSectionData], target_idx: usize, columns: usize, column_gap: f64
+    sections: &[CrossSectionData], target_idx: usize, columns: usize, column_gap: f64, row_gap: f64
 ) -> Option<(f32, f32, f32, f32)> {
     if sections.is_empty() || target_idx >= sections.len() { return None; }
 
     let scale = 1000.0;
     let rows_per_column = (sections.len() + columns - 1) / columns;
+
+    // 旗揚げ用の固定マージン（0.5m）
+    const FLAG_MARGIN: f64 = 0.5;
 
     // 列ごとの最大幅と全体の最大高さを計算（generate_multi_drawingと同じ）
     let mut col_max_left: Vec<f64> = vec![0.0; columns];
@@ -878,7 +894,7 @@ fn calc_section_bounds_in_grid(
         col_max_left[col] = col_max_left[col].max(min_dist.abs());
         col_max_right[col] = col_max_right[col].max(max_dist);
         let max_elev = data.iter().map(|d| d.elevation.max(d.planned_height)).fold(f64::MIN, f64::max);
-        max_height = max_height.max(max_elev - section.dl + 1.5);
+        max_height = max_height.max(max_elev - section.dl + row_gap + FLAG_MARGIN);
     }
 
     // 列ごとのCL位置を計算
@@ -892,7 +908,7 @@ fn calc_section_bounds_in_grid(
         cumulative_x += cell_width;
     }
 
-    let cell_height = (max_height + 1.0) * scale * 2.0;
+    let cell_height = (max_height + row_gap) * scale * 2.0;
 
     // ターゲットセクションの位置を計算
     let target_section = &sections[target_idx];
@@ -1061,8 +1077,8 @@ fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
     add_line(drawing, to_dxf_x(cl_cumulative), to_dxf_y(dl), to_dxf_x(cl_cumulative), to_dxf_y(dl + 1.0), 8, "DIMENSION");
 }
 
-pub fn generate_multi_dxf_bytes(sections: &[CrossSectionData], columns: usize, column_gap: f64) -> Vec<u8> {
-    let drawing = generate_multi_drawing(sections, columns, column_gap);
+pub fn generate_multi_dxf_bytes(sections: &[CrossSectionData], columns: usize, column_gap: f64, row_gap: f64) -> Vec<u8> {
+    let drawing = generate_multi_drawing(sections, columns, column_gap, row_gap);
     let mut output: Vec<u8> = Vec::new();
     drawing.save(&mut output).expect("Failed to save DXF");
     output
@@ -1073,9 +1089,10 @@ pub fn generate_multi_dxf_bytes_with_frame(
     sections: &[CrossSectionData],
     columns: usize,
     column_gap: f64,
+    row_gap: f64,
     title_info: &TitleBlockInfo,
 ) -> Vec<u8> {
-    let drawing = generate_multi_drawing_with_frame(sections, columns, column_gap, title_info);
+    let drawing = generate_multi_drawing_with_frame(sections, columns, column_gap, row_gap, title_info);
     let mut output: Vec<u8> = Vec::new();
     drawing.save(&mut output).expect("Failed to save DXF");
     output
@@ -1086,10 +1103,11 @@ pub fn generate_multi_dxf_bytes_with_frame_at_scale(
     sections: &[CrossSectionData],
     columns: usize,
     column_gap: f64,
+    row_gap: f64,
     title_info: &TitleBlockInfo,
     frame_scale: f64,
 ) -> Vec<u8> {
-    let drawing = generate_multi_drawing_with_frame_at_scale(sections, columns, column_gap, title_info, frame_scale);
+    let drawing = generate_multi_drawing_with_frame_at_scale(sections, columns, column_gap, row_gap, title_info, frame_scale);
     let mut output: Vec<u8> = Vec::new();
     drawing.save(&mut output).expect("Failed to save DXF");
     output
@@ -2387,6 +2405,7 @@ pub struct CrossSectionApp {
     view_mode: ViewMode,
     grid_columns: usize,         // グリッドの列数
     column_gap: f64,             // 列間隔（メートル単位）
+    row_gap: f64,                // 行間隔（メートル単位）
     plot_scale: PlotScale,       // 図枠スケール（None=手動、Some(200)=1:200等）
     max_columns: usize,          // 現在のスケールで収まる最大列数
     fits_in_frame: bool,         // 現在の設定で図枠に収まるか
@@ -2424,6 +2443,7 @@ impl Default for CrossSectionApp {
             view_mode: ViewMode::Single, // デフォルトで単一横断図（モバイル向け）
             grid_columns: 3,
             column_gap: 2.0,  // 列間隔2メートル（切削厚ラベル分）
+            row_gap: 1.0,     // 行間隔1メートル
             plot_scale: None,  // デフォルトは手動列数指定
             max_columns: 99,   // 初期値（スケール未選択時）
             fits_in_frame: true,
@@ -2574,6 +2594,7 @@ impl CrossSectionApp {
                 &filtered,
                 self.grid_columns,
                 self.column_gap,
+                self.row_gap,
                 scale as f64,
             );
 
@@ -2614,7 +2635,7 @@ impl CrossSectionApp {
         // 図枠スケール選択時は収まるかチェック
         if let Some(scale) = self.plot_scale {
             if !filtered.is_empty() {
-                if let Some(bounds) = calc_grid_bounds(&filtered, self.grid_columns, self.column_gap) {
+                if let Some(bounds) = calc_grid_bounds(&filtered, self.grid_columns, self.column_gap, self.row_gap) {
                     self.fits_in_frame = bounds.fits_in_frame(scale as f64);
                 } else {
                     self.fits_in_frame = true;
@@ -2657,9 +2678,9 @@ impl CrossSectionApp {
                         .with_top_title(&self.drawing_type)
                         .with_scale(&format!("1:{} (A3)", scale))
                         .with_debug_markers(self.show_debug_guides);
-                    generate_multi_drawing_with_frame_at_scale(&page_sections, columns, self.column_gap, &info, scale as f64)
+                    generate_multi_drawing_with_frame_at_scale(&page_sections, columns, self.column_gap, self.row_gap, &info, scale as f64)
                 } else {
-                    generate_multi_drawing(&filtered, columns, self.column_gap)
+                    generate_multi_drawing(&filtered, columns, self.column_gap, self.row_gap)
                 }
             }
             ViewMode::Longitudinal if !filtered.is_empty() => {
@@ -2672,10 +2693,10 @@ impl CrossSectionApp {
                 // 全横断図を生成し、選択した横断図の位置にフィット
                 if let Some(idx) = self.selected_index {
                     self.fit_bounds = calc_section_bounds_in_grid(
-                        &filtered, idx, columns, self.column_gap
+                        &filtered, idx, columns, self.column_gap, self.row_gap
                     );
                 }
-                generate_multi_drawing(&filtered, columns, self.column_gap)
+                generate_multi_drawing(&filtered, columns, self.column_gap, self.row_gap)
             }
             _ => { return; }
         };
@@ -2930,7 +2951,8 @@ impl eframe::App for CrossSectionApp {
 
                         });
                         ui.horizontal_wrapped(|ui| {
-                            ui.label(format!("間隔{:.1}m", self.column_gap));
+                            // 列間隔
+                            ui.label(format!("列{:.1}m", self.column_gap));
                             if ui.small_button("+").clicked() && self.column_gap < 5.0 {
                                 self.column_gap += 0.5;
                                 self.recalc_pages();
@@ -2938,6 +2960,19 @@ impl eframe::App for CrossSectionApp {
                             }
                             if ui.small_button("-").clicked() && self.column_gap > -5.0 {
                                 self.column_gap -= 0.5;
+                                self.recalc_pages();
+                                self.update_dxf_preview();
+                            }
+                            ui.separator();
+                            // 行間隔
+                            ui.label(format!("行{:.1}m", self.row_gap));
+                            if ui.small_button("+").clicked() && self.row_gap < 3.0 {
+                                self.row_gap += 0.5;
+                                self.recalc_pages();
+                                self.update_dxf_preview();
+                            }
+                            if ui.small_button("-").clicked() && self.row_gap > 0.0 {
+                                self.row_gap -= 0.5;
                                 self.recalc_pages();
                                 self.update_dxf_preview();
                             }
@@ -3001,9 +3036,9 @@ impl eframe::App for CrossSectionApp {
                                         } else {
                                             "cross_sections.dxf".to_string()
                                         };
-                                        (generate_multi_dxf_bytes_with_frame_at_scale(&page_sections, self.grid_columns, self.column_gap, &info, scale as f64), fname)
+                                        (generate_multi_dxf_bytes_with_frame_at_scale(&page_sections, self.grid_columns, self.column_gap, self.row_gap, &info, scale as f64), fname)
                                     } else {
-                                        (generate_multi_dxf_bytes(&filtered_for_dxf, self.grid_columns, self.column_gap), "cross_sections_all.dxf".to_string())
+                                        (generate_multi_dxf_bytes(&filtered_for_dxf, self.grid_columns, self.column_gap, self.row_gap), "cross_sections_all.dxf".to_string())
                                     };
                                     download_file(&filename, &dxf_content);
                                 }
@@ -3174,7 +3209,8 @@ impl eframe::App for CrossSectionApp {
                         }
                     });
                     ui.horizontal(|ui| {
-                        ui.label(format!("間隔{:.1}m", self.column_gap));
+                        // 列間隔
+                        ui.label(format!("列{:.1}m", self.column_gap));
                         if ui.small_button("+").clicked() && self.column_gap < 5.0 {
                             self.column_gap += 0.5;
                             self.recalc_pages();
@@ -3182,6 +3218,19 @@ impl eframe::App for CrossSectionApp {
                         }
                         if ui.small_button("-").clicked() && self.column_gap > -5.0 {
                             self.column_gap -= 0.5;
+                            self.recalc_pages();
+                            self.update_dxf_preview();
+                        }
+                        ui.separator();
+                        // 行間隔
+                        ui.label(format!("行{:.1}m", self.row_gap));
+                        if ui.small_button("+").clicked() && self.row_gap < 3.0 {
+                            self.row_gap += 0.5;
+                            self.recalc_pages();
+                            self.update_dxf_preview();
+                        }
+                        if ui.small_button("-").clicked() && self.row_gap > 0.0 {
+                            self.row_gap -= 0.5;
                             self.recalc_pages();
                             self.update_dxf_preview();
                         }
@@ -3262,9 +3311,9 @@ impl eframe::App for CrossSectionApp {
                                 } else {
                                     "cross_sections.dxf".to_string()
                                 };
-                                (generate_multi_dxf_bytes_with_frame_at_scale(&page_sections, self.grid_columns, self.column_gap, &info, scale as f64), fname)
+                                (generate_multi_dxf_bytes_with_frame_at_scale(&page_sections, self.grid_columns, self.column_gap, self.row_gap, &info, scale as f64), fname)
                             } else {
-                                (generate_multi_dxf_bytes(&filtered_for_download, self.grid_columns, self.column_gap), "cross_sections_all.dxf".to_string())
+                                (generate_multi_dxf_bytes(&filtered_for_download, self.grid_columns, self.column_gap, self.row_gap), "cross_sections_all.dxf".to_string())
                             };
                             download_file(&filename, &dxf_content);
                         }
