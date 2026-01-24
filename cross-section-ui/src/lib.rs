@@ -498,7 +498,10 @@ pub fn calc_optimal_columns_for_frame(
 ) -> usize {
     // タイトルブロック左側の描画可能幅（mm）
     // 内枠幅400mm - タイトルブロック幅80mm = 320mm
+    // さらにマージン10mm×2 = 20mm を引く → 有効幅300mm
     const FRAME_AVAILABLE_WIDTH_MM: f64 = 320.0;
+    const MARGIN_MM: f64 = 10.0;
+    const USABLE_WIDTH_MM: f64 = FRAME_AVAILABLE_WIDTH_MM - MARGIN_MM * 2.0;  // 300mm
 
     if sections.is_empty() {
         return 1;
@@ -523,7 +526,7 @@ pub fn calc_optimal_columns_for_frame(
 
     // 描画可能領域を実寸（メートル）に換算
     // 1mm（紙上）= plot_scale mm（実寸）
-    let available_m = FRAME_AVAILABLE_WIDTH_MM * plot_scale / 1000.0;
+    let available_m = USABLE_WIDTH_MM * plot_scale / 1000.0;
 
     // 列数計算（最低1列）
     let columns = (available_m / max_cell_width_m).floor() as usize;
@@ -619,17 +622,41 @@ fn generate_multi_drawing_internal(
 
     let cell_height = (max_height + 1.0) * scale * 2.0;  // 旗揚げ部分のマージン（縦スケール2倍）
 
-    // 図枠付きの場合、コンテンツを図枠内に配置
+    // コンテンツの総サイズ（DXF単位）
+    let content_width = cumulative_x;  // 全列の合計幅
+    let content_height = rows_per_column as f64 * cell_height;  // 全行の合計高さ
+
+    // 図枠付きの場合、コンテンツを図枠内に中央配置
     // スケール例: 1:200なら1mm(紙) = 200mm(実寸)、1:500なら1mm(紙) = 500mm(実寸)
     let (content_offset_x, content_offset_y) = if let Some(fs) = frame_scale {
         // 図枠の描画可能エリア（紙上mm）
-        // 内枠左下: (10, 10)、タイトルブロック左端まで: (330, 261)
-        // → 描画可能エリア: 320mm × 251mm
-        const CONTENT_LEFT_MM: f64 = 10.0;   // 内枠左端
-        const CONTENT_BOTTOM_MM: f64 = 10.0; // 内枠下端
+        // 内枠: 左10mm〜右410mm、下10mm〜上287mm
+        // タイトルブロック: 右80mm × 下48mm
+        // 上部タイトル: 上から約30mm使用
+        // → 描画可能エリア: 左10mm〜右330mm(=320mm幅)、下10mm〜上257mm(=247mm高さ)
+        const FRAME_LEFT_MM: f64 = 10.0;
+        const FRAME_BOTTOM_MM: f64 = 10.0;
+        const AVAILABLE_WIDTH_MM: f64 = 320.0;   // タイトルブロック左側
+        const AVAILABLE_HEIGHT_MM: f64 = 247.0;  // 上部タイトル下側
+        const MARGIN_MM: f64 = 10.0;             // 描画エリア内のマージン
 
-        // コンテンツのオフセット（DXF単位）
-        (CONTENT_LEFT_MM * fs, CONTENT_BOTTOM_MM * fs)
+        // 有効描画エリア（マージン込み）
+        let usable_width_mm = AVAILABLE_WIDTH_MM - MARGIN_MM * 2.0;  // 300mm
+        let usable_height_mm = AVAILABLE_HEIGHT_MM - MARGIN_MM * 2.0;  // 227mm
+
+        // コンテンツサイズを紙上mm換算
+        let content_width_mm = content_width / fs;
+        let content_height_mm = content_height / fs;
+
+        // 中央配置のオフセット計算
+        let center_offset_x_mm = FRAME_LEFT_MM + MARGIN_MM + (usable_width_mm - content_width_mm) / 2.0;
+        let center_offset_y_mm = FRAME_BOTTOM_MM + MARGIN_MM + (usable_height_mm - content_height_mm) / 2.0;
+
+        // DXF単位に変換（最小値は左下マージン位置）
+        let offset_x = center_offset_x_mm.max(FRAME_LEFT_MM + MARGIN_MM) * fs;
+        let offset_y = center_offset_y_mm.max(FRAME_BOTTOM_MM + MARGIN_MM) * fs;
+
+        (offset_x, offset_y)
     } else {
         (0.0, 0.0)
     };
@@ -3474,23 +3501,23 @@ mod tests {
         ];
 
         // 1:500スケールで計算
-        // 描画可能幅: 320mm × 500 / 1000 = 160m
+        // 使用可能幅: 300mm（320mm - 10mm×2マージン） × 500 / 1000 = 150m
         // セル幅: 3m(左) + 3m(右) + 2m(gap) = 8m
-        // 列数: floor(160 / 8) = 20
+        // 列数: floor(150 / 8) = 18
         let columns = calc_optimal_columns_for_frame(&sections, 2.0, 500.0);
-        assert_eq!(columns, 20);
+        assert_eq!(columns, 18);
 
         // gap = 0 の場合
         // セル幅: 3m + 3m + 0m = 6m
-        // 列数: floor(160 / 6) = 26
+        // 列数: floor(150 / 6) = 25
         let columns_no_gap = calc_optimal_columns_for_frame(&sections, 0.0, 500.0);
-        assert_eq!(columns_no_gap, 26);
+        assert_eq!(columns_no_gap, 25);
 
         // 1:200スケールの場合
-        // 描画可能幅: 320mm × 200 / 1000 = 64m
+        // 使用可能幅: 300mm × 200 / 1000 = 60m
         // セル幅: 8m
-        // 列数: floor(64 / 8) = 8
+        // 列数: floor(60 / 8) = 7
         let columns_200 = calc_optimal_columns_for_frame(&sections, 2.0, 200.0);
-        assert_eq!(columns_200, 8);
+        assert_eq!(columns_200, 7);
     }
 }
