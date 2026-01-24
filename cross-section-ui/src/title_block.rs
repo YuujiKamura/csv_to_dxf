@@ -27,6 +27,31 @@ const FRAME_HEIGHT: f64 = FRAME_TOP - FRAME_BOTTOM;      // 277mm
 const FRAME_CENTER_X: f64 = (FRAME_LEFT + FRAME_RIGHT) / 2.0;   // 210mm
 const FRAME_CENTER_Y: f64 = (FRAME_BOTTOM + FRAME_TOP) / 2.0;   // 148.5mm
 
+/// 配置可能エリア定数（横断図などのコンテンツを配置できる領域）
+/// title_block.rsの定数を元に正確に計算
+pub mod available_area {
+    use super::*;
+
+    /// 配置可能エリアの左端（内枠左端 = 10mm）
+    pub const LEFT_MM: f64 = FRAME_LEFT;
+    /// 配置可能エリアの右端（内枠右端 - タイトルブロック幅80mm = 330mm）
+    pub const RIGHT_MM: f64 = FRAME_RIGHT - 80.0;
+    /// 配置可能エリアの下端（内枠下端 = 10mm）
+    pub const BOTTOM_MM: f64 = FRAME_BOTTOM;
+    /// 配置可能エリアの上端（上部タイトル下端 = 内枠上端 - 26mm = 261mm）
+    pub const TOP_MM: f64 = FRAME_TOP - 26.0;
+    /// 配置可能エリアの幅（330mm - 10mm = 320mm）
+    pub const WIDTH_MM: f64 = RIGHT_MM - LEFT_MM;
+    /// 配置可能エリアの高さ（261mm - 10mm = 251mm）
+    pub const HEIGHT_MM: f64 = TOP_MM - BOTTOM_MM;
+    /// 配置エリア内のマージン
+    pub const MARGIN_MM: f64 = 5.0;
+    /// 有効描画幅（マージン込み）
+    pub const USABLE_WIDTH_MM: f64 = WIDTH_MM - MARGIN_MM * 2.0;  // 310mm
+    /// 有効描画高さ（マージン込み）
+    pub const USABLE_HEIGHT_MM: f64 = HEIGHT_MM - MARGIN_MM * 2.0;  // 241mm
+}
+
 /// タイトルブロック情報
 #[derive(Debug, Clone, Default)]
 pub struct TitleBlockInfo {
