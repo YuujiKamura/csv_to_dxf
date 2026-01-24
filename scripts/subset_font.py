@@ -9,7 +9,7 @@ from pathlib import Path
 
 # プロジェクトルート
 PROJECT_ROOT = Path(__file__).parent.parent
-RUST_SRC = PROJECT_ROOT / "cross-section-ui" / "src" / "lib.rs"
+RUST_SRC_DIR = PROJECT_ROOT / "cross-section-ui" / "src"
 DATA_DIR = PROJECT_ROOT / "data"
 FONT_SRC = PROJECT_ROOT / "cross-section-ui" / "static" / "NotoSansJP-Regular.ttf"
 FONT_DST = PROJECT_ROOT / "cross-section-ui" / "static" / "NotoSansJP-Subset.ttf"
@@ -36,10 +36,19 @@ def extract_japanese_chars(text: str) -> set:
     chars.update(japanese)
     return chars
 
-def extract_chars_from_rust(filepath: Path) -> set:
-    """Rustソースから文字を抽出"""
-    text = filepath.read_text(encoding="utf-8")
-    return extract_japanese_chars(text)
+def extract_chars_from_rust(src_dir: Path) -> set:
+    """Rustソースディレクトリ内の全.rsファイルから文字を抽出"""
+    chars = set()
+    for filepath in src_dir.glob("**/*.rs"):
+        try:
+            text = filepath.read_text(encoding="utf-8")
+            extracted = extract_japanese_chars(text)
+            chars.update(extracted)
+            if extracted:
+                print(f"  {filepath.name}: {len(extracted)} 文字")
+        except Exception as e:
+            print(f"  {filepath.name}: 読み込みエラー ({e})")
+    return chars
 
 def extract_chars_from_data(data_dir: Path) -> set:
     """データファイル（JSON, CSV）から文字を抽出"""
@@ -63,10 +72,11 @@ def main():
     chars = set(BASE_CHARS)
 
     # Rustソースから抽出
-    if RUST_SRC.exists():
-        rust_chars = extract_chars_from_rust(RUST_SRC)
+    if RUST_SRC_DIR.exists():
+        print("Rustソースから抽出:")
+        rust_chars = extract_chars_from_rust(RUST_SRC_DIR)
         chars.update(rust_chars)
-        print(f"Rustソースから {len(rust_chars)} 文字抽出")
+        print(f"Rustソースから合計 {len(rust_chars)} 文字抽出")
 
     # データファイルから抽出
     if DATA_DIR.exists():
