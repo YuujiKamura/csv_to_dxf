@@ -61,6 +61,7 @@ pub struct CrossSectionApp {
     pub(crate) hide_project_name: bool,     // 工事名を非表示
     pub(crate) v_scale_ratio: f64,          // 縦方向スケール倍率（1.0〜5.0）
     pub(crate) dekigata_scale: f64,         // 出来形管理図のスケール（30〜100）
+    pub(crate) odd_points_only: bool,       // 奇数測点のみ表示
     // ページ分割
     pub(crate) current_page: usize,         // 現在のページ（0始まり）
     pub(crate) total_pages: usize,          // 総ページ数
@@ -74,7 +75,7 @@ impl Default for CrossSectionApp {
             selected_index: None,
             dxf_drawing: None,
             dxf_view_state: DxfViewState::default(),
-            view_mode: ViewMode::Single, // デフォルトで単一横断図（モバイル向け）
+            view_mode: ViewMode::Dekigata, // デフォルトで出来形管理図
             grid_columns: 3,
             column_gap: 2.0,  // 列間隔2メートル（切削厚ラベル分）
             row_gap: 1.0,     // 行間隔1メートル
@@ -99,9 +100,10 @@ impl Default for CrossSectionApp {
             date: String::new(),
             drawing_number: String::new(),
             show_debug_guides: true,  // デフォルトでON
-            hide_project_name: false, // デフォルトで表示
-            v_scale_ratio: 2.0,       // デフォルト縦スケール2倍
-            dekigata_scale: 50.0,     // デフォルト出来形スケール1:50
+            hide_project_name: true,  // デフォルトで非表示
+            v_scale_ratio: 1.0,       // デフォルト縦スケール1倍
+            dekigata_scale: 30.0,     // デフォルト出来形スケール1:30
+            odd_points_only: true,    // デフォルトで奇数測点のみ
             // ページ分割
             current_page: 0,
             total_pages: 1,
@@ -203,10 +205,27 @@ impl CrossSectionApp {
     }
 
     /// 出来形管理用紙用: 整数測点のみをフィルタ（「+」を含む中間測点は除外）
+    /// odd_points_only がtrueの場合、奇数測点のみを返す
     pub(crate) fn dekigata_filtered_sections(&self) -> Vec<&CrossSectionData> {
         self.sections.iter()
             .filter(|s| s.route_id == self.selected_route)
             .filter(|s| !s.survey_point_name.contains('+'))
+            .filter(|s| {
+                if !self.odd_points_only {
+                    return true;
+                }
+                // 測点名から数字を抽出して奇数かどうか判定
+                // 例: "NO.1" -> 1, "NO.12" -> 12
+                let num_str: String = s.survey_point_name
+                    .chars()
+                    .filter(|c| c.is_ascii_digit())
+                    .collect();
+                if let Ok(num) = num_str.parse::<i32>() {
+                    num % 2 == 1  // 奇数のみ
+                } else {
+                    true  // 数字が取れない場合は含める
+                }
+            })
             .collect()
     }
 

@@ -356,6 +356,12 @@ impl eframe::App for CrossSectionApp {
                                     self.update_dxf_preview();
                                 }
                             }
+                            // 奇数測点のみ（出来形モード時）
+                            if self.view_mode == ViewMode::Dekigata {
+                                if ui.checkbox(&mut self.odd_points_only, "奇数測点のみ").changed() {
+                                    self.update_dxf_preview();
+                                }
+                            }
                         });
                         // ページナビゲーション（複数ページある場合のみ）
                         if self.total_pages > 1 && self.plot_scale.is_some() {
@@ -664,6 +670,12 @@ impl eframe::App for CrossSectionApp {
                         // 工事名非表示
                         if self.plot_scale.is_some() || self.view_mode == ViewMode::Dekigata {
                             if ui.checkbox(&mut self.hide_project_name, "工事名非表示").changed() {
+                                self.update_dxf_preview();
+                            }
+                        }
+                        // 奇数測点のみ（出来形モード時）
+                        if self.view_mode == ViewMode::Dekigata {
+                            if ui.checkbox(&mut self.odd_points_only, "奇数測点のみ").changed() {
                                 self.update_dxf_preview();
                             }
                         }
