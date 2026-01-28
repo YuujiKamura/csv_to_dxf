@@ -1530,7 +1530,7 @@ fn draw_dekigata_page(
 
     // 横断図の描画領域（上部）
     let cross_section_bottom_mm = table_bottom_margin_mm + table_height_mm + 10.0;
-    let cross_section_top_mm = 245.0;  // 上部タイトル下端（2倍タイトル用に余裕）
+    let cross_section_top_mm = 277.0;  // 内枠上端まで使用（タイトル不要）
     let cross_section_height_mm = cross_section_top_mm - cross_section_bottom_mm;
 
     // 横断図の描画
@@ -1693,12 +1693,10 @@ pub fn generate_dekigata_drawing(section: &CrossSectionData, title_info: &TitleB
     });
 
     let frame_scale = DEKIGATA_SCALE;
-    const TEXT_SIZE_MM: f64 = 6.0;  // タイトル2倍サイズ
 
-    // 図枠を描画（タイトル枠なし - 外枠と上部タイトルのみ）
+    // 図枠を描画（外枠のみ、タイトル不要）
     title_block::add_title_block_layer(&mut drawing);
     title_block::draw_outer_frame(&mut drawing, 0.0, 0.0, frame_scale);
-    title_block::draw_top_title(&mut drawing, title_info, 0.0, 0.0, frame_scale, TEXT_SIZE_MM);
 
     // 出来形管理用紙の内容を描画
     draw_dekigata_page(&mut drawing, section, 0.0, 0.0, frame_scale);
