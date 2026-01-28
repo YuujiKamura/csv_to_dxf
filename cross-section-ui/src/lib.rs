@@ -49,7 +49,9 @@ pub use title_block::{
 use dxf::Drawing;
 use dxf::Color;
 
-// wasm_integration exports are used in app_ui.rs
+// wasm_integration exports
+#[cfg(target_arch = "wasm32")]
+pub use wasm_integration::*;
 
 
 /// アライメントテスト用DXF生成
