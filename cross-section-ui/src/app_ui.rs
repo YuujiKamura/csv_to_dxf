@@ -318,7 +318,7 @@ impl eframe::App for CrossSectionApp {
                             ui.separator();
                             // 縦スケール倍率
                             ui.label("縦倍率");
-                            let v_scale_options = [1.0, 1.5, 2.0, 2.5, 3.0];
+                            let v_scale_options = [1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0];
                             egui::ComboBox::from_id_salt("v_scale_mobile")
                                 .selected_text(format!("{:.1}x", self.v_scale_ratio))
                                 .show_ui(ui, |ui| {
@@ -606,7 +606,7 @@ impl eframe::App for CrossSectionApp {
                         ui.separator();
                         // 縦スケール倍率
                         ui.label("縦倍率");
-                        let v_scale_options = [1.0, 1.5, 2.0, 2.5, 3.0];
+                        let v_scale_options = [1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0];
                         egui::ComboBox::from_id_salt("v_scale_desktop")
                             .selected_text(format!("{:.1}x", self.v_scale_ratio))
                             .show_ui(ui, |ui| {
