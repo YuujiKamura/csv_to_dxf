@@ -112,13 +112,9 @@ impl eframe::App for CrossSectionApp {
         let screen_width = ctx.screen_rect().width();
         let is_mobile = screen_width < 600.0;
 
-        // 初回フレームでデスクトップならComboモードに設定
+        // 初回フレームフラグをクリア
         if self.is_first_frame {
             self.is_first_frame = false;
-            if !is_mobile {
-                self.view_mode = ViewMode::Combo;
-                self.update_dxf_preview();
-            }
         }
 
         if is_mobile {
