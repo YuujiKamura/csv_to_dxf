@@ -1530,7 +1530,7 @@ fn draw_dekigata_page(
 
     // 横断図の描画領域（上部）
     let cross_section_bottom_mm = table_bottom_margin_mm + table_height_mm + 10.0;
-    let cross_section_top_mm = 277.0;  // 内枠上端まで使用（タイトル不要）
+    let cross_section_top_mm = 255.0;  // 工事名の下（277-15-7=255）
     let cross_section_height_mm = cross_section_top_mm - cross_section_bottom_mm;
 
     // 横断図の描画
@@ -1697,9 +1697,15 @@ pub fn generate_dekigata_drawing(section: &CrossSectionData, title_info: &TitleB
 
     let frame_scale = DEKIGATA_SCALE;
 
-    // 図枠を描画（外枠のみ、タイトル不要）
+    // 図枠を描画（外枠のみ）
     title_block::add_title_block_layer(&mut drawing);
     title_block::draw_outer_frame(&mut drawing, 0.0, 0.0, frame_scale);
+
+    // 工事名のみ表示（タイトル・横棒は不要）
+    let text_size = 6.0 * frame_scale;  // 2倍サイズ
+    let name_y = (277.0 - 15.0) * frame_scale;  // 内枠上端から15mm下
+    let center_x = 210.0 * frame_scale;  // A3中央
+    add_text(&mut drawing, center_x, name_y, &title_info.project_name, text_size, 7, "TITLEBLOCK", TextAlign::Center);
 
     // 出来形管理用紙の内容を描画
     draw_dekigata_page(&mut drawing, section, 0.0, 0.0, frame_scale);
