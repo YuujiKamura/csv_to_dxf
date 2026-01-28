@@ -11,19 +11,23 @@ use crate::{
     draw_drawing_frame, add_dimension_as_lines_to_content,
     DrawingContent, SectionStyle, HAlign, VAlign,
 };
+
+// SectionStyleのデフォルト値から計算された固定マージン（DXF単位）
+// 上方向: flag_base_offset + label_title_offset + text_height * title_scale
+const TOP_MARGIN_DXF: f64 = 1600.0 + 1300.0 + 300.0 * 1.5;  // = 3350.0
+// 下方向: cutting_label_offset + text_height + cutting_label_gap
+const BOTTOM_MARGIN_DXF: f64 = 300.0 + 300.0 + 100.0;  // = 700.0
 use crate::title_block::available_area;
 
 // ============================================================================
 // Multi-Section Grid Layout
 // ============================================================================
 
-/// 旗揚げ用マージン（メートル単位）
-const FLAG_MARGIN: f64 = 0.5;
-
 /// グリッドレイアウトのパラメータと計算ロジック
 ///
 /// セル高さの計算を一元管理し、v_scale_ratioと行間隔の関係を正しく処理する。
-/// - セクション描画高さ: v_scale_ratio適用
+/// - セクション本体高さ: v_scale_ratio適用（縦に伸縮）
+/// - ラベルマージン（旗揚げ・切削厚）: 固定DXF単位
 /// - 行間隔: 固定（v_scale_ratioに依存しない）
 #[derive(Debug, Clone, Copy)]
 pub struct GridLayoutParams {
@@ -50,40 +54,55 @@ impl GridLayoutParams {
         self
     }
 
-    /// セクションの描画高さを計算（メートル単位、旗揚げ含む）
-    pub fn section_content_height(&self, section: &CrossSectionData) -> f64 {
+    /// セクションの本体高さを計算（メートル単位、max_elev - dl）
+    pub fn section_body_height(&self, section: &CrossSectionData) -> f64 {
         let data = &section.survey_data;
         if data.len() < 2 { return 0.0; }
         let max_elev = data.iter()
             .map(|d| d.elevation.max(d.planned_height))
             .fold(f64::MIN, f64::max);
-        max_elev - section.dl + FLAG_MARGIN
+        max_elev - section.dl
     }
 
-    /// 複数セクションの最大描画高さ（メートル単位）
-    pub fn max_section_height(&self, sections: &[CrossSectionData]) -> f64 {
+    /// 複数セクションの最大本体高さ（メートル単位）
+    pub fn max_section_body_height(&self, sections: &[CrossSectionData]) -> f64 {
         sections.iter()
-            .map(|s| self.section_content_height(s))
+            .map(|s| self.section_body_height(s))
             .fold(0.0_f64, f64::max)
+    }
+
+    /// セクションの全描画高さをDXF単位で計算
+    ///
+    /// 構成:
+    /// - セクション本体: (max_elev - dl) * scale * v_scale_ratio （スケール適用）
+    /// - 上マージン（旗揚げ）: TOP_MARGIN_DXF （固定DXF単位）
+    /// - 下マージン（切削厚ラベル）: BOTTOM_MARGIN_DXF （固定DXF単位）
+    pub fn section_height_dxf(&self, body_height_m: f64) -> f64 {
+        body_height_m * self.scale * self.v_scale_ratio + TOP_MARGIN_DXF + BOTTOM_MARGIN_DXF
     }
 
     /// セル高さをDXF単位で計算
     ///
-    /// - セクション高さ: v_scale_ratio適用（縦に伸縮）
-    /// - 行間隔: 固定（v_scale_ratioに依存しない）
-    pub fn cell_height_dxf(&self, max_section_height_m: f64) -> f64 {
-        max_section_height_m * self.scale * self.v_scale_ratio + self.row_gap * self.scale
+    /// - セクション全高さ（本体 + ラベルマージン）
+    /// - 行間隔: row_gap * scale（固定）
+    pub fn cell_height_dxf(&self, max_body_height_m: f64) -> f64 {
+        self.section_height_dxf(max_body_height_m) + self.row_gap * self.scale
     }
 
     /// 複数セクションからセル高さを直接計算
     pub fn cell_height_for_sections(&self, sections: &[CrossSectionData]) -> f64 {
-        let max_height = self.max_section_height(sections);
+        let max_height = self.max_section_body_height(sections);
         self.cell_height_dxf(max_height)
     }
 
     /// Y方向スケール（DXF単位変換用）
     pub fn y_scale(&self) -> f64 {
         self.scale * self.v_scale_ratio
+    }
+
+    /// 下マージン（DXF単位）- セクション配置のベースオフセット用
+    pub fn bottom_margin_dxf(&self) -> f64 {
+        BOTTOM_MARGIN_DXF
     }
 }
 
@@ -203,9 +222,9 @@ pub fn calc_grid_bounds_with_v_scale(
         let data = &section.survey_data;
         let dl = round_dl(section.dl);
 
-        // セクションの基準位置
+        // セクションの基準位置（下マージン分上にシフト）
         let offset_x = col_x_offsets[col];
-        let offset_y = row_in_col as f64 * cell_height;
+        let offset_y = row_in_col as f64 * cell_height + BOTTOM_MARGIN_DXF;
 
         // X方向の範囲（左端〜右端）
         let l_dist = data.first().unwrap().cumulative_distance;
@@ -520,13 +539,13 @@ fn generate_multi_drawing_internal(
             col_x_offsets.last().copied().unwrap_or(0.0)
         };
 
-        // 列ごとのY方向オフセットを適用
+        // 列ごとのY方向オフセットを適用（下マージン分上にシフト）
         let col_y_offset = if col < col_y_offsets.len() {
             col_y_offsets[col]
         } else {
             col_y_offsets.last().copied().unwrap_or(0.0)
         };
-        let offset_y = row_in_col as f64 * cell_height + col_y_offset;
+        let offset_y = row_in_col as f64 * cell_height + col_y_offset + BOTTOM_MARGIN_DXF;
 
         // 中間測点（起終点以外）の場合のみ、補完点を勾配補間
         let is_start_or_end = section.is_route_start || section.is_route_end;
@@ -740,7 +759,8 @@ fn draw_page_content(
 
         let offset_x = col_centers[col.min(columns - 1)];
         let col_y_offset = col_y_offsets[col.min(columns - 1)];
-        let offset_y = row_in_col as f64 * cell_height + col_y_offset + page_offset_y;
+        // 下マージン分上にシフト
+        let offset_y = row_in_col as f64 * cell_height + col_y_offset + page_offset_y + BOTTOM_MARGIN_DXF;
 
         // 中間測点（起終点以外）の場合のみ、補完点を勾配補間
         let is_start_or_end = section.is_route_start || section.is_route_end;
@@ -808,7 +828,7 @@ pub fn calc_section_bounds_in_grid_with_v_scale(
         let max_dist = data.last().unwrap().cumulative_distance;
         col_max_left[col] = col_max_left[col].max(min_dist.abs());
         col_max_right[col] = col_max_right[col].max(max_dist);
-        max_height = max_height.max(params.section_content_height(section));
+        max_height = max_height.max(params.section_body_height(section));
     }
 
     // 列ごとのCL位置を計算
@@ -831,7 +851,8 @@ pub fn calc_section_bounds_in_grid_with_v_scale(
     let col = target_idx / rows_per_column;
     let row_in_col = target_idx % rows_per_column;
     let offset_x = col_x_offsets[col];
-    let offset_y = row_in_col as f64 * cell_height;
+    // 下マージン分上にシフト
+    let offset_y = row_in_col as f64 * cell_height + BOTTOM_MARGIN_DXF;
 
     // セクションのバウンディングボックスを計算
     let data = &target_section.survey_data;
