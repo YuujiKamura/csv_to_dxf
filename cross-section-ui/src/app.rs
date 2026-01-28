@@ -100,9 +100,9 @@ impl Default for CrossSectionApp {
             date: String::new(),
             drawing_number: String::new(),
             show_debug_guides: true,  // デフォルトでON
-            hide_project_name: true,  // デフォルトで非表示
+            hide_project_name: false, // デフォルトで表示
             v_scale_ratio: 1.0,       // デフォルト縦スケール1倍
-            dekigata_scale: 30.0,     // デフォルト出来形スケール1:30
+            dekigata_scale: 40.0,     // デフォルト出来形スケール1:40
             odd_points_only: true,    // デフォルトで奇数測点のみ
             // ページ分割
             current_page: 0,
