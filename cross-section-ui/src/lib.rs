@@ -2,12 +2,19 @@
 //!
 //! PDF横断図に準拠した横断図表示と切削計算
 
-use eframe::egui::{self, Color32, Painter, Pos2, Stroke, Vec2, Rect};
+use eframe::egui::{self, Color32, Pos2, Vec2, Rect};
 use serde::{Deserialize, Serialize};
 
 mod font_metrics;
 mod title_block;
 mod ui_chars;
+mod drawing_ir;
+
+pub use drawing_ir::{DrawingContent, DrawPrimitive, DrawLine, DrawText, HAlign, VAlign, ViewState as IrViewState, SectionStyle};
+
+// 後方互換性のためのエイリアス
+type TextAlign = HAlign;
+type VerticalAlign = VAlign;
 
 use font_metrics::cap_height_to_text_height;
 
@@ -65,12 +72,8 @@ fn new_drawing() -> Drawing {
     drawing
 }
 
-/// 水平アライメント
-#[derive(Clone, Copy)]
-enum TextAlign { Left, Center, Right }
-
 /// TEXT追加ヘルパー（アライメント対応）
-fn add_text(drawing: &mut Drawing, x: f64, y: f64, text: &str, height: f64, color: i16, layer: &str, align: TextAlign) {
+fn add_text(drawing: &mut Drawing, x: f64, y: f64, text: &str, height: f64, color: i16, layer: &str, align: HAlign) {
     let mut t = Text::default();
     t.location = Point::new(x, y, 0.0);
     t.text_height = cap_height_to_text_height(height);  // フォントメトリクス補正
@@ -78,9 +81,9 @@ fn add_text(drawing: &mut Drawing, x: f64, y: f64, text: &str, height: f64, colo
     t.text_style_name = "NOTOSANSJP".to_string();
     t.relative_x_scale_factor = 1.0;  // 幅が引き伸ばされるのを防止
     t.horizontal_text_justification = match align {
-        TextAlign::Left => HorizontalTextJustification::Left,
-        TextAlign::Center => HorizontalTextJustification::Center,
-        TextAlign::Right => HorizontalTextJustification::Right,
+        HAlign::Left => HorizontalTextJustification::Left,
+        HAlign::Center => HorizontalTextJustification::Center,
+        HAlign::Right => HorizontalTextJustification::Right,
     };
     // 垂直配置がMiddleの場合、second_alignment_pointが必要
     t.second_alignment_point = Point::new(x, y, 0.0);
@@ -107,7 +110,7 @@ fn add_text_with_mask(
     height: f64,
     color: i16,
     layer: &str,
-    align: TextAlign
+    align: HAlign
 ) {
     // マスクなしでテキストのみ描画
     add_text(drawing, x, y, text, height, color, layer, align);
@@ -123,13 +126,13 @@ fn add_text_with_wipeout(
     height: f64,
     color: i16,
     layer: &str,
-    align: TextAlign
+    align: HAlign
 ) {
     let width = estimate_text_width(text, height);
     let mask_x = match align {
-        TextAlign::Left => x,
-        TextAlign::Center => x - width / 2.0,
-        TextAlign::Right => x - width,
+        HAlign::Left => x,
+        HAlign::Center => x - width / 2.0,
+        HAlign::Right => x - width,
     };
 
     // WIPEOUT矩形（背景マスク）
@@ -152,15 +155,11 @@ fn add_text_with_wipeout(
     add_text(drawing, x, y, text, height, color, layer, align);
 }
 
-/// 垂直アライメント
-#[derive(Clone, Copy)]
-enum VerticalAlign { Top, Middle, Bottom }
-
 /// TEXT追加ヘルパー（回転・垂直アライメント対応）
 /// rotation: 度数法（0=水平、90=下から上に読む方向）
 fn add_text_rotated(
     drawing: &mut Drawing, x: f64, y: f64, text: &str, height: f64,
-    color: i16, layer: &str, align: TextAlign, v_align: VerticalAlign, rotation: f64
+    color: i16, layer: &str, align: HAlign, v_align: VAlign, rotation: f64
 ) {
     let mut t = Text::default();
     t.location = Point::new(x, y, 0.0);
@@ -171,17 +170,17 @@ fn add_text_rotated(
     t.relative_x_scale_factor = 1.0;  // 幅が引き伸ばされるのを防止
 
     t.horizontal_text_justification = match align {
-        TextAlign::Left => HorizontalTextJustification::Left,
-        TextAlign::Center => HorizontalTextJustification::Center,
-        TextAlign::Right => HorizontalTextJustification::Right,
+        HAlign::Left => HorizontalTextJustification::Left,
+        HAlign::Center => HorizontalTextJustification::Center,
+        HAlign::Right => HorizontalTextJustification::Right,
     };
     // 垂直配置がBaseline以外の場合、second_alignment_pointが必要
     t.second_alignment_point = Point::new(x, y, 0.0);
 
     t.vertical_text_justification = match v_align {
-        VerticalAlign::Top => VerticalTextJustification::Top,
-        VerticalAlign::Middle => VerticalTextJustification::Middle,
-        VerticalAlign::Bottom => VerticalTextJustification::Bottom,
+        VAlign::Top => VerticalTextJustification::Top,
+        VAlign::Middle => VerticalTextJustification::Middle,
+        VAlign::Bottom => VerticalTextJustification::Bottom,
     };
 
     let mut entity = Entity::new(EntityType::Text(t));
@@ -214,7 +213,29 @@ fn add_dimension_as_lines(
     let text_y = y + 50.0;
 
     add_text_rotated(drawing, mid_x, text_y, text, text_height, color, layer,
-        TextAlign::Center, VerticalAlign::Bottom, 0.0);
+        TextAlign::Center, VAlign::Bottom, 0.0);
+}
+
+/// 寸法線をDrawingContentに追加
+fn add_dimension_as_lines_to_content(
+    content: &mut DrawingContent,
+    x1: f64, x2: f64, y: f64,
+    text: &str, text_height: f64,
+    color: i16, layer: &str,
+    style: &SectionStyle,
+) {
+    let tick_up = style.dim_tick_up;
+    let tick_down = style.dim_tick_down;
+
+    content.add_line(x1, y, x2, y, color, layer);
+    content.add_line(x1, y - tick_down, x1, y + tick_up, color, layer);
+    content.add_line(x2, y - tick_down, x2, y + tick_up, color, layer);
+
+    let mid_x = (x1 + x2) / 2.0;
+    let text_y = y + style.dim_text_offset;
+
+    content.add_text_rotated(mid_x, text_y, text, text_height, color, layer,
+        HAlign::Center, VAlign::Bottom, 0.0);
 }
 
 /// DL値を1m刻みに丸める（最小標高との差が0.2以下なら1m下げる）
@@ -244,14 +265,14 @@ pub fn generate_alignment_test_drawing() -> Drawing {
     let cell_height = 400.0;
 
     let h_aligns = [
-        (TextAlign::Left, "H:Left"),
-        (TextAlign::Center, "H:Center"),
-        (TextAlign::Right, "H:Right"),
+        (HAlign::Left, "H:Left"),
+        (HAlign::Center, "H:Center"),
+        (HAlign::Right, "H:Right"),
     ];
     let v_aligns = [
-        (VerticalAlign::Top, "V:Top"),
-        (VerticalAlign::Middle, "V:Mid"),
-        (VerticalAlign::Bottom, "V:Bot"),
+        (VAlign::Top, "V:Top"),
+        (VAlign::Middle, "V:Mid"),
+        (VAlign::Bottom, "V:Bot"),
     ];
 
     // グリッド描画
@@ -282,8 +303,8 @@ pub fn generate_alignment_test_drawing() -> Drawing {
     }
 
     // 説明テキスト
-    add_text(&mut drawing, 0.0, 200.0, "Alignment Test: -90deg rotation", text_height, 7, "TEST", TextAlign::Left);
-    add_text(&mut drawing, 0.0, 50.0, "Red cross = anchor point", text_height * 0.8, 1, "TEST", TextAlign::Left);
+    add_text(&mut drawing, 0.0, 200.0, "Alignment Test: -90deg rotation", text_height, 7, "TEST", HAlign::Left);
+    add_text(&mut drawing, 0.0, 50.0, "Red cross = anchor point", text_height * 0.8, 1, "TEST", HAlign::Left);
 
     drawing
 }
@@ -404,7 +425,7 @@ pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
         add_line(&mut drawing, x + half_w, top_y, x, y, 5, "CUTTING");
         // ラベル（V1, V2, ...）- 文字サイズ統一
         let label = format!("V{}", i + 1);
-        add_text(&mut drawing, x, top_y + 300.0, &label, text_height, 5, "CUTTING", TextAlign::Center);
+        add_text(&mut drawing, x, top_y + 300.0, &label, text_height, 5, "CUTTING", HAlign::Center);
     }
 
     let cl_ground_y = to_dxf_y(cl_data.elevation);
@@ -417,27 +438,27 @@ pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
 
     // ========== 測点名（CL上）==========
     add_text(&mut drawing, cl_x, flag_y + 1600.0,
-        &section.survey_point_name, text_height * 1.5, 7, "TEXT", TextAlign::Center);
+        &section.survey_point_name, text_height * 1.5, 7, "TEXT", HAlign::Center);
 
     // ========== CL GH, FH ==========
     add_text_with_mask(&mut drawing, cl_x, flag_y + 800.0,
-        &format!("GH={:.3}", cl_data.elevation), text_height, 7, "TEXT", TextAlign::Center);
+        &format!("GH={:.3}", cl_data.elevation), text_height, 7, "TEXT", HAlign::Center);
     add_text_with_mask(&mut drawing, cl_x, flag_y + 400.0,
-        &format!("FH={:.3}", cl_data.planned_height), text_height, 1, "PLAN", TextAlign::Center);
+        &format!("FH={:.3}", cl_data.planned_height), text_height, 1, "PLAN", HAlign::Center);
 
     // ========== L側 GH, FH（ポインター分上にオフセット）==========
     let l_ground_y = to_dxf_y(l_data.elevation);
     add_text_with_mask(&mut drawing, l_x, l_ground_y + 800.0 + pointer_offset,
-        &format!("GH={:.3}", l_data.elevation), text_height, 7, "TEXT", TextAlign::Left);
+        &format!("GH={:.3}", l_data.elevation), text_height, 7, "TEXT", HAlign::Left);
     add_text_with_mask(&mut drawing, l_x, l_ground_y + 400.0 + pointer_offset,
-        &format!("FH={:.3}", l_data.planned_height), text_height, 1, "PLAN", TextAlign::Left);
+        &format!("FH={:.3}", l_data.planned_height), text_height, 1, "PLAN", HAlign::Left);
 
     // ========== R側 GH, FH（ポインター分上にオフセット）==========
     let r_ground_y = to_dxf_y(r_data.elevation);
     add_text_with_mask(&mut drawing, r_x, r_ground_y + 800.0 + pointer_offset,
-        &format!("GH={:.3}", r_data.elevation), text_height, 7, "TEXT", TextAlign::Right);
+        &format!("GH={:.3}", r_data.elevation), text_height, 7, "TEXT", HAlign::Right);
     add_text_with_mask(&mut drawing, r_x, r_ground_y + 400.0 + pointer_offset,
-        &format!("FH={:.3}", r_data.planned_height), text_height, 1, "PLAN", TextAlign::Right);
+        &format!("FH={:.3}", r_data.planned_height), text_height, 1, "PLAN", HAlign::Right);
 
     // ========== 寸法線による旗揚げ（幅員）==========
     let dim_base_y = cl_ground_y + flag_height_mm;
@@ -463,7 +484,7 @@ pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
 
     // 左側勾配
     add_text_with_mask(&mut drawing, mid_l_x, slope_text_y,
-        &format!("{:.1}%", left_slope), text_height, 7, "TEXT", TextAlign::Center);
+        &format!("{:.1}%", left_slope), text_height, 7, "TEXT", HAlign::Center);
     if left_slope.abs() > 0.01 {
         let arrow_y = slope_text_y - arrow_offset;
         let arrow_x = mid_l_x - arrow_len / 2.0;
@@ -480,7 +501,7 @@ pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
 
     // 右側勾配
     add_text_with_mask(&mut drawing, mid_r_x, slope_text_y,
-        &format!("{:.1}%", right_slope), text_height, 7, "TEXT", TextAlign::Center);
+        &format!("{:.1}%", right_slope), text_height, 7, "TEXT", HAlign::Center);
     if right_slope.abs() > 0.01 {
         let arrow_y = slope_text_y - arrow_offset;
         let arrow_x = mid_r_x - arrow_len / 2.0;
@@ -498,7 +519,7 @@ pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
     // ========== DLラベル ==========
     add_text_rotated(&mut drawing, cl_x, to_dxf_y(dl),
         &format!("DL={:.3}  Scale:H1:V2", dl), text_height * 0.5, 8, "TEXT",
-        TextAlign::Left, VerticalAlign::Bottom, 0.0);
+        HAlign::Left, VAlign::Bottom, 0.0);
 
     // ========== 切削厚表示（DLライン上部） ==========
     let cutting_text_height = text_height;  // GH等と同じサイズ
@@ -507,18 +528,18 @@ pub fn generate_drawing(section: &CrossSectionData) -> Drawing {
         let x = to_dxf_x(pt.cumulative_distance);
         let cutting_thickness_mm = (pt.elevation - pt.cutting_bottom) * 1000.0;
         let align = if i == 0 {
-            TextAlign::Left
+            HAlign::Left
         } else if i == data.len() - 1 {
-            TextAlign::Right
+            HAlign::Right
         } else {
-            TextAlign::Center
+            HAlign::Center
         };
         add_text_with_mask(&mut drawing, x, cutting_y,
             &format!("{:.0}", cutting_thickness_mm), cutting_text_height, 5, "CUTTING", align);
     }
     // ラベル「切削厚」を中央下に表示
     add_text_with_mask(&mut drawing, cl_x, cutting_y - cutting_text_height - 100.0,
-        "切削厚", cutting_text_height, 5, "CUTTING", TextAlign::Center);
+        "切削厚", cutting_text_height, 5, "CUTTING", HAlign::Center);
 
     // ========== ガイド線 ==========
     let guide_v_length_mm = 1000.0;
@@ -1309,8 +1330,11 @@ fn calc_section_bounds_in_grid(
     Some((min_x, min_y, max_x, max_y))
 }
 
-fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
-                          offset_x: f64, offset_y: f64, scale: f64, scale_multiplier: f64) {
+/// 横断図の描画コンテンツを構築（中間表現）
+fn build_section_content(section: &CrossSectionData,
+                         offset_x: f64, offset_y: f64, scale: f64,
+                         style: &SectionStyle) -> DrawingContent {
+    let mut content = DrawingContent::new();
     let data = &section.survey_data;
     let dl = round_dl(section.dl);
     let to_dxf_x = |d: f64| offset_x + d * scale;
@@ -1327,83 +1351,79 @@ fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
     let right_slope = if right_dist > 0.0 { ((r_data.planned_height - cl_data.planned_height) / right_dist) * 100.0 } else { 0.0 };
 
     for i in 0..data.len() - 1 {
-        add_line(drawing, to_dxf_x(data[i].cumulative_distance), to_dxf_y(data[i].elevation),
+        content.add_line(to_dxf_x(data[i].cumulative_distance), to_dxf_y(data[i].elevation),
             to_dxf_x(data[i + 1].cumulative_distance), to_dxf_y(data[i + 1].elevation), 7, "GROUND");
-        add_line(drawing, to_dxf_x(data[i].cumulative_distance), to_dxf_y(data[i].planned_height),
+        content.add_line(to_dxf_x(data[i].cumulative_distance), to_dxf_y(data[i].planned_height),
             to_dxf_x(data[i + 1].cumulative_distance), to_dxf_y(data[i + 1].planned_height), 1, "PLAN");
-        add_line(drawing, to_dxf_x(data[i].cumulative_distance), to_dxf_y(data[i].cutting_bottom),
+        content.add_line(to_dxf_x(data[i].cumulative_distance), to_dxf_y(data[i].cutting_bottom),
             to_dxf_x(data[i + 1].cumulative_distance), to_dxf_y(data[i + 1].cutting_bottom), 5, "CUTTING");
     }
 
-    // テキスト・スペーサー関連の値にscale_multiplierを適用
-    let text_height = 300.0 * scale_multiplier;
-    let pointer_offset = 500.0 * scale_multiplier;
-
     // ========== 測点ポインター（逆三角形 + Vラベル）==========
-    let pointer_size = 150.0 * scale_multiplier;
+    let pointer_size = style.pointer_size;
     for (i, pt) in data.iter().enumerate() {
         let x = to_dxf_x(pt.cumulative_distance);
         let y = to_dxf_y(pt.planned_height);  // 計画高を基準
         let top_y = y + pointer_size;
         let half_w = pointer_size * 0.6;
-        add_line(drawing, x - half_w, top_y, x + half_w, top_y, 5, "CUTTING");
-        add_line(drawing, x - half_w, top_y, x, y, 5, "CUTTING");
-        add_line(drawing, x + half_w, top_y, x, y, 5, "CUTTING");
+        content.add_line(x - half_w, top_y, x + half_w, top_y, 5, "CUTTING");
+        content.add_line(x - half_w, top_y, x, y, 5, "CUTTING");
+        content.add_line(x + half_w, top_y, x, y, 5, "CUTTING");
         let label = format!("V{}", i + 1);
-        add_text(drawing, x, top_y + 300.0 * scale_multiplier, &label, text_height, 5, "CUTTING", TextAlign::Center);
+        content.add_text(x, top_y + style.pointer_label_gap, &label, style.text_height, 5, "CUTTING", HAlign::Center);
     }
 
     let cl_ground_y = to_dxf_y(cl_data.elevation);
-    let flag_y = cl_ground_y + 1600.0 * scale_multiplier;
+    let flag_y = cl_ground_y + style.flag_base_offset;
     let l_x = to_dxf_x(l_data.cumulative_distance);
     let cl_x = to_dxf_x(cl_data.cumulative_distance);
     let r_x = to_dxf_x(r_data.cumulative_distance);
 
-    add_text(drawing, cl_x, flag_y + 1300.0 * scale_multiplier, &section.survey_point_name, text_height * 1.5, 7, "TEXT", TextAlign::Center);
-    add_text_with_mask(drawing, cl_x, flag_y + 800.0 * scale_multiplier, &format!("GH={:.3}", cl_data.elevation), text_height, 7, "TEXT", TextAlign::Center);
-    add_text_with_mask(drawing, cl_x, flag_y + 400.0 * scale_multiplier, &format!("FH={:.3}", cl_data.planned_height), text_height, 1, "PLAN", TextAlign::Center);
+    content.add_text(cl_x, flag_y + style.label_title_offset, &section.survey_point_name, style.text_height * style.title_scale, 7, "TEXT", HAlign::Center);
+    content.add_text(cl_x, flag_y + style.label_gh_offset, &format!("GH={:.3}", cl_data.elevation), style.text_height, 7, "TEXT", HAlign::Center);
+    content.add_text(cl_x, flag_y + style.label_fh_offset, &format!("FH={:.3}", cl_data.planned_height), style.text_height, 1, "PLAN", HAlign::Center);
 
     let l_ground_y = to_dxf_y(l_data.elevation);
-    add_text_with_mask(drawing, l_x, l_ground_y + 800.0 * scale_multiplier + pointer_offset, &format!("GH={:.3}", l_data.elevation), text_height, 7, "TEXT", TextAlign::Left);
-    add_text_with_mask(drawing, l_x, l_ground_y + 400.0 * scale_multiplier + pointer_offset, &format!("FH={:.3}", l_data.planned_height), text_height, 1, "PLAN", TextAlign::Left);
+    content.add_text(l_x, l_ground_y + style.label_gh_offset + style.side_label_offset, &format!("GH={:.3}", l_data.elevation), style.text_height, 7, "TEXT", HAlign::Left);
+    content.add_text(l_x, l_ground_y + style.label_fh_offset + style.side_label_offset, &format!("FH={:.3}", l_data.planned_height), style.text_height, 1, "PLAN", HAlign::Left);
 
     let r_ground_y = to_dxf_y(r_data.elevation);
-    add_text_with_mask(drawing, r_x, r_ground_y + 800.0 * scale_multiplier + pointer_offset, &format!("GH={:.3}", r_data.elevation), text_height, 7, "TEXT", TextAlign::Right);
-    add_text_with_mask(drawing, r_x, r_ground_y + 400.0 * scale_multiplier + pointer_offset, &format!("FH={:.3}", r_data.planned_height), text_height, 1, "PLAN", TextAlign::Right);
+    content.add_text(r_x, r_ground_y + style.label_gh_offset + style.side_label_offset, &format!("GH={:.3}", r_data.elevation), style.text_height, 7, "TEXT", HAlign::Right);
+    content.add_text(r_x, r_ground_y + style.label_fh_offset + style.side_label_offset, &format!("FH={:.3}", r_data.planned_height), style.text_height, 1, "PLAN", HAlign::Right);
 
     let mid_l_x = (l_x + cl_x) / 2.0;
     let mid_r_x = (cl_x + r_x) / 2.0;
-    let arrow_len = 600.0 * scale_multiplier;
-    let arrow_drop = 20.0 * scale_multiplier;
-    let arrow_head = 180.0 * scale_multiplier;
-    let arrow_offset = 300.0 * scale_multiplier;
-    let slope_text_y = flag_y + 500.0 * scale_multiplier + arrow_offset;
+    let arrow_len = style.arrow_length;
+    let arrow_drop = style.arrow_drop;
+    let arrow_head = style.arrow_head;
+    let arrow_offset = style.arrow_offset;
+    let slope_text_y = flag_y + style.slope_text_offset;
 
     // 左側勾配
-    add_text_with_mask(drawing, mid_l_x, slope_text_y, &format!("{:.1}%", left_slope), text_height, 7, "TEXT", TextAlign::Center);
+    content.add_text(mid_l_x, slope_text_y, &format!("{:.1}%", left_slope), style.text_height, 7, "TEXT", HAlign::Center);
     if left_slope.abs() > 0.01 {
         let arrow_y = slope_text_y - arrow_offset;
         let arrow_x = mid_l_x - arrow_len / 2.0;
         if left_slope < 0.0 {
-            add_line(drawing, arrow_x + arrow_len, arrow_y + arrow_drop, arrow_x, arrow_y - arrow_drop, 7, "SLOPE");
-            add_line(drawing, arrow_x, arrow_y - arrow_drop, arrow_x + arrow_head, arrow_y - arrow_drop + arrow_head * 0.4, 7, "SLOPE");
+            content.add_line(arrow_x + arrow_len, arrow_y + arrow_drop, arrow_x, arrow_y - arrow_drop, 7, "SLOPE");
+            content.add_line(arrow_x, arrow_y - arrow_drop, arrow_x + arrow_head, arrow_y - arrow_drop + arrow_head * 0.4, 7, "SLOPE");
         } else {
-            add_line(drawing, arrow_x, arrow_y + arrow_drop, arrow_x + arrow_len, arrow_y - arrow_drop, 7, "SLOPE");
-            add_line(drawing, arrow_x + arrow_len, arrow_y - arrow_drop, arrow_x + arrow_len - arrow_head, arrow_y - arrow_drop + arrow_head * 0.4, 7, "SLOPE");
+            content.add_line(arrow_x, arrow_y + arrow_drop, arrow_x + arrow_len, arrow_y - arrow_drop, 7, "SLOPE");
+            content.add_line(arrow_x + arrow_len, arrow_y - arrow_drop, arrow_x + arrow_len - arrow_head, arrow_y - arrow_drop + arrow_head * 0.4, 7, "SLOPE");
         }
     }
 
     // 右側勾配
-    add_text_with_mask(drawing, mid_r_x, slope_text_y, &format!("{:.1}%", right_slope), text_height, 7, "TEXT", TextAlign::Center);
+    content.add_text(mid_r_x, slope_text_y, &format!("{:.1}%", right_slope), style.text_height, 7, "TEXT", HAlign::Center);
     if right_slope.abs() > 0.01 {
         let arrow_y = slope_text_y - arrow_offset;
         let arrow_x = mid_r_x - arrow_len / 2.0;
         if right_slope < 0.0 {
-            add_line(drawing, arrow_x, arrow_y + arrow_drop, arrow_x + arrow_len, arrow_y - arrow_drop, 7, "SLOPE");
-            add_line(drawing, arrow_x + arrow_len, arrow_y - arrow_drop, arrow_x + arrow_len - arrow_head, arrow_y - arrow_drop + arrow_head * 0.4, 7, "SLOPE");
+            content.add_line(arrow_x, arrow_y + arrow_drop, arrow_x + arrow_len, arrow_y - arrow_drop, 7, "SLOPE");
+            content.add_line(arrow_x + arrow_len, arrow_y - arrow_drop, arrow_x + arrow_len - arrow_head, arrow_y - arrow_drop + arrow_head * 0.4, 7, "SLOPE");
         } else {
-            add_line(drawing, arrow_x + arrow_len, arrow_y + arrow_drop, arrow_x, arrow_y - arrow_drop, 7, "SLOPE");
-            add_line(drawing, arrow_x, arrow_y - arrow_drop, arrow_x + arrow_head, arrow_y - arrow_drop + arrow_head * 0.4, 7, "SLOPE");
+            content.add_line(arrow_x + arrow_len, arrow_y + arrow_drop, arrow_x, arrow_y - arrow_drop, 7, "SLOPE");
+            content.add_line(arrow_x, arrow_y - arrow_drop, arrow_x + arrow_head, arrow_y - arrow_drop + arrow_head * 0.4, 7, "SLOPE");
         }
     }
 
@@ -1412,42 +1432,52 @@ fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
 
     // 左幅員の寸法（線とテキストで描画）
     let left_width = (cl_data.cumulative_distance - l_data.cumulative_distance).abs();
-    add_dimension_as_lines(drawing, l_x, cl_x, dim_base_y,
-        &format!("{:.2}", left_width), text_height, 7, "DIMENSION");
+    add_dimension_as_lines_to_content(&mut content, l_x, cl_x, dim_base_y,
+        &format!("{:.2}", left_width), style.text_height, 7, "DIMENSION", style);
 
     // 右幅員の寸法（線とテキストで描画）
     let right_width = (r_data.cumulative_distance - cl_data.cumulative_distance).abs();
-    add_dimension_as_lines(drawing, cl_x, r_x, dim_base_y,
-        &format!("{:.2}", right_width), text_height, 7, "DIMENSION");
+    add_dimension_as_lines_to_content(&mut content, cl_x, r_x, dim_base_y,
+        &format!("{:.2}", right_width), style.text_height, 7, "DIMENSION", style);
 
-    add_text_rotated(drawing, cl_x, to_dxf_y(dl),
-        &format!("DL={:.3}  Scale:H1:V2", dl), text_height * 0.5, 8, "TEXT",
-        TextAlign::Left, VerticalAlign::Bottom, 0.0);
+    content.add_text_rotated(cl_x, to_dxf_y(dl),
+        &format!("DL={:.3}  Scale:H1:V2", dl), style.text_height * style.small_text_scale, 8, "TEXT",
+        HAlign::Left, VAlign::Bottom, 0.0);
 
     // ========== 切削厚表示（DLライン上部） ==========
-    let cutting_text_height = text_height;  // GH等と同じサイズ
-    let cutting_y = to_dxf_y(dl) - 300.0 * scale_multiplier;
+    let cutting_text_height = style.text_height;  // GH等と同じサイズ
+    let cutting_y = to_dxf_y(dl) - style.cutting_label_offset;
     for (i, pt) in data.iter().enumerate() {
         let x = to_dxf_x(pt.cumulative_distance);
         let cutting_thickness_mm = (pt.elevation - pt.cutting_bottom) * 1000.0;
         let align = if i == 0 {
-            TextAlign::Left
+            HAlign::Left
         } else if i == data.len() - 1 {
-            TextAlign::Right
+            HAlign::Right
         } else {
-            TextAlign::Center
+            HAlign::Center
         };
-        add_text_with_mask(drawing, x, cutting_y,
+        content.add_text(x, cutting_y,
             &format!("{:.0}", cutting_thickness_mm), cutting_text_height, 5, "CUTTING", align);
     }
     // ラベル「切削厚」を中央下に表示
-    add_text_with_mask(drawing, cl_x, cutting_y - cutting_text_height - 100.0 * scale_multiplier,
-        "切削厚", cutting_text_height, 5, "CUTTING", TextAlign::Center);
+    content.add_text(cl_x, cutting_y - cutting_text_height - style.cutting_label_gap,
+        "切削厚", cutting_text_height, 5, "CUTTING", HAlign::Center);
 
     // DLライン（幅員と同じ長さ）
-    add_line(drawing, l_x, to_dxf_y(dl), r_x, to_dxf_y(dl), 8, "DIMENSION");
+    content.add_line(l_x, to_dxf_y(dl), r_x, to_dxf_y(dl), 8, "DIMENSION");
     let cl_cumulative = cl_data.cumulative_distance;
-    add_line(drawing, to_dxf_x(cl_cumulative), to_dxf_y(dl), to_dxf_x(cl_cumulative), to_dxf_y(dl + 1.0), 8, "DIMENSION");
+    content.add_line(to_dxf_x(cl_cumulative), to_dxf_y(dl), to_dxf_x(cl_cumulative), to_dxf_y(dl + 1.0), 8, "DIMENSION");
+
+    content
+}
+
+/// 後方互換性のためのラッパー: DrawingContentをDXFに追加
+fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
+                          offset_x: f64, offset_y: f64, scale: f64, scale_multiplier: f64) {
+    let style = SectionStyle::default().scaled(scale_multiplier);
+    let content = build_section_content(section, offset_x, offset_y, scale, &style);
+    content.add_to_dxf(drawing);
 }
 
 pub fn generate_multi_dxf_bytes(sections: &[CrossSectionData], columns: usize, column_gap: f64, row_gap: f64) -> Vec<u8> {
@@ -1626,10 +1656,10 @@ fn draw_dekigata_table(
             // 2行に分割されている場合は中央に1行目を表示
             let lines: Vec<&str> = label.split('\n').collect();
             if lines.len() == 2 {
-                add_text(drawing, table_x + header_width / 2.0, y + text_size * 0.6, lines[0], text_size, color, "DEKIGATA", TextAlign::Center);
-                add_text(drawing, table_x + header_width / 2.0, y - text_size * 0.6, lines[1], text_size, color, "DEKIGATA", TextAlign::Center);
+                add_text(drawing, table_x + header_width / 2.0, y + text_size * 0.6, lines[0], text_size, color, "DEKIGATA", HAlign::Center);
+                add_text(drawing, table_x + header_width / 2.0, y - text_size * 0.6, lines[1], text_size, color, "DEKIGATA", HAlign::Center);
             } else {
-                add_text(drawing, table_x + header_width / 2.0, y, *label, text_size, color, "DEKIGATA", TextAlign::Center);
+                add_text(drawing, table_x + header_width / 2.0, y, *label, text_size, color, "DEKIGATA", HAlign::Center);
             }
         }
     }
@@ -1641,11 +1671,11 @@ fn draw_dekigata_table(
         // 測点ラベル（最上行）
         let v_label = format!("V{}", col + 1);
         let header_y = table_y + total_height - row_height * 0.5;
-        add_text(drawing, col_center_x, header_y, &v_label, text_size, 5, "DEKIGATA", TextAlign::Center);
+        add_text(drawing, col_center_x, header_y, &v_label, text_size, 5, "DEKIGATA", HAlign::Center);
 
         // 計画高（設計）
         let design_fh_y = table_y + total_height - row_height * 1.5;
-        add_text(drawing, col_center_x, design_fh_y, &format!("{:.3}", pt.planned_height), text_size, 7, "DEKIGATA", TextAlign::Center);
+        add_text(drawing, col_center_x, design_fh_y, &format!("{:.3}", pt.planned_height), text_size, 7, "DEKIGATA", HAlign::Center);
 
         // 計画高（実施）- 空欄（赤）
         let _actual_fh_y = table_y + total_height - row_height * 2.5;
@@ -1654,7 +1684,7 @@ fn draw_dekigata_table(
         // 切削高（設計）= 計画高 - 切削厚
         let design_cutting = pt.planned_height - DEKIGATA_DEFAULT_CUTTING_THICKNESS_MM / 1000.0;
         let design_cut_y = table_y + total_height - row_height * 3.5;
-        add_text(drawing, col_center_x, design_cut_y, &format!("{:.3}", design_cutting), text_size, 7, "DEKIGATA", TextAlign::Center);
+        add_text(drawing, col_center_x, design_cut_y, &format!("{:.3}", design_cutting), text_size, 7, "DEKIGATA", HAlign::Center);
 
         // 切削高（実施）- 空欄（赤）
         let _actual_cut_y = table_y + total_height - row_height * 4.5;
@@ -1708,7 +1738,7 @@ pub fn generate_dekigata_drawing(section: &CrossSectionData, title_info: &TitleB
     let text_size = 12.0 * frame_scale;  // 4倍サイズ（元の2倍×さらに2倍）
     let name_y = (277.0 - 15.0) * frame_scale;  // 内枠上端から15mm下
     let center_x = 210.0 * frame_scale;  // A3中央
-    add_text(&mut drawing, center_x, name_y, &title_info.project_name, text_size, 7, "TITLEBLOCK", TextAlign::Center);
+    add_text(&mut drawing, center_x, name_y, &title_info.project_name, text_size, 7, "TITLEBLOCK", HAlign::Center);
 
     // 出来形管理用紙の内容を描画
     draw_dekigata_page(&mut drawing, section, 0.0, 0.0, frame_scale);
@@ -1944,11 +1974,11 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
         let label_color = if is_dl_row { 5 } else { 7 };  // DL行は青
         let label_size = if is_dl_row { text_height * 0.9 } else { text_height * 0.9 };  // DL行は半分サイズ
         add_text_rotated(&mut drawing, label_width - 1200.0, y, &label_text,
-            label_size, label_color, "TEXT", TextAlign::Right, VerticalAlign::Bottom, 0.0);
+            label_size, label_color, "TEXT", HAlign::Right, VAlign::Bottom, 0.0);
 
         // 標高ラベル（右側）
         add_text_rotated(&mut drawing, label_width + graph_width + 1200.0, y, &format!("{:.0}", elev),
-            text_height * 0.9, 7, "TEXT", TextAlign::Left, VerticalAlign::Bottom, 0.0);
+            text_height * 0.9, 7, "TEXT", HAlign::Left, VAlign::Bottom, 0.0);
         elev += grid_step;
     }
 
@@ -1957,10 +1987,10 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
     let annotation_x = 500.0;  // 左端寄り（×10）
     // 縮尺比率: V:H=5:1
     add_text_rotated(&mut drawing, annotation_x, dl_y + scale_y * 0.8,
-        "V:H=5:1", text_height * 0.8, 5, "ANNOTATION", TextAlign::Left, VerticalAlign::Bottom, 0.0);
+        "V:H=5:1", text_height * 0.8, 5, "ANNOTATION", HAlign::Left, VAlign::Bottom, 0.0);
     // 単位 (m)
     add_text_rotated(&mut drawing, annotation_x, dl_y + scale_y * 1.3,
-        "単位(m)", text_height * 0.8, 7, "TEXT", TextAlign::Left, VerticalAlign::Bottom, 0.0);
+        "単位(m)", text_height * 0.8, 7, "TEXT", HAlign::Left, VAlign::Bottom, 0.0);
 
     // グラフ枠線
     add_line(&mut drawing, label_width, 0.0, label_width + graph_width, 0.0, 7, "TABLE");
@@ -2007,7 +2037,7 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
         } else {
             normal_rows_bottom - station_row_height / 2.0
         };
-        add_text(&mut drawing, label_width / 2.0, y, label, text_height, 7, "TEXT", TextAlign::Center);
+        add_text(&mut drawing, label_width / 2.0, y, label, text_height, 7, "TEXT", HAlign::Center);
     }
 
     // 各測点のデータ
@@ -2037,29 +2067,29 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
                 let slope_y = table_top - 0.0 * row_height - 300.0;
                 let slope_mid_x = (x + to_dxf_x(next.0)) / 2.0;
                 add_text_rotated(&mut drawing, slope_mid_x, slope_y, &slope_str,
-                    text_height * 0.9, 7, "TEXT", TextAlign::Left, VerticalAlign::Bottom, -90.0);
+                    text_height * 0.9, 7, "TEXT", HAlign::Left, VAlign::Bottom, -90.0);
             }
         }
 
         let cell_text_height = text_height * 0.9;
 
         // 各フィールドの左上を基準に配置
-        // -90°回転テキストでは、TextAlign::Left = テキストが上から下に伸びる
-        // VerticalAlign::Bottom = テキストの下端が挿入点
+        // -90°回転テキストでは、HAlign::Left = テキストが上から下に伸びる
+        // VAlign::Bottom = テキストの下端が挿入点
         let top_margin = 300.0;  // セル上端からのマージン（×10）
 
         // 盛土: 行1の上端基準
         if fill > 0.001 {
             let y = table_top - 1.0 * row_height - top_margin;
             add_text_rotated(&mut drawing, x, y, &format!("{:.3}", fill),
-                cell_text_height, 7, "TEXT", TextAlign::Left, VerticalAlign::Bottom, -90.0);
+                cell_text_height, 7, "TEXT", HAlign::Left, VAlign::Bottom, -90.0);
         }
 
         // 切土: 行2の上端基準
         if cut > 0.001 {
             let y = table_top - 2.0 * row_height - top_margin;
             add_text_rotated(&mut drawing, x, y, &format!("{:.3}", cut),
-                cell_text_height, 7, "TEXT", TextAlign::Left, VerticalAlign::Bottom, -90.0);
+                cell_text_height, 7, "TEXT", HAlign::Left, VAlign::Bottom, -90.0);
         }
 
         // FH/GH/追加距離/単距離: 各行の上端基準
@@ -2072,13 +2102,13 @@ pub fn generate_longitudinal_drawing(sections: &[CrossSectionData]) -> Drawing {
         for (row_idx, text) in row_data {
             let y = table_top - row_idx as f64 * row_height - top_margin;
             add_text_rotated(&mut drawing, x, y, &text,
-                cell_text_height, 7, "TEXT", TextAlign::Left, VerticalAlign::Bottom, -90.0);
+                cell_text_height, 7, "TEXT", HAlign::Left, VAlign::Bottom, -90.0);
         }
 
         // 測点名: 測点名行の上端基準
         let station_y = normal_rows_bottom - top_margin;
         add_text_rotated(&mut drawing, x, station_y, name,
-            cell_text_height, 7, "TEXT", TextAlign::Left, VerticalAlign::Bottom, -90.0);
+            cell_text_height, 7, "TEXT", HAlign::Left, VAlign::Bottom, -90.0);
 
         prev_dist = *dist;
     }
@@ -2232,7 +2262,7 @@ pub fn generate_combo_drawing(sections: &[CrossSectionData], columns: usize, col
         let scale_label_x = long_max_x as f64 + spacing * 2.0;
         let scale_label_y = cs_min_y as f64 + cs_y_offset - frame_text_size * frame_scale;
         add_text(&mut drawing, scale_label_x, scale_label_y, "横断図 Scale H=1:100 V=1:200",
-            frame_text_size * frame_scale, 7, "TEXT", TextAlign::Left);
+            frame_text_size * frame_scale, 7, "TEXT", HAlign::Left);
     }
 
     drawing
@@ -2525,7 +2555,7 @@ pub fn generate_area_expansion_drawing(sections: &[CrossSectionData], show_stati
         let mid_x = (x1 + x2) / 2.0;
         let extension = (stations[i + 1].dist - stations[i].dist).abs();
         let text = format!("{:.1}", extension);
-        add_text(&mut drawing, mid_x, text_height * 0.5, &text, text_height, 7, "TENKAI_DIM", TextAlign::Center);
+        add_text(&mut drawing, mid_x, text_height * 0.5, &text, text_height, 7, "TENKAI_DIM", HAlign::Center);
     }
 
     // 幅員寸法（-90°回転、幅員線の外側）
@@ -2537,7 +2567,7 @@ pub fn generate_area_expansion_drawing(sections: &[CrossSectionData], show_stati
             let y_text = station.wl * scale_y + station_text_offset;
             let text = format!("{:.2}", station.wl);
             add_text_rotated(&mut drawing, x, y_text, &text, text_height,
-                7, "TENKAI_DIM", TextAlign::Left, VerticalAlign::Top, -90.0);
+                7, "TENKAI_DIM", HAlign::Left, VAlign::Top, -90.0);
         }
 
         // 右幅員（下側外側に配置）
@@ -2545,7 +2575,7 @@ pub fn generate_area_expansion_drawing(sections: &[CrossSectionData], show_stati
             let y_text = -station.wr * scale_y - station_text_offset;
             let text = format!("{:.2}", station.wr);
             add_text_rotated(&mut drawing, x, y_text, &text, text_height,
-                7, "TENKAI_DIM", TextAlign::Right, VerticalAlign::Top, -90.0);
+                7, "TENKAI_DIM", HAlign::Right, VAlign::Top, -90.0);
         }
     }
 
@@ -2566,7 +2596,7 @@ pub fn generate_area_expansion_drawing(sections: &[CrossSectionData], show_stati
             add_line(&mut drawing, x, underline_y1, x, underline_y2, 5, "TENKAI_STATION");
             // 測点名テキスト（アンダーラインの右側）
             add_text_rotated(&mut drawing, x, y_name_base, &station.name, text_height * 1.2,
-                5, "TENKAI_STATION", TextAlign::Left, VerticalAlign::Bottom, -90.0);
+                5, "TENKAI_STATION", HAlign::Left, VAlign::Bottom, -90.0);
         }
     }
 
@@ -2585,22 +2615,6 @@ pub fn generate_area_expansion_dxf_bytes(sections: &[CrossSectionData]) -> Vec<u
 // ============================================================================
 // DXF Renderer
 // ============================================================================
-
-/// ACI色番号からColor32に変換（白背景用）
-fn aci_to_color32(aci: i16) -> Color32 {
-    match aci {
-        1 => Color32::from_rgb(255, 0, 0),      // 赤
-        2 => Color32::from_rgb(255, 255, 0),    // 黄
-        3 => Color32::from_rgb(0, 255, 0),      // 緑
-        4 => Color32::from_rgb(0, 255, 255),    // シアン
-        5 => Color32::from_rgb(0, 0, 255),      // 青
-        6 => Color32::from_rgb(255, 0, 255),    // マゼンタ
-        7 => Color32::from_rgb(0, 0, 0),        // 黒（白背景用）
-        8 => Color32::from_rgb(128, 128, 128),  // グレー
-        9 => Color32::from_rgb(192, 192, 192),  // ライトグレー
-        _ => Color32::from_rgb(100, 100, 100),
-    }
-}
 
 #[derive(Clone)]
 pub struct DxfViewState {
@@ -2643,6 +2657,16 @@ impl DxfViewState {
             self.canvas_rect.width() / 2.0 - center_x * self.zoom,
             self.canvas_rect.height() / 2.0 + center_y * self.zoom,
         );
+    }
+}
+
+impl From<&DxfViewState> for IrViewState {
+    fn from(state: &DxfViewState) -> Self {
+        IrViewState {
+            zoom: state.zoom,
+            pan: state.pan,
+            canvas_rect: state.canvas_rect,
+        }
     }
 }
 
@@ -2736,103 +2760,6 @@ fn calc_dxf_bounds(drawing: &Drawing) -> (f32, f32, f32, f32) {
     } else {
         // マージンなしで返す（レイアウト計算用にタイトなバウンドが必要）
         (min_x, min_y, max_x, max_y)
-    }
-}
-
-fn render_dxf(painter: &Painter, drawing: &Drawing, view: &DxfViewState) {
-    for entity in drawing.entities() {
-        let color_index = match entity.common.color.index() {
-            Some(idx) => idx as i16,
-            None => 7,
-        };
-        let color = aci_to_color32(color_index);
-
-        match &entity.specific {
-            EntityType::Line(line) => {
-                let p1 = view.dxf_to_screen(line.p1.x, line.p1.y);
-                let p2 = view.dxf_to_screen(line.p2.x, line.p2.y);
-                painter.line_segment([p1, p2], Stroke::new(1.5, color));
-            }
-            EntityType::Text(text) => {
-                let base_pos = view.dxf_to_screen(text.location.x, text.location.y);
-                // DXF text_heightはCAD用に補正済み（×1.364）なので、egui表示用に逆補正
-                let font_size = (text.text_height as f32 / font_metrics::SCALE_FOR_CAP_HEIGHT as f32 * view.zoom).max(1.0);
-                let font = egui::FontId::proportional(font_size);
-
-                // Galleyを取得
-                let galley = painter.layout_no_wrap(text.value.clone(), font, color);
-                let text_width = galley.rect.width();
-                let text_height = galley.rect.height();
-
-                // アライメントに基づくオフセット計算（回転前の座標系で）
-                let offset_x = match text.horizontal_text_justification {
-                    HorizontalTextJustification::Left => 0.0,
-                    HorizontalTextJustification::Center => -text_width / 2.0,
-                    HorizontalTextJustification::Right => -text_width,
-                    _ => 0.0,
-                };
-                let offset_y = match text.vertical_text_justification {
-                    VerticalTextJustification::Baseline => -text_height,
-                    VerticalTextJustification::Bottom => -text_height,
-                    VerticalTextJustification::Middle => -text_height / 2.0,
-                    VerticalTextJustification::Top => 0.0,
-                };
-
-                // 回転角度（テキストの頭が右向き=測点進行方向）
-                let angle_rad = -(text.rotation as f32).to_radians();
-
-                // オフセットを回転させる（回転後の描画位置を計算）
-                let cos_a = angle_rad.cos();
-                let sin_a = angle_rad.sin();
-                let rotated_offset_x = offset_x * cos_a - offset_y * sin_a;
-                let rotated_offset_y = offset_x * sin_a + offset_y * cos_a;
-
-                let pos = Pos2::new(
-                    base_pos.x + rotated_offset_x,
-                    base_pos.y + rotated_offset_y
-                );
-
-                let text_shape = egui::epaint::TextShape {
-                    pos,
-                    galley,
-                    underline: egui::Stroke::NONE,
-                    fallback_color: color,
-                    override_text_color: Some(color),
-                    opacity_factor: 1.0,
-                    angle: angle_rad,
-                };
-                painter.add(egui::Shape::Text(text_shape));
-            }
-            EntityType::RotatedDimension(dim) => {
-                let p2 = &dim.definition_point_2;
-                let p3 = &dim.definition_point_3;
-                let ins = &dim.insertion_point;
-                let text_pt = &dim.dimension_base.text_mid_point;
-
-                let dim_y = ins.y;
-                let left_x = p2.x.min(p3.x);
-                let right_x = p2.x.max(p3.x);
-                let dim_left = view.dxf_to_screen(left_x, dim_y);
-                let dim_right = view.dxf_to_screen(right_x, dim_y);
-                painter.line_segment([dim_left, dim_right], Stroke::new(1.0, color));
-
-                let ext1_bottom = view.dxf_to_screen(p2.x, p2.y);
-                let ext1_top = view.dxf_to_screen(p2.x, dim_y + 50.0);
-                painter.line_segment([ext1_bottom, ext1_top], Stroke::new(0.8, color));
-
-                let ext2_bottom = view.dxf_to_screen(p3.x, p3.y);
-                let ext2_top = view.dxf_to_screen(p3.x, dim_y + 50.0);
-                painter.line_segment([ext2_bottom, ext2_top], Stroke::new(0.8, color));
-
-                let distance = (p3.x - p2.x).abs();
-                let text_pos = view.dxf_to_screen(text_pt.x, text_pt.y);
-                let font_size = 150.0 * view.zoom;
-                let font = egui::FontId::proportional(font_size);
-                painter.text(text_pos, egui::Align2::CENTER_CENTER,
-                    &format!("{:.2}", distance / 1000.0), font, color);
-            }
-            _ => {}
-        }
     }
 }
 
@@ -4464,7 +4391,9 @@ impl eframe::App for CrossSectionApp {
             }
 
             if let Some(ref drawing) = self.dxf_drawing {
-                render_dxf(&painter, drawing, &self.dxf_view_state);
+                let content = DrawingContent::from_drawing(drawing);
+                let view: IrViewState = (&self.dxf_view_state).into();
+                content.render_egui(&painter, &view);
 
                 // ズームセンター（マウス位置）にレティクル描画
                 if let Some(mouse_pos) = response.hover_pos() {
@@ -4955,6 +4884,8 @@ mod tests {
             ],
             route_distance: None,
             route_id: "route_1".to_string(),
+            is_route_start: false,
+            is_route_end: false,
         }
     }
 
@@ -5017,5 +4948,128 @@ mod tests {
         // 1:50だと収まらない（幅120mm、高さ111mm）
         // 有効高さ227mmあるので収まる可能性
         // 実際のテストはデータ次第
+    }
+
+    // ========================================================================
+    // build_section_content tests
+    // ========================================================================
+
+    /// Helper to create test section data for build_section_content tests
+    fn make_test_section_for_content() -> CrossSectionData {
+        let survey_data = vec![
+            SurveyRow {
+                unit_distance: 0.0,
+                elevation: 10.0,
+                planned_height: 10.05,
+                cumulative_distance: -3.0,
+                cutting_bottom: 9.95,
+            },
+            SurveyRow {
+                unit_distance: 3.0,
+                elevation: 10.1,
+                planned_height: 10.1,
+                cumulative_distance: 0.0,
+                cutting_bottom: 10.0,
+            },
+            SurveyRow {
+                unit_distance: 3.0,
+                elevation: 10.0,
+                planned_height: 10.05,
+                cumulative_distance: 3.0,
+                cutting_bottom: 9.95,
+            },
+        ];
+
+        CrossSectionData {
+            survey_point_name: "No.1".to_string(),
+            dl: 9.0,
+            cl_index: 1,
+            l_to_cl_distance: 3.0,
+            survey_data,
+            route_distance: None,
+            route_id: "route_1".to_string(),
+            is_route_start: false,
+            is_route_end: false,
+        }
+    }
+
+    #[test]
+    fn test_build_section_content_basic() {
+        // Create a simple CrossSectionData and verify build_section_content returns a non-empty DrawingContent
+        let section = make_test_section_for_content();
+        let offset_x = 0.0;
+        let offset_y = 0.0;
+        let scale = 1000.0;  // 1m = 1000 DXF units
+        let style = SectionStyle::default();
+
+        let content = build_section_content(&section, offset_x, offset_y, scale, &style);
+
+        // Check that primitives.len() > 0
+        assert!(content.primitives.len() > 0, "DrawingContent should have primitives");
+
+        // Check that there are both Line and Text primitives
+        let has_lines = content.primitives.iter().any(|p| matches!(p, DrawPrimitive::Line(_)));
+        let has_texts = content.primitives.iter().any(|p| matches!(p, DrawPrimitive::Text(_)));
+
+        assert!(has_lines, "DrawingContent should contain Line primitives");
+        assert!(has_texts, "DrawingContent should contain Text primitives");
+    }
+
+    #[test]
+    fn test_build_section_content_has_lines() {
+        // Verify the content includes ground, plan, and cutting lines
+        let section = make_test_section_for_content();
+        let content = build_section_content(&section, 0.0, 0.0, 1000.0, &SectionStyle::default());
+
+        // Count Line primitives
+        let line_count = content.primitives.iter()
+            .filter(|p| matches!(p, DrawPrimitive::Line(_)))
+            .count();
+
+        // Verify at least 3 lines exist (GROUND, PLAN, CUTTING)
+        // In practice, there will be many more lines (grid lines, dimension lines, etc.)
+        assert!(line_count >= 3,
+            "Expected at least 3 lines (GROUND, PLAN, CUTTING), found {}", line_count);
+
+        // Check that lines exist on expected layers
+        let layers: Vec<&str> = content.primitives.iter()
+            .filter_map(|p| match p {
+                DrawPrimitive::Line(line) => Some(line.layer.as_str()),
+                _ => None,
+            })
+            .collect();
+
+        // GROUND, PLAN, CUTTING layers should be present
+        assert!(layers.iter().any(|&l| l == "GROUND"), "Should have GROUND layer lines");
+        assert!(layers.iter().any(|&l| l == "PLAN"), "Should have PLAN layer lines");
+        assert!(layers.iter().any(|&l| l == "CUTTING"), "Should have CUTTING layer lines");
+    }
+
+    #[test]
+    fn test_build_section_content_has_labels() {
+        // Verify the content includes text labels
+        let section = make_test_section_for_content();
+        let content = build_section_content(&section, 0.0, 0.0, 1000.0, &SectionStyle::default());
+
+        // Count Text primitives
+        let text_count = content.primitives.iter()
+            .filter(|p| matches!(p, DrawPrimitive::Text(_)))
+            .count();
+
+        // Verify there are text labels
+        assert!(text_count > 0, "Expected text labels in DrawingContent, found none");
+
+        // Collect all text values
+        let texts: Vec<&str> = content.primitives.iter()
+            .filter_map(|p| match p {
+                DrawPrimitive::Text(text) => Some(text.text.as_str()),
+                _ => None,
+            })
+            .collect();
+
+        // Verify survey point name exists in the labels
+        let has_survey_point_name = texts.iter().any(|&t| t.contains("No.1"));
+        assert!(has_survey_point_name,
+            "Expected survey point name 'No.1' in text labels. Found texts: {:?}", texts);
     }
 }
