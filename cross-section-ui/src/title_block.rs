@@ -680,7 +680,7 @@ fn draw_available_area_guide(
 /// TitleBlockInfoからDrawingContentを生成
 pub fn build_title_block_content(info: &TitleBlockInfo) -> DrawingContent {
     let mut content = DrawingContent::new();
-    let text_size = 3.0; // 固定テキストサイズ (mm)
+    let text_size = 4.0; // 固定テキストサイズ (mm)
 
     // 外枠（A3用紙端）と内枠
     build_outer_frame_content(&mut content);
