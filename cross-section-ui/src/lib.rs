@@ -1491,6 +1491,396 @@ pub fn generate_multi_dxf_bytes_with_frame_at_scale(
 }
 
 // ============================================================================
+// Dekigata Management Sheet (出来形管理用紙)
+// ============================================================================
+
+/// 出来形管理用紙のデフォルト切削厚（mm）
+const DEKIGATA_DEFAULT_CUTTING_THICKNESS_MM: f64 = 50.0;
+
+/// 出来形管理用紙の縮尺（1:50固定）
+const DEKIGATA_SCALE: f64 = 50.0;
+
+/// 出来形管理表のセル高さ（mm）
+const DEKIGATA_TABLE_ROW_HEIGHT_MM: f64 = 8.0;
+
+/// 出来形管理表のヘッダー列幅（mm）
+const DEKIGATA_TABLE_HEADER_WIDTH_MM: f64 = 25.0;
+
+/// 出来形管理表のデータ列幅（mm）
+const DEKIGATA_TABLE_DATA_WIDTH_MM: f64 = 18.0;
+
+/// 出来形管理表のテキストサイズ（mm）
+const DEKIGATA_TABLE_TEXT_SIZE_MM: f64 = 2.5;
+
+/// 単一測点の出来形管理用紙を描画
+///
+/// # Arguments
+/// * `drawing` - DXFドローイング
+/// * `section` - 横断データ
+/// * `origin_x` - 原点X座標（DXF単位）
+/// * `origin_y` - 原点Y座標（DXF単位）
+/// * `frame_scale` - 図枠スケール（1:50なら50.0）
+fn draw_dekigata_page(
+    drawing: &mut Drawing,
+    section: &CrossSectionData,
+    origin_x: f64,
+    origin_y: f64,
+    frame_scale: f64,
+) {
+    let data = &section.survey_data;
+    if data.len() < 2 { return; }
+
+    // A3用紙の有効領域（mm単位）
+    // 上部: 横断図、下部: 出来形管理表
+    let table_height_mm = DEKIGATA_TABLE_ROW_HEIGHT_MM * 5.0;  // 5行（ヘッダー + 4データ行）
+    let table_bottom_margin_mm = 60.0;  // タイトル枠の上
+
+    // 横断図の描画領域（上部）
+    let cross_section_bottom_mm = table_bottom_margin_mm + table_height_mm + 10.0;
+    let cross_section_top_mm = 261.0;  // 上部タイトル下端
+    let cross_section_height_mm = cross_section_top_mm - cross_section_bottom_mm;
+
+    // 横断図の描画
+    let scale = 1000.0;  // 1m = 1000 DXF単位
+    let y_scale = scale * 2.0;  // 縦方向は2倍
+
+    // 横断図のサイズを計算
+    let l_data = &data[0];
+    let r_data = &data[data.len() - 1];
+    let cl_data = &data[section.cl_index.min(data.len() - 1)];
+    let total_width_m = (r_data.cumulative_distance - l_data.cumulative_distance).abs();
+    let max_elev = data.iter().map(|d| d.elevation.max(d.planned_height)).fold(f64::MIN, f64::max);
+    let min_elev = data.iter().map(|d| d.elevation.min(d.planned_height).min(d.cutting_bottom)).fold(f64::MAX, f64::min);
+    let dl = round_dl(section.dl);
+    let height_range_m = (max_elev - dl + 2.0);  // 旗揚げ分のマージン
+
+    // 横断図のDXF単位でのサイズ
+    let cross_section_width_dxf = total_width_m * scale;
+    let cross_section_height_dxf = height_range_m * y_scale;
+
+    // 横断図を配置する中心位置（図枠内の中央上部）
+    let frame_center_x_mm = 210.0;  // A3幅の中央
+    let cross_section_center_y_mm = cross_section_bottom_mm + cross_section_height_mm / 2.0;
+
+    // 横断図のCLを中心に配置
+    let cl_offset = cl_data.cumulative_distance;
+    let offset_x = origin_x + (frame_center_x_mm * frame_scale) - (cl_offset * scale);
+    let offset_y = origin_y + (cross_section_bottom_mm * frame_scale);
+
+    // 横断図を描画（draw_section_at_offsetと同様のロジック）
+    draw_dekigata_cross_section(drawing, section, offset_x, offset_y, scale);
+
+    // 出来形管理表を描画
+    let table_x = origin_x + 15.0 * frame_scale;  // 左マージン15mm
+    let table_y = origin_y + table_bottom_margin_mm * frame_scale;
+    draw_dekigata_table(drawing, section, table_x, table_y, frame_scale);
+}
+
+/// 出来形管理用紙用の横断図を描画
+fn draw_dekigata_cross_section(
+    drawing: &mut Drawing,
+    section: &CrossSectionData,
+    offset_x: f64,
+    offset_y: f64,
+    scale: f64,
+) {
+    let data = &section.survey_data;
+    let dl = round_dl(section.dl);
+    let to_dxf_x = |d: f64| offset_x + d * scale;
+    let y_scale = scale * 2.0;
+    let to_dxf_y = |h: f64| offset_y + (h - dl) * y_scale;
+
+    let l_data = &data[0];
+    let cl_data = &data[section.cl_index.min(data.len() - 1)];
+    let r_data = &data[data.len() - 1];
+
+    // 地盤線・計画線・切削底面線を描画
+    for i in 0..data.len() - 1 {
+        add_line(drawing, to_dxf_x(data[i].cumulative_distance), to_dxf_y(data[i].elevation),
+            to_dxf_x(data[i + 1].cumulative_distance), to_dxf_y(data[i + 1].elevation), 7, "GROUND");
+        add_line(drawing, to_dxf_x(data[i].cumulative_distance), to_dxf_y(data[i].planned_height),
+            to_dxf_x(data[i + 1].cumulative_distance), to_dxf_y(data[i + 1].planned_height), 1, "PLAN");
+        add_line(drawing, to_dxf_x(data[i].cumulative_distance), to_dxf_y(data[i].cutting_bottom),
+            to_dxf_x(data[i + 1].cumulative_distance), to_dxf_y(data[i + 1].cutting_bottom), 5, "CUTTING");
+    }
+
+    let text_height = 300.0;
+    let pointer_size = 150.0;
+    let pointer_offset = 500.0;
+
+    // 測点ポインター（V1, V2...）
+    for (i, pt) in data.iter().enumerate() {
+        let x = to_dxf_x(pt.cumulative_distance);
+        let y = to_dxf_y(pt.planned_height);
+        let top_y = y + pointer_size;
+        let half_w = pointer_size * 0.6;
+        add_line(drawing, x - half_w, top_y, x + half_w, top_y, 5, "CUTTING");
+        add_line(drawing, x - half_w, top_y, x, y, 5, "CUTTING");
+        add_line(drawing, x + half_w, top_y, x, y, 5, "CUTTING");
+        let label = format!("V{}", i + 1);
+        add_text(drawing, x, top_y + 300.0, &label, text_height, 5, "CUTTING", TextAlign::Center);
+    }
+
+    // 測点名・GH・FH表示
+    let cl_ground_y = to_dxf_y(cl_data.elevation);
+    let flag_y = cl_ground_y + 1600.0;
+    let l_x = to_dxf_x(l_data.cumulative_distance);
+    let cl_x = to_dxf_x(cl_data.cumulative_distance);
+    let r_x = to_dxf_x(r_data.cumulative_distance);
+
+    add_text(drawing, cl_x, flag_y + 1300.0, &section.survey_point_name, text_height * 1.5, 7, "TEXT", TextAlign::Center);
+    add_text_with_mask(drawing, cl_x, flag_y + 800.0, &format!("GH={:.3}", cl_data.elevation), text_height, 7, "TEXT", TextAlign::Center);
+    add_text_with_mask(drawing, cl_x, flag_y + 400.0, &format!("FH={:.3}", cl_data.planned_height), text_height, 1, "PLAN", TextAlign::Center);
+
+    let l_ground_y = to_dxf_y(l_data.elevation);
+    add_text_with_mask(drawing, l_x, l_ground_y + 800.0 + pointer_offset, &format!("GH={:.3}", l_data.elevation), text_height, 7, "TEXT", TextAlign::Left);
+    add_text_with_mask(drawing, l_x, l_ground_y + 400.0 + pointer_offset, &format!("FH={:.3}", l_data.planned_height), text_height, 1, "PLAN", TextAlign::Left);
+
+    let r_ground_y = to_dxf_y(r_data.elevation);
+    add_text_with_mask(drawing, r_x, r_ground_y + 800.0 + pointer_offset, &format!("GH={:.3}", r_data.elevation), text_height, 7, "TEXT", TextAlign::Right);
+    add_text_with_mask(drawing, r_x, r_ground_y + 400.0 + pointer_offset, &format!("FH={:.3}", r_data.planned_height), text_height, 1, "PLAN", TextAlign::Right);
+
+    // DLライン
+    add_line(drawing, l_x, to_dxf_y(dl), r_x, to_dxf_y(dl), 8, "DIMENSION");
+    add_text_rotated(drawing, cl_x, to_dxf_y(dl),
+        &format!("DL={:.3}  Scale:H1:V2", dl), text_height * 0.5, 8, "TEXT",
+        TextAlign::Left, VerticalAlign::Bottom, 0.0);
+}
+
+/// 出来形管理表を描画
+fn draw_dekigata_table(
+    drawing: &mut Drawing,
+    section: &CrossSectionData,
+    table_x: f64,
+    table_y: f64,
+    frame_scale: f64,
+) {
+    let data = &section.survey_data;
+    let num_points = data.len();
+
+    let row_height = DEKIGATA_TABLE_ROW_HEIGHT_MM * frame_scale;
+    let header_width = DEKIGATA_TABLE_HEADER_WIDTH_MM * frame_scale;
+    let data_width = DEKIGATA_TABLE_DATA_WIDTH_MM * frame_scale;
+    let text_size = DEKIGATA_TABLE_TEXT_SIZE_MM * frame_scale;
+
+    let total_width = header_width + data_width * num_points as f64;
+    let total_height = row_height * 5.0;  // 5行
+
+    // 外枠を描画
+    add_line(drawing, table_x, table_y, table_x + total_width, table_y, 7, "DEKIGATA");
+    add_line(drawing, table_x, table_y + total_height, table_x + total_width, table_y + total_height, 7, "DEKIGATA");
+    add_line(drawing, table_x, table_y, table_x, table_y + total_height, 7, "DEKIGATA");
+    add_line(drawing, table_x + total_width, table_y, table_x + total_width, table_y + total_height, 7, "DEKIGATA");
+
+    // 横線（行の区切り）
+    for i in 1..5 {
+        let y = table_y + row_height * i as f64;
+        add_line(drawing, table_x, y, table_x + total_width, y, 7, "DEKIGATA");
+    }
+
+    // ヘッダー列の縦線
+    add_line(drawing, table_x + header_width, table_y, table_x + header_width, table_y + total_height, 7, "DEKIGATA");
+
+    // データ列の縦線
+    for i in 1..num_points {
+        let x = table_x + header_width + data_width * i as f64;
+        add_line(drawing, x, table_y, x, table_y + total_height, 7, "DEKIGATA");
+    }
+
+    // ヘッダーラベル（上から下へ: V1-Vn, 計画高(設計), 計画高(実測), 切削高(設計), 切削高(実測)）
+    let row_labels = ["", "計画高\n（設計）", "計画高\n（実測）", "切削高\n（設計）", "切削高\n（実測）"];
+    for (i, label) in row_labels.iter().enumerate() {
+        if !label.is_empty() {
+            let y = table_y + total_height - row_height * (i as f64 + 0.5);
+            // 2行に分割されている場合は中央に1行目を表示
+            let lines: Vec<&str> = label.split('\n').collect();
+            if lines.len() == 2 {
+                add_text(drawing, table_x + header_width / 2.0, y + text_size * 0.6, lines[0], text_size, 7, "DEKIGATA", TextAlign::Center);
+                add_text(drawing, table_x + header_width / 2.0, y - text_size * 0.6, lines[1], text_size, 7, "DEKIGATA", TextAlign::Center);
+            } else {
+                add_text(drawing, table_x + header_width / 2.0, y, *label, text_size, 7, "DEKIGATA", TextAlign::Center);
+            }
+        }
+    }
+
+    // 測点ヘッダー（V1, V2, ...）とデータ
+    for (col, pt) in data.iter().enumerate() {
+        let col_center_x = table_x + header_width + data_width * (col as f64 + 0.5);
+
+        // 測点ラベル（最上行）
+        let v_label = format!("V{}", col + 1);
+        let header_y = table_y + total_height - row_height * 0.5;
+        add_text(drawing, col_center_x, header_y, &v_label, text_size, 5, "DEKIGATA", TextAlign::Center);
+
+        // 計画高（設計）
+        let design_fh_y = table_y + total_height - row_height * 1.5;
+        add_text(drawing, col_center_x, design_fh_y, &format!("{:.3}", pt.planned_height), text_size, 7, "DEKIGATA", TextAlign::Center);
+
+        // 計画高（実測）- 空欄 + 括弧
+        let actual_fh_y = table_y + total_height - row_height * 2.5;
+        add_text(drawing, col_center_x + data_width * 0.3, actual_fh_y, "(  )", text_size * 0.8, 7, "DEKIGATA", TextAlign::Right);
+
+        // 切削高（設計）= 計画高 - 切削厚
+        let design_cutting = pt.planned_height - DEKIGATA_DEFAULT_CUTTING_THICKNESS_MM / 1000.0;
+        let design_cut_y = table_y + total_height - row_height * 3.5;
+        add_text(drawing, col_center_x, design_cut_y, &format!("{:.3}", design_cutting), text_size, 7, "DEKIGATA", TextAlign::Center);
+
+        // 切削高（実測）- 空欄 + 括弧
+        let actual_cut_y = table_y + total_height - row_height * 4.5;
+        add_text(drawing, col_center_x + data_width * 0.3, actual_cut_y, "(  )", text_size * 0.8, 7, "DEKIGATA", TextAlign::Right);
+    }
+}
+
+/// 単一測点の出来形管理用紙のDrawingを生成
+pub fn generate_dekigata_drawing(section: &CrossSectionData, title_info: &TitleBlockInfo) -> Drawing {
+    let mut drawing = new_drawing();
+
+    // レイヤー作成
+    drawing.add_layer(dxf::tables::Layer {
+        name: "GROUND".to_string(),
+        color: Color::from_index(7),
+        ..Default::default()
+    });
+    drawing.add_layer(dxf::tables::Layer {
+        name: "PLAN".to_string(),
+        color: Color::from_index(1),
+        ..Default::default()
+    });
+    drawing.add_layer(dxf::tables::Layer {
+        name: "TEXT".to_string(),
+        color: Color::from_index(7),
+        ..Default::default()
+    });
+    drawing.add_layer(dxf::tables::Layer {
+        name: "DIMENSION".to_string(),
+        color: Color::from_index(8),
+        ..Default::default()
+    });
+    drawing.add_layer(dxf::tables::Layer {
+        name: "CUTTING".to_string(),
+        color: Color::from_index(5),
+        ..Default::default()
+    });
+    drawing.add_layer(dxf::tables::Layer {
+        name: "DEKIGATA".to_string(),
+        color: Color::from_index(7),
+        ..Default::default()
+    });
+
+    let frame_scale = DEKIGATA_SCALE;
+    const TEXT_SIZE_MM: f64 = 3.0;
+
+    // 図枠を描画
+    draw_drawing_frame(&mut drawing, title_info, 0.0, 0.0, frame_scale, TEXT_SIZE_MM);
+
+    // 出来形管理用紙の内容を描画
+    draw_dekigata_page(&mut drawing, section, 0.0, 0.0, frame_scale);
+
+    drawing
+}
+
+/// 整数測点かどうかを判定（"+"を含む中間測点を除外）
+fn is_integer_station(name: &str) -> bool {
+    !name.contains('+')
+}
+
+/// 全測点の出来形管理用紙を縦並びで生成
+/// 中間測点（No.1+10など）は除外
+pub fn generate_all_dekigata_pages(
+    all_sections: &[CrossSectionData],
+    base_title_info: &TitleBlockInfo,
+    drawing_number_base: &str,
+) -> Drawing {
+    let mut drawing = new_drawing();
+
+    // レイヤー作成
+    drawing.add_layer(dxf::tables::Layer {
+        name: "GROUND".to_string(),
+        color: Color::from_index(7),
+        ..Default::default()
+    });
+    drawing.add_layer(dxf::tables::Layer {
+        name: "PLAN".to_string(),
+        color: Color::from_index(1),
+        ..Default::default()
+    });
+    drawing.add_layer(dxf::tables::Layer {
+        name: "TEXT".to_string(),
+        color: Color::from_index(7),
+        ..Default::default()
+    });
+    drawing.add_layer(dxf::tables::Layer {
+        name: "DIMENSION".to_string(),
+        color: Color::from_index(8),
+        ..Default::default()
+    });
+    drawing.add_layer(dxf::tables::Layer {
+        name: "CUTTING".to_string(),
+        color: Color::from_index(5),
+        ..Default::default()
+    });
+    drawing.add_layer(dxf::tables::Layer {
+        name: "DEKIGATA".to_string(),
+        color: Color::from_index(7),
+        ..Default::default()
+    });
+
+    // 整数測点のみをフィルタ
+    let filtered_sections: Vec<&CrossSectionData> = all_sections
+        .iter()
+        .filter(|s| is_integer_station(&s.survey_point_name))
+        .collect();
+
+    if filtered_sections.is_empty() {
+        return drawing;
+    }
+
+    let frame_scale = DEKIGATA_SCALE;
+    let page_height_dxf = 297.0 * frame_scale;  // A3高さ
+    const PAGE_GAP_MM: f64 = 10.0;
+    let page_gap_dxf = PAGE_GAP_MM * frame_scale;
+    const TEXT_SIZE_MM: f64 = 3.0;
+
+    let total_pages = filtered_sections.len();
+
+    for (page_idx, section) in filtered_sections.iter().enumerate() {
+        let page_offset_y = (page_idx as f64) * (page_height_dxf + page_gap_dxf);
+
+        // 図面番号を更新
+        let drawing_number = if drawing_number_base.is_empty() {
+            format!("{}/{}", page_idx + 1, total_pages)
+        } else {
+            format!("{}-{}/{}", drawing_number_base, page_idx + 1, total_pages)
+        };
+
+        let info = base_title_info.clone()
+            .with_top_title("出来形管理用紙")
+            .with_scale(&format!("1:{} (A3)", DEKIGATA_SCALE as u32))
+            .with_drawing_number(&drawing_number);
+
+        // 図枠を描画
+        draw_drawing_frame(&mut drawing, &info, 0.0, page_offset_y, frame_scale, TEXT_SIZE_MM);
+
+        // 出来形管理用紙の内容を描画
+        draw_dekigata_page(&mut drawing, section, 0.0, page_offset_y, frame_scale);
+    }
+
+    drawing
+}
+
+/// 全測点の出来形管理用紙をDXFバイト配列として生成
+pub fn generate_all_dekigata_dxf_bytes(
+    all_sections: &[CrossSectionData],
+    base_title_info: &TitleBlockInfo,
+    drawing_number_base: &str,
+) -> Vec<u8> {
+    let drawing = generate_all_dekigata_pages(all_sections, base_title_info, drawing_number_base);
+    let mut output: Vec<u8> = Vec::new();
+    drawing.save(&mut output).expect("Failed to save DXF");
+    output
+}
+
+// ============================================================================
 // Longitudinal Profile (縦断図)
 // ============================================================================
 
@@ -2252,6 +2642,7 @@ pub fn generate_area_expansion_dxf_bytes(sections: &[CrossSectionData]) -> Vec<u
 }
 
 // ============================================================================
+// ============================================================================
 // DXF Renderer
 // ============================================================================
 
@@ -2931,6 +3322,7 @@ enum ViewMode {
     Longitudinal, // 縦断図
     Combo,       // 縦断図＋全横断図
     AreaExpansion, // 面積展開図
+    Dekigata,    // 出来形管理用紙
     AlignTest,   // アライメントテスト
     TitleBlock,  // タイトル枠テスト
 }
@@ -3106,6 +3498,14 @@ impl CrossSectionApp {
             .collect()
     }
 
+    /// 出来形管理用紙用: 整数測点のみをフィルタ（「+」を含む中間測点は除外）
+    fn dekigata_filtered_sections(&self) -> Vec<&CrossSectionData> {
+        self.sections.iter()
+            .filter(|s| s.route_id == self.selected_route)
+            .filter(|s| !s.survey_point_name.contains('+'))
+            .collect()
+    }
+
     /// 現在のページに表示するセクションを返す
     fn current_page_sections(&self) -> Vec<&CrossSectionData> {
         let filtered = self.filtered_sections();
@@ -3229,6 +3629,26 @@ impl CrossSectionApp {
             }
             ViewMode::AreaExpansion if !filtered.is_empty() => {
                 generate_area_expansion_drawing(&filtered, true)
+            }
+            ViewMode::Dekigata => {
+                // 整数測点のみフィルタ（中間測点は除外）
+                let dekigata_sections: Vec<CrossSectionData> = self.dekigata_filtered_sections()
+                    .into_iter().cloned().collect();
+                if !dekigata_sections.is_empty() {
+                    let info = TitleBlockInfo::new()
+                        .with_project_name(&self.project_name)
+                        .with_drawing_type("出来形管理用紙")
+                        .with_route_name(&self.route_name)
+                        .with_author(&self.author)
+                        .with_date(&self.date)
+                        .with_top_title("出来形管理用紙")
+                        .with_scale("1:50 (A3)")
+                        .with_debug_markers(self.show_debug_guides);
+                    // プレビュー用: 最初のページのみ表示
+                    generate_dekigata_drawing(&dekigata_sections[0], &info)
+                } else {
+                    return;
+                }
             }
             ViewMode::Single if !filtered.is_empty() => {
                 // 全横断図を生成し、選択した横断図の位置にフィット
@@ -3404,6 +3824,7 @@ impl eframe::App for CrossSectionApp {
                             ViewMode::AllGrid => "全横断",
                             ViewMode::Longitudinal => "縦断",
                             ViewMode::AreaExpansion => "展開図",
+                            ViewMode::Dekigata => "出来形",
                             ViewMode::AlignTest => "テスト",
                             ViewMode::TitleBlock => "図枠",
                         };
@@ -3427,6 +3848,9 @@ impl eframe::App for CrossSectionApp {
                                 }
                                 if ui.selectable_label(self.view_mode == ViewMode::AreaExpansion, "面積展開図").clicked() {
                                     selected = Some(ViewMode::AreaExpansion);
+                                }
+                                if ui.selectable_label(self.view_mode == ViewMode::Dekigata, "出来形管理用紙").clicked() {
+                                    selected = Some(ViewMode::Dekigata);
                                 }
                                 if ui.selectable_label(self.view_mode == ViewMode::AlignTest, "アライメントテスト").clicked() {
                                     selected = Some(ViewMode::AlignTest);
@@ -3584,6 +4008,24 @@ impl eframe::App for CrossSectionApp {
                                     download_file("area_expansion.dxf", &dxf_content);
                                 }
                             }
+                            ViewMode::Dekigata => {
+                                // 整数測点のみフィルタ（中間測点は除外）
+                                let dekigata_sections: Vec<CrossSectionData> = self.dekigata_filtered_sections()
+                                    .into_iter().cloned().collect();
+                                if !dekigata_sections.is_empty() && ui.button("DXF").clicked() {
+                                    let info = TitleBlockInfo::new()
+                                        .with_project_name(&self.project_name)
+                                        .with_drawing_type("出来形管理用紙")
+                                        .with_route_name(&self.route_name)
+                                        .with_author(&self.author)
+                                        .with_date(&self.date)
+                                        .with_top_title("出来形管理用紙")
+                                        .with_scale("1:50 (A3)")
+                                        .with_debug_markers(false);
+                                    let dxf_content = generate_all_dekigata_dxf_bytes(&dekigata_sections, &info, &self.drawing_number);
+                                    download_file("dekigata.dxf", &dxf_content);
+                                }
+                            }
                             ViewMode::Single => {
                                 if self.selected_index.is_some() && ui.button("DXF").clicked() {
                                     if let Some(idx) = self.selected_index {
@@ -3682,6 +4124,10 @@ impl eframe::App for CrossSectionApp {
                     }
                     if ui.selectable_label(self.view_mode == ViewMode::AreaExpansion, "展開図").clicked() {
                         self.view_mode = ViewMode::AreaExpansion;
+                        self.update_dxf_preview();
+                    }
+                    if ui.selectable_label(self.view_mode == ViewMode::Dekigata, "出来形").clicked() {
+                        self.view_mode = ViewMode::Dekigata;
                         self.update_dxf_preview();
                     }
                     if ui.selectable_label(self.view_mode == ViewMode::TitleBlock, "図枠").clicked() {
@@ -3841,6 +4287,24 @@ impl eframe::App for CrossSectionApp {
                             download_file("area_expansion.dxf", &dxf_content);
                         }
                     }
+                    ViewMode::Dekigata => {
+                        // 整数測点のみフィルタ（中間測点は除外）
+                        let dekigata_sections: Vec<CrossSectionData> = self.dekigata_filtered_sections()
+                            .into_iter().cloned().collect();
+                        if !dekigata_sections.is_empty() && ui.button("Download 出来形 DXF").clicked() {
+                            let info = TitleBlockInfo::new()
+                                .with_project_name(&self.project_name)
+                                .with_drawing_type("出来形管理用紙")
+                                .with_route_name(&self.route_name)
+                                .with_author(&self.author)
+                                .with_date(&self.date)
+                                .with_top_title("出来形管理用紙")
+                                .with_scale("1:50 (A3)")
+                                .with_debug_markers(false);
+                            let dxf_content = generate_all_dekigata_dxf_bytes(&dekigata_sections, &info, &self.drawing_number);
+                            download_file("dekigata.dxf", &dxf_content);
+                        }
+                    }
                     ViewMode::Single => {
                         if let Some(idx) = self.selected_index {
                             if let Some(section) = filtered_for_download.get(idx) {
@@ -3877,6 +4341,10 @@ impl eframe::App for CrossSectionApp {
                     }
                     ViewMode::AreaExpansion => {
                         ui.label(format!("面積展開図 ({}測点)", filtered_count));
+                    }
+                    ViewMode::Dekigata => {
+                        let dekigata_count = self.dekigata_filtered_sections().len();
+                        ui.label(format!("出来形管理用紙 ({}測点/整数のみ)", dekigata_count));
                     }
                     ViewMode::AlignTest => {
                         ui.label("アライメントテスト");
