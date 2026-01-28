@@ -242,7 +242,7 @@ impl eframe::App for CrossSectionApp {
                         }
                     });
 
-                    if self.view_mode == ViewMode::AllGrid || self.view_mode == ViewMode::Combo {
+                    if self.view_mode == ViewMode::AllGrid || self.view_mode == ViewMode::Combo || self.view_mode == ViewMode::Single {
                         ui.horizontal_wrapped(|ui| {
                             // 図枠スケール選択
                             let scale_label = match self.plot_scale {
