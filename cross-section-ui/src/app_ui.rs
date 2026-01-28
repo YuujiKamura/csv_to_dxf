@@ -151,7 +151,12 @@ impl eframe::App for CrossSectionApp {
                         }
 
                         // 測点プルダウン（フィルター済みセクションから選択）
-                        let filtered: Vec<_> = self.filtered_sections();
+                        // 出来形モードでは整数測点のみ表示
+                        let filtered: Vec<_> = if self.view_mode == ViewMode::Dekigata {
+                            self.dekigata_filtered_sections()
+                        } else {
+                            self.filtered_sections()
+                        };
                         let current_name = self.selected_index
                             .and_then(|i| filtered.get(i))
                             .map(|s| s.survey_point_name.as_str())
