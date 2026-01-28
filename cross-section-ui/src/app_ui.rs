@@ -315,6 +315,20 @@ impl eframe::App for CrossSectionApp {
                                 self.recalc_pages();
                                 self.update_dxf_preview();
                             }
+                            ui.separator();
+                            // 縦スケール倍率
+                            ui.label("縦倍率");
+                            let v_scale_options = [1.0, 1.5, 2.0, 2.5, 3.0];
+                            egui::ComboBox::from_id_salt("v_scale_mobile")
+                                .selected_text(format!("{:.1}x", self.v_scale_ratio))
+                                .show_ui(ui, |ui| {
+                                    for &opt in &v_scale_options {
+                                        if ui.selectable_value(&mut self.v_scale_ratio, opt, format!("{:.1}x", opt)).changed() {
+                                            self.recalc_pages();
+                                            self.update_dxf_preview();
+                                        }
+                                    }
+                                });
                             // デバッグガイド表示切替
                             if self.plot_scale.is_some() {
                                 if ui.checkbox(&mut self.show_debug_guides, "ガイド").changed() {
@@ -363,7 +377,7 @@ impl eframe::App for CrossSectionApp {
                                             .with_top_title(&self.drawing_type)
                                             .with_scale(&format!("1:{} (A3)", scale))
                                             .with_debug_markers(false);
-                                        (generate_all_pages_dxf_bytes(&filtered_for_dxf, self.grid_columns, self.column_gap, self.row_gap, scale as f64, &info, &self.drawing_number), "cross_sections.dxf".to_string())
+                                        (generate_all_pages_dxf_bytes(&filtered_for_dxf, self.grid_columns, self.column_gap, self.row_gap, scale as f64, &info, &self.drawing_number, self.v_scale_ratio), "cross_sections.dxf".to_string())
                                     } else {
                                         (generate_multi_dxf_bytes(&filtered_for_dxf, self.grid_columns, self.column_gap, self.row_gap), "cross_sections_all.dxf".to_string())
                                     };
@@ -589,6 +603,20 @@ impl eframe::App for CrossSectionApp {
                             self.recalc_pages();
                             self.update_dxf_preview();
                         }
+                        ui.separator();
+                        // 縦スケール倍率
+                        ui.label("縦倍率");
+                        let v_scale_options = [1.0, 1.5, 2.0, 2.5, 3.0];
+                        egui::ComboBox::from_id_salt("v_scale_desktop")
+                            .selected_text(format!("{:.1}x", self.v_scale_ratio))
+                            .show_ui(ui, |ui| {
+                                for &opt in &v_scale_options {
+                                    if ui.selectable_value(&mut self.v_scale_ratio, opt, format!("{:.1}x", opt)).changed() {
+                                        self.recalc_pages();
+                                        self.update_dxf_preview();
+                                    }
+                                }
+                            });
                         // デバッグガイド表示切替
                         if self.plot_scale.is_some() {
                             if ui.checkbox(&mut self.show_debug_guides, "ガイド").changed() {
@@ -648,7 +676,7 @@ impl eframe::App for CrossSectionApp {
                                     .with_top_title(&self.drawing_type)
                                     .with_scale(&format!("1:{} (A3)", scale))
                                     .with_debug_markers(false);
-                                (generate_all_pages_dxf_bytes(&filtered_for_download, self.grid_columns, self.column_gap, self.row_gap, scale as f64, &info, &self.drawing_number), "cross_sections.dxf".to_string())
+                                (generate_all_pages_dxf_bytes(&filtered_for_download, self.grid_columns, self.column_gap, self.row_gap, scale as f64, &info, &self.drawing_number, self.v_scale_ratio), "cross_sections.dxf".to_string())
                             } else {
                                 (generate_multi_dxf_bytes(&filtered_for_download, self.grid_columns, self.column_gap, self.row_gap), "cross_sections_all.dxf".to_string())
                             };

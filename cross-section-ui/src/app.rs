@@ -58,6 +58,7 @@ pub struct CrossSectionApp {
     pub(crate) date: String,                // 作成日
     pub(crate) drawing_number: String,      // 図面番号
     pub(crate) show_debug_guides: bool,     // デバッグガイド表示
+    pub(crate) v_scale_ratio: f64,          // 縦方向スケール倍率（1.0, 1.5, 2.0, 2.5, 3.0）
     // ページ分割
     pub(crate) current_page: usize,         // 現在のページ（0始まり）
     pub(crate) total_pages: usize,          // 総ページ数
@@ -96,6 +97,7 @@ impl Default for CrossSectionApp {
             date: String::new(),
             drawing_number: String::new(),
             show_debug_guides: true,  // デフォルトでON
+            v_scale_ratio: 2.0,       // デフォルト縦スケール2倍
             // ページ分割
             current_page: 0,
             total_pages: 1,
@@ -317,9 +319,9 @@ impl CrossSectionApp {
                         .with_top_title(&self.drawing_type)
                         .with_scale(&format!("1:{} (A3)", scale))
                         .with_debug_markers(self.show_debug_guides);
-                    generate_multi_drawing_with_frame_at_scale_interpolated(&page_sections, columns, self.column_gap, self.row_gap, &info, scale as f64)
+                    generate_multi_drawing_with_frame_at_scale_interpolated(&page_sections, columns, self.column_gap, self.row_gap, &info, scale as f64, self.v_scale_ratio)
                 } else {
-                    generate_multi_drawing_interpolated(&filtered, columns, self.column_gap, self.row_gap)
+                    generate_multi_drawing_interpolated(&filtered, columns, self.column_gap, self.row_gap, self.v_scale_ratio)
                 }
             }
             ViewMode::Longitudinal if !filtered.is_empty() => {
@@ -360,7 +362,7 @@ impl CrossSectionApp {
                     );
                 }
                 // 補間を適用（起終点以外の補完点を勾配補間）
-                generate_multi_drawing_interpolated(&filtered, columns, self.column_gap, self.row_gap)
+                generate_multi_drawing_interpolated(&filtered, columns, self.column_gap, self.row_gap, self.v_scale_ratio)
             }
             _ => { return; }
         };
