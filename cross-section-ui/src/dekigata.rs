@@ -31,7 +31,7 @@ const DEKIGATA_TABLE_HEADER_WIDTH_MM: f64 = 60.0;  // 2.5倍に拡大
 const DEKIGATA_TABLE_DATA_WIDTH_MM: f64 = 45.0;  // 2.5倍に拡大
 
 /// 出来形管理表のテキストサイズ（mm）
-const DEKIGATA_TABLE_TEXT_SIZE_MM: f64 = 6.0;  // 2.5倍に拡大
+const DEKIGATA_TABLE_TEXT_SIZE_MM: f64 = 10.0;  // さらに拡大
 
 /// 単一測点の出来形管理用紙を描画
 ///
