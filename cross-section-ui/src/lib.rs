@@ -1560,8 +1560,8 @@ fn draw_dekigata_page(
     let offset_x = origin_x + (frame_center_x_mm * frame_scale) - (cl_offset * scale);
     let offset_y = origin_y + (cross_section_bottom_mm * frame_scale);
 
-    // 横断図を描画（draw_section_at_offsetと同様のロジック）
-    draw_dekigata_cross_section(drawing, section, offset_x, offset_y, scale);
+    // 横断図を描画（共通関数を使用）
+    draw_section_at_offset(drawing, section, offset_x, offset_y, scale, 1.0);
 
     // 出来形管理表を描画（センタリング）
     let num_points = data.len();
@@ -1570,77 +1570,6 @@ fn draw_dekigata_page(
     let table_x = origin_x + ((page_width_mm - table_width_mm) / 2.0) * frame_scale;  // センタリング
     let table_y = origin_y + table_bottom_margin_mm * frame_scale;
     draw_dekigata_table(drawing, section, table_x, table_y, frame_scale);
-}
-
-/// 出来形管理用紙用の横断図を描画
-fn draw_dekigata_cross_section(
-    drawing: &mut Drawing,
-    section: &CrossSectionData,
-    offset_x: f64,
-    offset_y: f64,
-    scale: f64,
-) {
-    let data = &section.survey_data;
-    let dl = round_dl(section.dl);
-    let to_dxf_x = |d: f64| offset_x + d * scale;
-    let y_scale = scale * 2.0;
-    let to_dxf_y = |h: f64| offset_y + (h - dl) * y_scale;
-
-    let l_data = &data[0];
-    let cl_data = &data[section.cl_index.min(data.len() - 1)];
-    let r_data = &data[data.len() - 1];
-
-    // 地盤線・計画線・切削底面線を描画
-    for i in 0..data.len() - 1 {
-        add_line(drawing, to_dxf_x(data[i].cumulative_distance), to_dxf_y(data[i].elevation),
-            to_dxf_x(data[i + 1].cumulative_distance), to_dxf_y(data[i + 1].elevation), 7, "GROUND");
-        add_line(drawing, to_dxf_x(data[i].cumulative_distance), to_dxf_y(data[i].planned_height),
-            to_dxf_x(data[i + 1].cumulative_distance), to_dxf_y(data[i + 1].planned_height), 1, "PLAN");
-        add_line(drawing, to_dxf_x(data[i].cumulative_distance), to_dxf_y(data[i].cutting_bottom),
-            to_dxf_x(data[i + 1].cumulative_distance), to_dxf_y(data[i + 1].cutting_bottom), 5, "CUTTING");
-    }
-
-    let text_height = 300.0;
-    let pointer_size = 150.0;
-    let pointer_offset = 500.0;
-
-    // 測点ポインター（V1, V2...）
-    for (i, pt) in data.iter().enumerate() {
-        let x = to_dxf_x(pt.cumulative_distance);
-        let y = to_dxf_y(pt.planned_height);
-        let top_y = y + pointer_size;
-        let half_w = pointer_size * 0.6;
-        add_line(drawing, x - half_w, top_y, x + half_w, top_y, 5, "CUTTING");
-        add_line(drawing, x - half_w, top_y, x, y, 5, "CUTTING");
-        add_line(drawing, x + half_w, top_y, x, y, 5, "CUTTING");
-        let label = format!("V{}", i + 1);
-        add_text(drawing, x, top_y + 300.0, &label, text_height, 5, "CUTTING", TextAlign::Center);
-    }
-
-    // 測点名・GH・FH表示
-    let cl_ground_y = to_dxf_y(cl_data.elevation);
-    let flag_y = cl_ground_y + 1600.0;
-    let l_x = to_dxf_x(l_data.cumulative_distance);
-    let cl_x = to_dxf_x(cl_data.cumulative_distance);
-    let r_x = to_dxf_x(r_data.cumulative_distance);
-
-    add_text(drawing, cl_x, flag_y + 1300.0, &section.survey_point_name, text_height * 1.5, 7, "TEXT", TextAlign::Center);
-    add_text_with_mask(drawing, cl_x, flag_y + 800.0, &format!("GH={:.3}", cl_data.elevation), text_height, 7, "TEXT", TextAlign::Center);
-    add_text_with_mask(drawing, cl_x, flag_y + 400.0, &format!("FH={:.3}", cl_data.planned_height), text_height, 1, "PLAN", TextAlign::Center);
-
-    let l_ground_y = to_dxf_y(l_data.elevation);
-    add_text_with_mask(drawing, l_x, l_ground_y + 800.0 + pointer_offset, &format!("GH={:.3}", l_data.elevation), text_height, 7, "TEXT", TextAlign::Left);
-    add_text_with_mask(drawing, l_x, l_ground_y + 400.0 + pointer_offset, &format!("FH={:.3}", l_data.planned_height), text_height, 1, "PLAN", TextAlign::Left);
-
-    let r_ground_y = to_dxf_y(r_data.elevation);
-    add_text_with_mask(drawing, r_x, r_ground_y + 800.0 + pointer_offset, &format!("GH={:.3}", r_data.elevation), text_height, 7, "TEXT", TextAlign::Right);
-    add_text_with_mask(drawing, r_x, r_ground_y + 400.0 + pointer_offset, &format!("FH={:.3}", r_data.planned_height), text_height, 1, "PLAN", TextAlign::Right);
-
-    // DLライン
-    add_line(drawing, l_x, to_dxf_y(dl), r_x, to_dxf_y(dl), 8, "DIMENSION");
-    add_text_rotated(drawing, cl_x, to_dxf_y(dl),
-        &format!("DL={:.3}  Scale:H1:V2", dl), text_height * 0.5, 8, "TEXT",
-        TextAlign::Left, VerticalAlign::Bottom, 0.0);
 }
 
 /// 出来形管理表を描画
