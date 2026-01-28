@@ -109,28 +109,7 @@ fn add_text_with_mask(
     layer: &str,
     align: TextAlign
 ) {
-    let width = estimate_text_width(text, height);
-
-    // アライメントに応じたX座標調整
-    let mask_x = match align {
-        TextAlign::Left => x,
-        TextAlign::Center => x - width / 2.0,
-        TextAlign::Right => x - width,
-    };
-
-    // SOLID矩形（白、マージンなし）
-    let mut solid = Solid::default();
-    solid.first_corner = Point::new(mask_x, y - height / 2.0, 0.0);
-    solid.second_corner = Point::new(mask_x + width, y - height / 2.0, 0.0);
-    solid.third_corner = Point::new(mask_x, y + height / 2.0, 0.0);
-    solid.fourth_corner = Point::new(mask_x + width, y + height / 2.0, 0.0);
-
-    let mut entity = Entity::new(EntityType::Solid(solid));
-    entity.common.layer = layer.to_string();
-    entity.common.color = Color::from_index(7);  // 白
-    drawing.add_entity(entity);
-
-    // テキスト本体
+    // マスクなしでテキストのみ描画（CADでの黒ボックス問題回避）
     add_text(drawing, x, y, text, height, color, layer, align);
 }
 
