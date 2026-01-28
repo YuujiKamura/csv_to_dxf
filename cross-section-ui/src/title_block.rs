@@ -721,20 +721,16 @@ fn build_outer_frame_content(content: &mut DrawingContent) {
 /// 上部タイトルをDrawingContentに追加
 fn build_top_title_content(content: &mut DrawingContent, info: &TitleBlockInfo, text_size: f64) {
     // 上のタイトル（2行）- 中央揃え、下揃え、テキストサイズ2倍
-    // 内枠上端から内側（下方向）に配置
-    let title_y = FRAME_TOP - 15.0;     // 272mm (内枠上端から15mm下)
-    let name_y = FRAME_TOP - 26.0;      // 261mm (タイトルの下)
-    let line_y1 = FRAME_TOP - 16.0;     // 271mm (二重線上)
-    let line_y2 = FRAME_TOP - 17.0;     // 270mm (二重線下)
+    // text_size=4.0mm → 実際のテキスト高さ8.0mm に対応したスペース配分
+    let title_text_size = text_size * 2.0;  // 8.0mm
+    let title_y = FRAME_TOP - 12.0;         // 275mm (内枠上端から12mm下)
+    let line_y1 = FRAME_TOP - 14.0;         // 273mm (タイトル下の二重線上)
+    let line_y2 = FRAME_TOP - 15.5;         // 271.5mm (二重線下)
+    let name_y = FRAME_TOP - 30.0;          // 257mm (二重線の下、十分なスペース確保)
 
     content.add_text_with_v_align(
         FRAME_CENTER_X, title_y, &info.top_title,
-        text_size * 2.0, COLOR_WHITE, "TITLEBLOCK",
-        HAlign::Center, VAlign::Bottom,
-    );
-    content.add_text_with_v_align(
-        FRAME_CENTER_X, name_y, &info.project_name,
-        text_size * 2.0, COLOR_WHITE, "TITLEBLOCK",
+        title_text_size, COLOR_WHITE, "TITLEBLOCK",
         HAlign::Center, VAlign::Bottom,
     );
 
@@ -744,6 +740,13 @@ fn build_top_title_content(content: &mut DrawingContent, info: &TitleBlockInfo, 
                      FRAME_CENTER_X + line_half_width, line_y1, COLOR_WHITE, "TITLEBLOCK");
     content.add_line(FRAME_CENTER_X - line_half_width, line_y2,
                      FRAME_CENTER_X + line_half_width, line_y2, COLOR_WHITE, "TITLEBLOCK");
+
+    // 工事名（二重線の下）
+    content.add_text_with_v_align(
+        FRAME_CENTER_X, name_y, &info.project_name,
+        title_text_size, COLOR_WHITE, "TITLEBLOCK",
+        HAlign::Center, VAlign::Bottom,
+    );
 }
 
 /// 右下タイトル表組みをDrawingContentに追加
