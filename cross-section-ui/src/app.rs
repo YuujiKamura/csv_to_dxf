@@ -58,7 +58,8 @@ pub struct CrossSectionApp {
     pub(crate) date: String,                // 作成日
     pub(crate) drawing_number: String,      // 図面番号
     pub(crate) show_debug_guides: bool,     // デバッグガイド表示
-    pub(crate) v_scale_ratio: f64,          // 縦方向スケール倍率（1.0, 1.5, 2.0, 2.5, 3.0）
+    pub(crate) v_scale_ratio: f64,          // 縦方向スケール倍率（1.0〜5.0）
+    pub(crate) dekigata_scale: f64,         // 出来形管理図のスケール（30〜100）
     // ページ分割
     pub(crate) current_page: usize,         // 現在のページ（0始まり）
     pub(crate) total_pages: usize,          // 総ページ数
@@ -98,6 +99,7 @@ impl Default for CrossSectionApp {
             drawing_number: String::new(),
             show_debug_guides: true,  // デフォルトでON
             v_scale_ratio: 2.0,       // デフォルト縦スケール2倍
+            dekigata_scale: 50.0,     // デフォルト出来形スケール1:50
             // ページ分割
             current_page: 0,
             total_pages: 1,
@@ -349,7 +351,7 @@ impl CrossSectionApp {
                         .with_scale("1:50 (A3)")
                         .with_debug_markers(self.show_debug_guides);
                     // プレビュー用: 選択された測点を表示
-                    generate_dekigata_drawing(&dekigata_sections[display_idx], &info, self.v_scale_ratio)
+                    generate_dekigata_drawing(&dekigata_sections[display_idx], &info, self.v_scale_ratio, self.dekigata_scale)
                 } else {
                     return;
                 }

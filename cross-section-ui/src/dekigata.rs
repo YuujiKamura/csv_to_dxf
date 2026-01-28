@@ -18,9 +18,6 @@ use crate::draw_section_at_offset;
 /// 出来形管理用紙のデフォルト切削厚（mm）
 const DEKIGATA_DEFAULT_CUTTING_THICKNESS_MM: f64 = 50.0;
 
-/// 出来形管理用紙の縮尺（1:50固定）
-const DEKIGATA_SCALE: f64 = 50.0;
-
 /// 出来形管理表のセル高さ（mm）
 const DEKIGATA_TABLE_ROW_HEIGHT_MM: f64 = 20.0;  // 2.5倍に拡大
 
@@ -93,9 +90,10 @@ fn draw_dekigata_page(
     // 横断図を描画（共通関数を使用）
     draw_section_at_offset(drawing, section, offset_x, offset_y, scale, 1.0, v_scale_ratio);
 
-    // 出来形管理表を描画（センタリング）
+    // 出来形管理表を描画（センタリング、スケールに応じたサイズ）
     let num_points = data.len();
-    let table_width_mm = DEKIGATA_TABLE_HEADER_WIDTH_MM + DEKIGATA_TABLE_DATA_WIDTH_MM * num_points as f64;
+    let table_scale = (frame_scale / 50.0).sqrt().clamp(0.7, 1.3);
+    let table_width_mm = (DEKIGATA_TABLE_HEADER_WIDTH_MM + DEKIGATA_TABLE_DATA_WIDTH_MM * num_points as f64) * table_scale;
     let page_width_mm = 420.0;  // A3横幅
     let table_x = origin_x + ((page_width_mm - table_width_mm) / 2.0) * frame_scale;  // センタリング
     let table_y = origin_y + table_bottom_margin_mm * frame_scale;
@@ -113,10 +111,12 @@ fn draw_dekigata_table(
     let data = &section.survey_data;
     let num_points = data.len();
 
-    let row_height = DEKIGATA_TABLE_ROW_HEIGHT_MM * frame_scale;
-    let header_width = DEKIGATA_TABLE_HEADER_WIDTH_MM * frame_scale;
-    let data_width = DEKIGATA_TABLE_DATA_WIDTH_MM * frame_scale;
-    let text_size = DEKIGATA_TABLE_TEXT_SIZE_MM * frame_scale;
+    // スケールに応じてテーブルサイズを可変（1:50基準、1:30で小さく、1:100で大きく）
+    let table_scale = (frame_scale / 50.0).sqrt().clamp(0.7, 1.3);
+    let row_height = DEKIGATA_TABLE_ROW_HEIGHT_MM * frame_scale * table_scale;
+    let header_width = DEKIGATA_TABLE_HEADER_WIDTH_MM * frame_scale * table_scale;
+    let data_width = DEKIGATA_TABLE_DATA_WIDTH_MM * frame_scale * table_scale;
+    let text_size = DEKIGATA_TABLE_TEXT_SIZE_MM * frame_scale * table_scale;
 
     let total_width = header_width + data_width * num_points as f64;
     let total_height = row_height * 5.0;  // 5行
@@ -183,7 +183,7 @@ fn draw_dekigata_table(
 }
 
 /// 単一測点の出来形管理用紙のDrawingを生成
-pub fn generate_dekigata_drawing(section: &CrossSectionData, title_info: &TitleBlockInfo, v_scale_ratio: f64) -> Drawing {
+pub fn generate_dekigata_drawing(section: &CrossSectionData, title_info: &TitleBlockInfo, v_scale_ratio: f64, dekigata_scale: f64) -> Drawing {
     let mut drawing = new_drawing();
 
     // レイヤー作成
@@ -218,7 +218,7 @@ pub fn generate_dekigata_drawing(section: &CrossSectionData, title_info: &TitleB
         ..Default::default()
     });
 
-    let frame_scale = DEKIGATA_SCALE;
+    let frame_scale = dekigata_scale;
 
     // 図枠を描画（外枠のみ）
     title_block::add_title_block_layer(&mut drawing);
@@ -248,6 +248,7 @@ pub fn generate_all_dekigata_pages(
     base_title_info: &TitleBlockInfo,
     drawing_number_base: &str,
     v_scale_ratio: f64,
+    dekigata_scale: f64,
 ) -> Drawing {
     let mut drawing = new_drawing();
 
@@ -293,7 +294,7 @@ pub fn generate_all_dekigata_pages(
         return drawing;
     }
 
-    let frame_scale = DEKIGATA_SCALE;
+    let frame_scale = dekigata_scale;
     let page_height_dxf = 297.0 * frame_scale;  // A3高さ
     const PAGE_GAP_MM: f64 = 10.0;
     let page_gap_dxf = PAGE_GAP_MM * frame_scale;
@@ -313,7 +314,7 @@ pub fn generate_all_dekigata_pages(
 
         let info = base_title_info.clone()
             .with_top_title("出来形管理用紙")
-            .with_scale(&format!("1:{} (A3)", DEKIGATA_SCALE as u32))
+            .with_scale(&format!("1:{} (A3)", dekigata_scale as u32))
             .with_drawing_number(&drawing_number);
 
         // 図枠を描画（タイトル枠なし - 外枠と上部タイトルのみ）
@@ -335,8 +336,9 @@ pub fn generate_all_dekigata_dxf_bytes(
     base_title_info: &TitleBlockInfo,
     drawing_number_base: &str,
     v_scale_ratio: f64,
+    dekigata_scale: f64,
 ) -> Vec<u8> {
-    let drawing = generate_all_dekigata_pages(all_sections, base_title_info, drawing_number_base, v_scale_ratio);
+    let drawing = generate_all_dekigata_pages(all_sections, base_title_info, drawing_number_base, v_scale_ratio, dekigata_scale);
     let mut output: Vec<u8> = Vec::new();
     drawing.save(&mut output).expect("Failed to save DXF");
     output
