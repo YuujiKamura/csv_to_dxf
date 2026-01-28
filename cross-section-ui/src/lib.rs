@@ -1530,7 +1530,7 @@ fn draw_dekigata_page(
 
     // 横断図の描画領域（上部）
     let cross_section_bottom_mm = table_bottom_margin_mm + table_height_mm + 10.0;
-    let cross_section_top_mm = 261.0;  // 上部タイトル下端
+    let cross_section_top_mm = 245.0;  // 上部タイトル下端（2倍タイトル用に余裕）
     let cross_section_height_mm = cross_section_top_mm - cross_section_bottom_mm;
 
     // 横断図の描画
@@ -1764,7 +1764,7 @@ pub fn generate_dekigata_drawing(section: &CrossSectionData, title_info: &TitleB
     });
 
     let frame_scale = DEKIGATA_SCALE;
-    const TEXT_SIZE_MM: f64 = 3.0;
+    const TEXT_SIZE_MM: f64 = 6.0;  // タイトル2倍サイズ
 
     // 図枠を描画（タイトル枠なし - 外枠と上部タイトルのみ）
     title_block::add_title_block_layer(&mut drawing);
