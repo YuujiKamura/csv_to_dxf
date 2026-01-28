@@ -961,7 +961,6 @@ fn generate_multi_drawing_internal(
     };
 
     // セクションを描画
-    let section_count = sections.len();
     for (idx, section) in sections.iter().enumerate() {
         if section.survey_data.len() < 2 { continue; }
         let col = idx / rows_per_column;
@@ -983,7 +982,7 @@ fn generate_multi_drawing_internal(
         let offset_y = row_in_col as f64 * cell_height + col_y_offset;
 
         // 中間測点（起終点以外）の場合のみ、補完点を勾配補間
-        let is_start_or_end = idx == 0 || idx == section_count - 1;
+        let is_start_or_end = section.is_route_start || section.is_route_end;
         if interpolate_intermediate && !is_start_or_end {
             let mut section_to_draw = section.clone();
             section_to_draw.interpolate_planned_heights();
@@ -1105,8 +1104,6 @@ fn generate_all_pages_drawing_internal(
     const PAGE_GAP_MM: f64 = 10.0;
     let page_gap_dxf = PAGE_GAP_MM * frame_scale;
 
-    let total_section_count = all_sections.len();
-
     // 各ページを描画
     for page in 0..total_pages {
         let start_idx = page * sections_per_page;
@@ -1129,7 +1126,7 @@ fn generate_all_pages_drawing_internal(
         // このページのセクションを描画
         draw_page_content(
             &mut drawing, page_sections, columns, column_gap, row_gap, frame_scale, &info, page_offset_y,
-            start_idx, total_section_count, interpolate_intermediate
+            interpolate_intermediate
         );
     }
 
@@ -1137,9 +1134,7 @@ fn generate_all_pages_drawing_internal(
 }
 
 /// 1ページ分のコンテンツを描画（オフセット付き）
-/// global_start_idx: このページの最初のセクションの全体でのインデックス
-/// total_section_count: 全ページを通じた総セクション数
-/// interpolate_intermediate: 中間測点の補完点を勾配補間するか
+/// interpolate_intermediate: 中間測点の補完点を勾配補間するか（起終点はフラグで判定）
 fn draw_page_content(
     drawing: &mut Drawing,
     sections: &[CrossSectionData],
@@ -1149,8 +1144,6 @@ fn draw_page_content(
     frame_scale: f64,
     title_info: &TitleBlockInfo,
     page_offset_y: f64,
-    global_start_idx: usize,
-    total_section_count: usize,
     interpolate_intermediate: bool,
 ) {
     use available_area as area;
@@ -1209,8 +1202,7 @@ fn draw_page_content(
         let offset_y = row_in_col as f64 * cell_height + col_y_offset + page_offset_y;
 
         // 中間測点（起終点以外）の場合のみ、補完点を勾配補間
-        let global_idx = global_start_idx + idx;
-        let is_start_or_end = global_idx == 0 || global_idx == total_section_count - 1;
+        let is_start_or_end = section.is_route_start || section.is_route_end;
         if interpolate_intermediate && !is_start_or_end {
             let mut section_to_draw = section.clone();
             section_to_draw.interpolate_planned_heights();
@@ -2970,6 +2962,12 @@ pub struct CrossSectionData {
     /// ルートID（route_1, route_2など）
     #[serde(default = "default_route_id")]
     pub route_id: String,
+    /// 路線の起点かどうか（補間しない）
+    #[serde(default)]
+    pub is_route_start: bool,
+    /// 路線の終点かどうか（補間しない）
+    #[serde(default)]
+    pub is_route_end: bool,
 }
 
 fn default_route_id() -> String {
@@ -3015,27 +3013,55 @@ impl CrossSectionData {
             dl, cl_index, l_to_cl_distance: l_to_cl, survey_data,
             route_distance: None, // 測点名からパースされる
             route_id: default_route_id(),
+            is_route_start: false,
+            is_route_end: false,
         }
     }
 
 
     pub fn from_json(json: &str) -> Result<Vec<Self>, String> {
-        serde_json::from_str(json).map_err(|e| format!("JSON parse error: {e}"))
+        let mut sections: Vec<Self> = serde_json::from_str(json)
+            .map_err(|e| format!("JSON parse error: {e}"))?;
+        Self::set_route_start_end_flags(&mut sections);
+        Ok(sections)
     }
 
     /// 新形式JSON（タイトルブロック情報付き）をパース
     pub fn from_json_with_title(json: &str) -> Result<SectionsData, String> {
         // まず新形式（オブジェクト）でパースを試みる
-        if let Ok(data) = serde_json::from_str::<SectionsData>(json) {
+        if let Ok(mut data) = serde_json::from_str::<SectionsData>(json) {
+            Self::set_route_start_end_flags(&mut data.sections);
             return Ok(data);
         }
         // 旧形式（配列）でパース
-        let sections: Vec<Self> = serde_json::from_str(json)
+        let mut sections: Vec<Self> = serde_json::from_str(json)
             .map_err(|e| format!("JSON parse error: {e}"))?;
+        Self::set_route_start_end_flags(&mut sections);
         Ok(SectionsData {
             title_block: None,
             sections,
         })
+    }
+
+    /// 各ルートごとに起終点フラグを設定
+    fn set_route_start_end_flags(sections: &mut [Self]) {
+        use std::collections::HashMap;
+
+        // 各ルートの最初と最後のインデックスを収集
+        let mut route_indices: HashMap<String, (usize, usize)> = HashMap::new();
+        for (i, section) in sections.iter().enumerate() {
+            let route_id = &section.route_id;
+            route_indices
+                .entry(route_id.clone())
+                .and_modify(|(_, last)| *last = i)
+                .or_insert((i, i));
+        }
+
+        // フラグを設定
+        for (first, last) in route_indices.values() {
+            sections[*first].is_route_start = true;
+            sections[*last].is_route_end = true;
+        }
     }
 
     /// 補完点の計画高を採用点間の勾配から線形補間する
@@ -3154,6 +3180,8 @@ impl CrossSectionData {
             survey_data,
             route_distance: None,
             route_id: default_route_id(),
+            is_route_start: false,
+            is_route_end: false,
         })
     }
 }
@@ -3657,7 +3685,8 @@ impl CrossSectionApp {
                         &filtered, idx, columns, self.column_gap, self.row_gap
                     );
                 }
-                generate_multi_drawing(&filtered, columns, self.column_gap, self.row_gap)
+                // 補間を適用（起終点以外の補完点を勾配補間）
+                generate_multi_drawing_interpolated(&filtered, columns, self.column_gap, self.row_gap)
             }
             _ => { return; }
         };
@@ -4030,7 +4059,13 @@ impl eframe::App for CrossSectionApp {
                                 if self.selected_index.is_some() && ui.button("DXF").clicked() {
                                     if let Some(idx) = self.selected_index {
                                         if let Some(section) = filtered_for_dxf.get(idx) {
-                                            let dxf_content = generate_dxf_bytes(section);
+                                            // 起終点以外は補間を適用
+                                            let is_start_or_end = section.is_route_start || section.is_route_end;
+                                            let mut section = section.clone();
+                                            if !is_start_or_end {
+                                                section.interpolate_planned_heights();
+                                            }
+                                            let dxf_content = generate_dxf_bytes(&section);
                                             let filename = format!("{}.dxf", section.survey_point_name);
                                             download_file(&filename, &dxf_content);
                                         }
@@ -4309,7 +4344,13 @@ impl eframe::App for CrossSectionApp {
                         if let Some(idx) = self.selected_index {
                             if let Some(section) = filtered_for_download.get(idx) {
                                 if ui.button("Download DXF").clicked() {
-                                    let dxf_content = generate_dxf_bytes(section);
+                                    // 起終点以外は補間を適用
+                                    let is_start_or_end = section.is_route_start || section.is_route_end;
+                                    let mut section = section.clone();
+                                    if !is_start_or_end {
+                                        section.interpolate_planned_heights();
+                                    }
+                                    let dxf_content = generate_dxf_bytes(&section);
                                     let filename = format!("{}.dxf", section.survey_point_name);
                                     download_file(&filename, &dxf_content);
                                 }
