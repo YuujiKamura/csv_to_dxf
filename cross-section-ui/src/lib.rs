@@ -1493,16 +1493,16 @@ const DEKIGATA_DEFAULT_CUTTING_THICKNESS_MM: f64 = 50.0;
 const DEKIGATA_SCALE: f64 = 50.0;
 
 /// 出来形管理表のセル高さ（mm）
-const DEKIGATA_TABLE_ROW_HEIGHT_MM: f64 = 8.0;
+const DEKIGATA_TABLE_ROW_HEIGHT_MM: f64 = 16.0;  // 2倍に拡大
 
 /// 出来形管理表のヘッダー列幅（mm）
-const DEKIGATA_TABLE_HEADER_WIDTH_MM: f64 = 25.0;
+const DEKIGATA_TABLE_HEADER_WIDTH_MM: f64 = 50.0;  // 2倍に拡大
 
 /// 出来形管理表のデータ列幅（mm）
-const DEKIGATA_TABLE_DATA_WIDTH_MM: f64 = 18.0;
+const DEKIGATA_TABLE_DATA_WIDTH_MM: f64 = 36.0;  // 2倍に拡大
 
 /// 出来形管理表のテキストサイズ（mm）
-const DEKIGATA_TABLE_TEXT_SIZE_MM: f64 = 2.5;
+const DEKIGATA_TABLE_TEXT_SIZE_MM: f64 = 5.0;  // 2倍に拡大
 
 /// 単一測点の出来形管理用紙を描画
 ///
@@ -1562,8 +1562,11 @@ fn draw_dekigata_page(
     // 横断図を描画（draw_section_at_offsetと同様のロジック）
     draw_dekigata_cross_section(drawing, section, offset_x, offset_y, scale);
 
-    // 出来形管理表を描画
-    let table_x = origin_x + 15.0 * frame_scale;  // 左マージン15mm
+    // 出来形管理表を描画（センタリング）
+    let num_points = data.len();
+    let table_width_mm = DEKIGATA_TABLE_HEADER_WIDTH_MM + DEKIGATA_TABLE_DATA_WIDTH_MM * num_points as f64;
+    let page_width_mm = 420.0;  // A3横幅
+    let table_x = origin_x + ((page_width_mm - table_width_mm) / 2.0) * frame_scale;  // センタリング
     let table_y = origin_y + table_bottom_margin_mm * frame_scale;
     draw_dekigata_table(drawing, section, table_x, table_y, frame_scale);
 }
@@ -1708,18 +1711,18 @@ fn draw_dekigata_table(
         let design_fh_y = table_y + total_height - row_height * 1.5;
         add_text(drawing, col_center_x, design_fh_y, &format!("{:.3}", pt.planned_height), text_size, 7, "DEKIGATA", TextAlign::Center);
 
-        // 計画高（実測）- 空欄 + 括弧
+        // 計画高（実測）- 空欄 + 括弧（スペース広め）
         let actual_fh_y = table_y + total_height - row_height * 2.5;
-        add_text(drawing, col_center_x + data_width * 0.3, actual_fh_y, "(  )", text_size * 0.8, 7, "DEKIGATA", TextAlign::Right);
+        add_text(drawing, col_center_x + data_width * 0.35, actual_fh_y, "(        )", text_size * 0.8, 7, "DEKIGATA", TextAlign::Right);
 
         // 切削高（設計）= 計画高 - 切削厚
         let design_cutting = pt.planned_height - DEKIGATA_DEFAULT_CUTTING_THICKNESS_MM / 1000.0;
         let design_cut_y = table_y + total_height - row_height * 3.5;
         add_text(drawing, col_center_x, design_cut_y, &format!("{:.3}", design_cutting), text_size, 7, "DEKIGATA", TextAlign::Center);
 
-        // 切削高（実測）- 空欄 + 括弧
+        // 切削高（実測）- 空欄 + 括弧（スペース広め）
         let actual_cut_y = table_y + total_height - row_height * 4.5;
-        add_text(drawing, col_center_x + data_width * 0.3, actual_cut_y, "(  )", text_size * 0.8, 7, "DEKIGATA", TextAlign::Right);
+        add_text(drawing, col_center_x + data_width * 0.35, actual_cut_y, "(        )", text_size * 0.8, 7, "DEKIGATA", TextAlign::Right);
     }
 }
 
@@ -1850,8 +1853,11 @@ pub fn generate_all_dekigata_pages(
             .with_scale(&format!("1:{} (A3)", DEKIGATA_SCALE as u32))
             .with_drawing_number(&drawing_number);
 
-        // 図枠を描画
-        draw_drawing_frame(&mut drawing, &info, 0.0, page_offset_y, frame_scale, TEXT_SIZE_MM);
+        // 図枠を描画（タイトル枠なし - 外枠と上部タイトルのみ）
+        title_block::add_title_block_layer(&mut drawing);
+        title_block::draw_outer_frame(&mut drawing, 0.0, page_offset_y, frame_scale);
+        title_block::draw_top_title(&mut drawing, &info, 0.0, page_offset_y, frame_scale, TEXT_SIZE_MM);
+        // draw_title_block は呼ばない（出来形管理用紙では不要）
 
         // 出来形管理用紙の内容を描画
         draw_dekigata_page(&mut drawing, section, 0.0, page_offset_y, frame_scale);
