@@ -283,6 +283,81 @@ impl DrawingContent {
         }));
     }
 
+    /// Add a rectangle primitive (4 lines forming a box)
+    pub fn add_rect(
+        &mut self,
+        center_x: f64,
+        center_y: f64,
+        width: f64,
+        height: f64,
+        color: i16,
+        layer: &str,
+    ) {
+        let half_w = width / 2.0;
+        let half_h = height / 2.0;
+        // Bottom line
+        self.add_line(
+            center_x - half_w,
+            center_y - half_h,
+            center_x + half_w,
+            center_y - half_h,
+            color,
+            layer,
+        );
+        // Right line
+        self.add_line(
+            center_x + half_w,
+            center_y - half_h,
+            center_x + half_w,
+            center_y + half_h,
+            color,
+            layer,
+        );
+        // Top line
+        self.add_line(
+            center_x + half_w,
+            center_y + half_h,
+            center_x - half_w,
+            center_y + half_h,
+            color,
+            layer,
+        );
+        // Left line
+        self.add_line(
+            center_x - half_w,
+            center_y + half_h,
+            center_x - half_w,
+            center_y - half_h,
+            color,
+            layer,
+        );
+    }
+
+    /// Add a text primitive with explicit vertical alignment
+    pub fn add_text_with_v_align(
+        &mut self,
+        x: f64,
+        y: f64,
+        text: &str,
+        height: f64,
+        color: i16,
+        layer: &str,
+        h_align: HAlign,
+        v_align: VAlign,
+    ) {
+        self.primitives.push(DrawPrimitive::Text(DrawText {
+            x,
+            y,
+            text: text.to_string(),
+            height,
+            rotation: 0.0,
+            color,
+            layer: layer.to_string(),
+            h_align,
+            v_align,
+        }));
+    }
+
     /// Merge another DrawingContent into this one
     pub fn merge(&mut self, other: DrawingContent) {
         self.primitives.extend(other.primitives);
@@ -358,6 +433,75 @@ impl DrawingContent {
                 }
                 DrawPrimitive::Text(text) => {
                     add_text_to_dxf(drawing, text);
+                }
+            }
+        }
+    }
+
+    /// Add primitives to DXF with origin and scale transformation
+    ///
+    /// origin_x, origin_y: DXF座標系での配置原点
+    /// scale: 座標とテキスト高さに乗じるスケール
+    pub fn add_to_dxf_transformed(
+        &self,
+        drawing: &mut Drawing,
+        origin_x: f64,
+        origin_y: f64,
+        scale: f64,
+    ) {
+        for prim in &self.primitives {
+            match prim {
+                DrawPrimitive::Line(line) => {
+                    // 座標変換: origin + coord * scale
+                    let mut dxf_line = Line::default();
+                    dxf_line.p1 = Point::new(
+                        origin_x + line.x1 * scale,
+                        origin_y + line.y1 * scale,
+                        0.0,
+                    );
+                    dxf_line.p2 = Point::new(
+                        origin_x + line.x2 * scale,
+                        origin_y + line.y2 * scale,
+                        0.0,
+                    );
+                    let mut entity = Entity::new(EntityType::Line(dxf_line));
+                    entity.common.layer = line.layer.clone();
+                    entity.common.color = Color::from_index(line.color as u8);
+                    drawing.add_entity(entity);
+                }
+                DrawPrimitive::Text(text) => {
+                    // テキスト座標とサイズも変換
+                    let transformed_x = origin_x + text.x * scale;
+                    let transformed_y = origin_y + text.y * scale;
+                    let scaled_height = cap_height_to_text_height(text.height * scale);
+
+                    let mut t = Text::default();
+                    t.location = Point::new(transformed_x, transformed_y, 0.0);
+                    t.text_height = scaled_height;
+                    t.value = text.text.clone();
+                    t.rotation = text.rotation;
+                    t.text_style_name = "NOTOSANSJP".to_string();
+                    t.relative_x_scale_factor = 1.0;
+
+                    t.horizontal_text_justification = match text.h_align {
+                        HAlign::Left => HorizontalTextJustification::Left,
+                        HAlign::Center => HorizontalTextJustification::Center,
+                        HAlign::Right => HorizontalTextJustification::Right,
+                    };
+
+                    // Second alignment point is required for non-baseline vertical alignment
+                    t.second_alignment_point = Point::new(transformed_x, transformed_y, 0.0);
+
+                    t.vertical_text_justification = match text.v_align {
+                        VAlign::Top => VerticalTextJustification::Top,
+                        VAlign::Middle => VerticalTextJustification::Middle,
+                        VAlign::Bottom => VerticalTextJustification::Bottom,
+                    };
+
+                    let mut entity = Entity::new(EntityType::Text(t));
+                    entity.common.layer = text.layer.clone();
+                    entity.common.color = Color::from_index(text.color as u8);
+                    drawing.add_entity(entity);
                 }
             }
         }

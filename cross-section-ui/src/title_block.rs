@@ -8,6 +8,7 @@ use dxf::enums::{HorizontalTextJustification, VerticalTextJustification};
 use dxf::{Color, Point};
 
 use crate::font_metrics::cap_height_to_text_height;
+use crate::drawing_ir::{DrawingContent, HAlign, VAlign};
 
 // DXF color constants (ACI)
 const COLOR_WHITE: i16 = 7;  // White (displays as black on white background, white on black)
@@ -672,6 +673,198 @@ fn draw_available_area_guide(
     }
 }
 
+// ============================================================================
+// DrawingContent IR-based Title Block Generation
+// ============================================================================
+
+/// TitleBlockInfoからDrawingContentを生成
+pub fn build_title_block_content(info: &TitleBlockInfo) -> DrawingContent {
+    let mut content = DrawingContent::new();
+    let text_size = 3.0; // 固定テキストサイズ (mm)
+
+    // 外枠（A3用紙端）と内枠
+    build_outer_frame_content(&mut content);
+
+    // 上部タイトル
+    build_top_title_content(&mut content, info, text_size);
+
+    // 右下タイトル枠
+    build_title_table_content(&mut content, info, text_size);
+
+    // 配置可能エリアのガイド（デバッグ時のみ）
+    if info.show_debug_markers {
+        build_debug_guide_content(&mut content, text_size);
+    }
+
+    content
+}
+
+/// 外枠（A3用紙端）と内枠をDrawingContentに追加
+fn build_outer_frame_content(content: &mut DrawingContent) {
+    // 外枠（A3用紙端）
+    content.add_rect(
+        A3_WIDTH / 2.0, A3_HEIGHT / 2.0,  // 中心座標（210mm, 148.5mm）
+        A3_WIDTH, A3_HEIGHT,              // サイズ（420mm × 297mm）
+        COLOR_WHITE,
+        "TITLEBLOCK",
+    );
+
+    // 内枠（10mmマージン後の図面枠）
+    content.add_rect(
+        FRAME_CENTER_X, FRAME_CENTER_Y,  // 中心座標（210mm, 148.5mm）
+        FRAME_WIDTH, FRAME_HEIGHT,       // サイズ（400mm × 277mm）
+        COLOR_WHITE,
+        "TITLEBLOCK",
+    );
+}
+
+/// 上部タイトルをDrawingContentに追加
+fn build_top_title_content(content: &mut DrawingContent, info: &TitleBlockInfo, text_size: f64) {
+    // 上のタイトル（2行）- 中央揃え、下揃え、テキストサイズ2倍
+    // 内枠上端から内側（下方向）に配置
+    let title_y = FRAME_TOP - 15.0;     // 272mm (内枠上端から15mm下)
+    let name_y = FRAME_TOP - 26.0;      // 261mm (タイトルの下)
+    let line_y1 = FRAME_TOP - 16.0;     // 271mm (二重線上)
+    let line_y2 = FRAME_TOP - 17.0;     // 270mm (二重線下)
+
+    content.add_text_with_v_align(
+        FRAME_CENTER_X, title_y, &info.top_title,
+        text_size * 2.0, COLOR_WHITE, "TITLEBLOCK",
+        HAlign::Center, VAlign::Bottom,
+    );
+    content.add_text_with_v_align(
+        FRAME_CENTER_X, name_y, &info.project_name,
+        text_size * 2.0, COLOR_WHITE, "TITLEBLOCK",
+        HAlign::Center, VAlign::Bottom,
+    );
+
+    // タイトル下の二重線（中央に40mm幅）
+    let line_half_width = 20.0;
+    content.add_line(FRAME_CENTER_X - line_half_width, line_y1,
+                     FRAME_CENTER_X + line_half_width, line_y1, COLOR_WHITE, "TITLEBLOCK");
+    content.add_line(FRAME_CENTER_X - line_half_width, line_y2,
+                     FRAME_CENTER_X + line_half_width, line_y2, COLOR_WHITE, "TITLEBLOCK");
+}
+
+/// 右下タイトル表組みをDrawingContentに追加
+fn build_title_table_content(content: &mut DrawingContent, info: &TitleBlockInfo, text_size: f64) {
+    // タイトル枠の基準座標（内枠基準）- 0.8倍スケール
+    let tb_scale = 0.8;
+    let tb_width = 100.0 * tb_scale;      // 80mm
+    let tb_height = 60.0 * tb_scale;      // 48mm
+    let tb_left = FRAME_RIGHT - tb_width; // 330mm (内枠右端から左に80mm)
+    let tb_right = FRAME_RIGHT;           // 410mm (内枠右端)
+    let tb_bottom = FRAME_BOTTOM;         // 10mm (内枠下端)
+    let tb_top = FRAME_BOTTOM + tb_height;// 58mm (内枠下端から48mm上)
+    let label_col = tb_left + 20.0 * tb_scale;  // ラベル列の右端（幅16mm）
+    let row_height = 10.0 * tb_scale;     // 行高さ 8mm
+
+    // 各行のY座標（下から上へ、行の下端座標）
+    let row_author_y = tb_bottom;                     // 10mm (施工者行の下端)
+    let row_scale_y = tb_bottom + row_height;         // 18mm (縮尺/図番行の下端)
+    let row_date_y = tb_bottom + row_height * 2.0;    // 26mm (作成日行の下端)
+    let row_route_y = tb_bottom + row_height * 3.0;   // 34mm (路線名行の下端)
+    let row_type_y = tb_bottom + row_height * 4.0;    // 42mm (図面名行の下端)
+    let row_proj_y = tb_bottom + row_height * 5.0;    // 50mm (工事名行の下端)
+
+    // === 外枠線 ===
+    // 上辺
+    content.add_line(tb_left, tb_top, tb_right, tb_top, COLOR_WHITE, "TITLEBLOCK");
+    // 左辺（外側）
+    content.add_line(tb_left, tb_bottom, tb_left, tb_top, COLOR_WHITE, "TITLEBLOCK");
+    // 左辺（内側、ラベル列）
+    content.add_line(label_col, tb_bottom, label_col, tb_top, COLOR_WHITE, "TITLEBLOCK");
+
+    // === 横線（各行の境界）===
+    content.add_line(tb_left, row_proj_y, tb_right, row_proj_y, COLOR_WHITE, "TITLEBLOCK");
+    content.add_line(tb_left, row_type_y, tb_right, row_type_y, COLOR_WHITE, "TITLEBLOCK");
+    content.add_line(tb_left, row_route_y, tb_right, row_route_y, COLOR_WHITE, "TITLEBLOCK");
+    content.add_line(tb_left, row_date_y, tb_right, row_date_y, COLOR_WHITE, "TITLEBLOCK");
+    content.add_line(tb_left, row_scale_y, tb_right, row_scale_y, COLOR_WHITE, "TITLEBLOCK");
+
+    // 縮尺/図番の縦仕切り（row_scale行内）
+    let scale_col = label_col + 30.0 * tb_scale;     // 縮尺列の右端
+    let num_lbl_col = scale_col + 20.0 * tb_scale;   // 図番ラベル列の右端
+    content.add_line(scale_col, row_scale_y, scale_col, row_date_y, COLOR_WHITE, "TITLEBLOCK");
+    content.add_line(num_lbl_col, row_scale_y, num_lbl_col, row_date_y, COLOR_WHITE, "TITLEBLOCK");
+
+    // === ラベルテキスト（左列）=== 中央揃え
+    let label_x = (tb_left + label_col) / 2.0;  // ラベル列中央
+
+    content.add_text(label_x, row_proj_y + row_height / 2.0, "工事名", text_size, COLOR_WHITE, "TITLEBLOCK", HAlign::Center);
+    content.add_text(label_x, row_type_y + row_height / 2.0, "図面名", text_size, COLOR_WHITE, "TITLEBLOCK", HAlign::Center);
+    content.add_text(label_x, row_route_y + row_height / 2.0, "路線名", text_size, COLOR_WHITE, "TITLEBLOCK", HAlign::Center);
+    content.add_text(label_x, row_date_y + row_height / 2.0, "作成日", text_size, COLOR_WHITE, "TITLEBLOCK", HAlign::Center);
+    // 縮尺ラベル
+    content.add_text(label_x, row_scale_y + row_height / 2.0, "縮尺", text_size, COLOR_WHITE, "TITLEBLOCK", HAlign::Center);
+    // 図面番号ラベル
+    let num_lbl_x = (scale_col + num_lbl_col) / 2.0;
+    content.add_text(num_lbl_x, row_scale_y + row_height / 2.0, "図面番号", text_size, COLOR_WHITE, "TITLEBLOCK", HAlign::Center);
+    // 施工者ラベル
+    content.add_text(label_x, row_author_y + row_height / 2.0, "施工者", text_size, COLOR_WHITE, "TITLEBLOCK", HAlign::Center);
+
+    // === 内容テキスト（右列）===
+    let data_x = label_col + 5.0 * tb_scale;  // データ列の左端、少し内側
+
+    // 工事名（長い場合は改行処理）
+    let project_name_display = truncate_or_split(&info.project_name, 25);
+    content.add_text(data_x, row_proj_y + row_height / 2.0, &project_name_display, text_size, COLOR_WHITE, "TITLEBLOCK", HAlign::Left);
+
+    // 図面名
+    content.add_text(data_x, row_type_y + row_height / 2.0, &info.drawing_type, text_size, COLOR_WHITE, "TITLEBLOCK", HAlign::Left);
+
+    // 路線名
+    content.add_text(data_x, row_route_y + row_height / 2.0, &info.route_name, text_size, COLOR_WHITE, "TITLEBLOCK", HAlign::Left);
+
+    // 作成日
+    content.add_text(data_x, row_date_y + row_height / 2.0, &info.date, text_size, COLOR_WHITE, "TITLEBLOCK", HAlign::Left);
+
+    // 縮尺値（中央揃え）
+    let scale_val_x = (label_col + scale_col) / 2.0;
+    content.add_text(scale_val_x, row_scale_y + row_height / 2.0, &info.scale, text_size, COLOR_WHITE, "TITLEBLOCK", HAlign::Center);
+
+    // 図面番号値（中央揃え）
+    let num_val_x = (num_lbl_col + tb_right) / 2.0;
+    content.add_text(num_val_x, row_scale_y + row_height / 2.0, &info.drawing_number, text_size, COLOR_WHITE, "TITLEBLOCK", HAlign::Center);
+
+    // 施工者
+    content.add_text(data_x, row_author_y + row_height / 2.0, &info.author, text_size, COLOR_WHITE, "TITLEBLOCK", HAlign::Left);
+
+    // クレジット（内枠左下）
+    if !info.credit.is_empty() {
+        content.add_text(FRAME_LEFT + 60.0, FRAME_BOTTOM - 10.0, &info.credit, text_size, COLOR_WHITE, "TITLEBLOCK", HAlign::Left);
+    }
+}
+
+/// デバッグ用ガイド矩形をDrawingContentに追加（4列均等分割のガイド枠）
+fn build_debug_guide_content(content: &mut DrawingContent, text_size: f64) {
+    const COLOR_GREEN: i16 = 3;
+
+    // 4列の緑色ガイド枠を描画
+    for col in 0..4 {
+        let left = available_area::COLUMN_LEFTS[col];
+        let right = available_area::COLUMN_RIGHTS[col];
+        let bottom = available_area::COLUMN_BOTTOMS[col];
+        let top = available_area::COLUMN_TOP;
+        let width = right - left;
+        let height = top - bottom;
+
+        // 4辺を描画
+        content.add_line(left, bottom, right, bottom, COLOR_GREEN, "TITLEBLOCK");
+        content.add_line(left, top, right, top, COLOR_GREEN, "TITLEBLOCK");
+        content.add_line(left, bottom, left, top, COLOR_GREEN, "TITLEBLOCK");
+        content.add_line(right, bottom, right, top, COLOR_GREEN, "TITLEBLOCK");
+
+        // 列番号とサイズを中央に表示
+        let label = format!("列{} {}x{}", col, width as i32, height as i32);
+        content.add_text(
+            (left + right) / 2.0, (bottom + top) / 2.0,
+            &label, text_size, COLOR_GREEN, "TITLEBLOCK",
+            HAlign::Center,
+        );
+    }
+}
+
 /// 図枠全体を描画（外枠＋上部タイトル＋右下タイトル枠＋配置ガイド）
 ///
 /// # Arguments
@@ -680,20 +873,18 @@ fn draw_available_area_guide(
 /// * `origin_x` - 原点X座標
 /// * `origin_y` - 原点Y座標
 /// * `scale` - スケール
-/// * `text_size` - テキストサイズ（mm）
+/// * `_text_size` - テキストサイズ（mm）- 廃止予定、内部で固定値を使用
 pub fn draw_drawing_frame(
     drawing: &mut Drawing,
     info: &TitleBlockInfo,
     origin_x: f64,
     origin_y: f64,
     scale: f64,
-    text_size: f64,
+    _text_size: f64,
 ) {
     add_title_block_layer(drawing);
-    draw_outer_frame(drawing, origin_x, origin_y, scale);
-    draw_top_title(drawing, info, origin_x, origin_y, scale, text_size);
-    draw_title_block(drawing, info, origin_x, origin_y, scale, text_size);
-    draw_available_area_guide(drawing, origin_x, origin_y, scale, text_size, info.show_debug_markers);
+    let content = build_title_block_content(info);
+    content.add_to_dxf_transformed(drawing, origin_x, origin_y, scale);
 }
 
 /// タイトル枠テスト用Drawingを生成
