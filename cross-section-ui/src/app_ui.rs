@@ -329,6 +329,21 @@ impl eframe::App for CrossSectionApp {
                                         }
                                     }
                                 });
+                            // 出来形スケール（出来形モード時のみ）
+                            if self.view_mode == ViewMode::Dekigata {
+                                ui.separator();
+                                ui.label("図枠");
+                                let dekigata_scale_options = [30.0, 40.0, 50.0, 75.0, 100.0];
+                                egui::ComboBox::from_id_salt("dekigata_scale_mobile")
+                                    .selected_text(format!("1:{}", self.dekigata_scale as u32))
+                                    .show_ui(ui, |ui| {
+                                        for &opt in &dekigata_scale_options {
+                                            if ui.selectable_value(&mut self.dekigata_scale, opt, format!("1:{}", opt as u32)).changed() {
+                                                self.update_dxf_preview();
+                                            }
+                                        }
+                                    });
+                            }
                             // デバッグガイド表示切替
                             if self.plot_scale.is_some() {
                                 if ui.checkbox(&mut self.show_debug_guides, "ガイド").changed() {
@@ -410,7 +425,7 @@ impl eframe::App for CrossSectionApp {
                                         .with_top_title("出来形管理用紙")
                                         .with_scale("1:50 (A3)")
                                         .with_debug_markers(false);
-                                    let dxf_content = generate_all_dekigata_dxf_bytes(&dekigata_sections, &info, &self.drawing_number, self.v_scale_ratio);
+                                    let dxf_content = generate_all_dekigata_dxf_bytes(&dekigata_sections, &info, &self.drawing_number, self.v_scale_ratio, self.dekigata_scale);
                                     download_file("dekigata.dxf", &dxf_content);
                                 }
                             }
@@ -617,6 +632,21 @@ impl eframe::App for CrossSectionApp {
                                     }
                                 }
                             });
+                        // 出来形スケール（出来形モード時のみ）
+                        if self.view_mode == ViewMode::Dekigata {
+                            ui.separator();
+                            ui.label("図枠");
+                            let dekigata_scale_options = [30.0, 40.0, 50.0, 75.0, 100.0];
+                            egui::ComboBox::from_id_salt("dekigata_scale_desktop")
+                                .selected_text(format!("1:{}", self.dekigata_scale as u32))
+                                .show_ui(ui, |ui| {
+                                    for &opt in &dekigata_scale_options {
+                                        if ui.selectable_value(&mut self.dekigata_scale, opt, format!("1:{}", opt as u32)).changed() {
+                                            self.update_dxf_preview();
+                                        }
+                                    }
+                                });
+                        }
                         // デバッグガイド表示切替
                         if self.plot_scale.is_some() {
                             if ui.checkbox(&mut self.show_debug_guides, "ガイド").changed() {
@@ -709,7 +739,7 @@ impl eframe::App for CrossSectionApp {
                                 .with_top_title("出来形管理用紙")
                                 .with_scale("1:50 (A3)")
                                 .with_debug_markers(false);
-                            let dxf_content = generate_all_dekigata_dxf_bytes(&dekigata_sections, &info, &self.drawing_number, self.v_scale_ratio);
+                            let dxf_content = generate_all_dekigata_dxf_bytes(&dekigata_sections, &info, &self.drawing_number, self.v_scale_ratio, self.dekigata_scale);
                             download_file("dekigata.dxf", &dxf_content);
                         }
                     }
