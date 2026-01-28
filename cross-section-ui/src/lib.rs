@@ -1612,18 +1612,21 @@ fn draw_dekigata_table(
         add_line(drawing, x, table_y, x, table_y + total_height, 7, "DEKIGATA");
     }
 
-    // ヘッダーラベル（上から下へ: V1-Vn, 計画高(設計), 計画高(実測), 切削高(設計), 切削高(実測)）
-    let row_labels = ["", "計画高\n（設計）", "計画高\n（実測）", "切削高\n（設計）", "切削高\n（実測）"];
+    // ヘッダーラベル（上から下へ: V1-Vn, 計画高(設計), 計画高(実施), 切削高(設計), 切削高(実施)）
+    // 実施行は赤色(1)
+    let row_labels = ["", "計画高\n設計", "計画高\n実施", "切削高\n設計", "切削高\n実施"];
+    let row_colors: [i16; 5] = [7, 7, 1, 7, 1];  // 実施行は赤
     for (i, label) in row_labels.iter().enumerate() {
         if !label.is_empty() {
             let y = table_y + total_height - row_height * (i as f64 + 0.5);
+            let color = row_colors[i];
             // 2行に分割されている場合は中央に1行目を表示
             let lines: Vec<&str> = label.split('\n').collect();
             if lines.len() == 2 {
-                add_text(drawing, table_x + header_width / 2.0, y + text_size * 0.6, lines[0], text_size, 7, "DEKIGATA", TextAlign::Center);
-                add_text(drawing, table_x + header_width / 2.0, y - text_size * 0.6, lines[1], text_size, 7, "DEKIGATA", TextAlign::Center);
+                add_text(drawing, table_x + header_width / 2.0, y + text_size * 0.6, lines[0], text_size, color, "DEKIGATA", TextAlign::Center);
+                add_text(drawing, table_x + header_width / 2.0, y - text_size * 0.6, lines[1], text_size, color, "DEKIGATA", TextAlign::Center);
             } else {
-                add_text(drawing, table_x + header_width / 2.0, y, *label, text_size, 7, "DEKIGATA", TextAlign::Center);
+                add_text(drawing, table_x + header_width / 2.0, y, *label, text_size, color, "DEKIGATA", TextAlign::Center);
             }
         }
     }
@@ -1641,18 +1644,18 @@ fn draw_dekigata_table(
         let design_fh_y = table_y + total_height - row_height * 1.5;
         add_text(drawing, col_center_x, design_fh_y, &format!("{:.3}", pt.planned_height), text_size, 7, "DEKIGATA", TextAlign::Center);
 
-        // 計画高（実測）- 空欄 + 括弧（スペース広め）
-        let actual_fh_y = table_y + total_height - row_height * 2.5;
-        add_text(drawing, col_center_x + data_width * 0.35, actual_fh_y, "(        )", text_size * 0.8, 7, "DEKIGATA", TextAlign::Right);
+        // 計画高（実施）- 空欄（赤）
+        let _actual_fh_y = table_y + total_height - row_height * 2.5;
+        // 実施行は手書き用に空欄
 
         // 切削高（設計）= 計画高 - 切削厚
         let design_cutting = pt.planned_height - DEKIGATA_DEFAULT_CUTTING_THICKNESS_MM / 1000.0;
         let design_cut_y = table_y + total_height - row_height * 3.5;
         add_text(drawing, col_center_x, design_cut_y, &format!("{:.3}", design_cutting), text_size, 7, "DEKIGATA", TextAlign::Center);
 
-        // 切削高（実測）- 空欄 + 括弧（スペース広め）
-        let actual_cut_y = table_y + total_height - row_height * 4.5;
-        add_text(drawing, col_center_x + data_width * 0.35, actual_cut_y, "(        )", text_size * 0.8, 7, "DEKIGATA", TextAlign::Right);
+        // 切削高（実施）- 空欄（赤）
+        let _actual_cut_y = table_y + total_height - row_height * 4.5;
+        // 実施行は手書き用に空欄
     }
 }
 
