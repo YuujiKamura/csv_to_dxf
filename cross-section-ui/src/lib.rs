@@ -1529,7 +1529,7 @@ fn draw_dekigata_page(
     let table_bottom_margin_mm = 15.0;  // タイトル枠なしのため縮小
 
     // 横断図の描画領域（上部）
-    let cross_section_bottom_mm = table_bottom_margin_mm + table_height_mm + 10.0;
+    let cross_section_bottom_mm = table_bottom_margin_mm + table_height_mm + 25.0;  // 表との間隔を広げる
     let cross_section_top_mm = 255.0;  // 工事名の下（277-15-7=255）
     let cross_section_height_mm = cross_section_top_mm - cross_section_bottom_mm;
 
