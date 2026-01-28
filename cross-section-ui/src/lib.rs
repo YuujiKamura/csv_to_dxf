@@ -1494,16 +1494,16 @@ const DEKIGATA_DEFAULT_CUTTING_THICKNESS_MM: f64 = 50.0;
 const DEKIGATA_SCALE: f64 = 50.0;
 
 /// 出来形管理表のセル高さ（mm）
-const DEKIGATA_TABLE_ROW_HEIGHT_MM: f64 = 16.0;  // 2倍に拡大
+const DEKIGATA_TABLE_ROW_HEIGHT_MM: f64 = 20.0;  // 2.5倍に拡大
 
 /// 出来形管理表のヘッダー列幅（mm）
-const DEKIGATA_TABLE_HEADER_WIDTH_MM: f64 = 50.0;  // 2倍に拡大
+const DEKIGATA_TABLE_HEADER_WIDTH_MM: f64 = 60.0;  // 2.5倍に拡大
 
 /// 出来形管理表のデータ列幅（mm）
-const DEKIGATA_TABLE_DATA_WIDTH_MM: f64 = 36.0;  // 2倍に拡大
+const DEKIGATA_TABLE_DATA_WIDTH_MM: f64 = 45.0;  // 2.5倍に拡大
 
 /// 出来形管理表のテキストサイズ（mm）
-const DEKIGATA_TABLE_TEXT_SIZE_MM: f64 = 5.0;  // 2倍に拡大
+const DEKIGATA_TABLE_TEXT_SIZE_MM: f64 = 6.0;  // 2.5倍に拡大
 
 /// 単一測点の出来形管理用紙を描画
 ///
@@ -1526,7 +1526,7 @@ fn draw_dekigata_page(
     // A3用紙の有効領域（mm単位）
     // 上部: 横断図、下部: 出来形管理表
     let table_height_mm = DEKIGATA_TABLE_ROW_HEIGHT_MM * 5.0;  // 5行（ヘッダー + 4データ行）
-    let table_bottom_margin_mm = 60.0;  // タイトル枠の上
+    let table_bottom_margin_mm = 15.0;  // タイトル枠なしのため縮小
 
     // 横断図の描画領域（上部）
     let cross_section_bottom_mm = table_bottom_margin_mm + table_height_mm + 10.0;
@@ -1766,8 +1766,10 @@ pub fn generate_dekigata_drawing(section: &CrossSectionData, title_info: &TitleB
     let frame_scale = DEKIGATA_SCALE;
     const TEXT_SIZE_MM: f64 = 3.0;
 
-    // 図枠を描画
-    draw_drawing_frame(&mut drawing, title_info, 0.0, 0.0, frame_scale, TEXT_SIZE_MM);
+    // 図枠を描画（タイトル枠なし - 外枠と上部タイトルのみ）
+    title_block::add_title_block_layer(&mut drawing);
+    title_block::draw_outer_frame(&mut drawing, 0.0, 0.0, frame_scale);
+    title_block::draw_top_title(&mut drawing, title_info, 0.0, 0.0, frame_scale, TEXT_SIZE_MM);
 
     // 出来形管理用紙の内容を描画
     draw_dekigata_page(&mut drawing, section, 0.0, 0.0, frame_scale);
@@ -3670,18 +3672,9 @@ impl CrossSectionApp {
                 let dekigata_sections: Vec<CrossSectionData> = self.dekigata_filtered_sections()
                     .into_iter().cloned().collect();
                 if !dekigata_sections.is_empty() {
-                    // selected_index を dekigata_sections 内のインデックスにマッピング
+                    // 出来形モードでは selected_index は dekigata_sections 内のインデックス
                     let display_idx = self.selected_index
-                        .and_then(|sel_idx| {
-                            // 全セクションの中から選択されたセクションを取得
-                            self.sections.get(sel_idx)
-                                .and_then(|selected| {
-                                    // dekigata_sections 内での位置を探す
-                                    dekigata_sections.iter().position(|s|
-                                        s.survey_point_name == selected.survey_point_name
-                                    )
-                                })
-                        })
+                        .map(|idx| idx.min(dekigata_sections.len() - 1))
                         .unwrap_or(0);
                     let info = TitleBlockInfo::new()
                         .with_project_name(&self.project_name)
