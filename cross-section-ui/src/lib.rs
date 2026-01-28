@@ -26,7 +26,7 @@ pub use title_block::{
 
 // dxf crate for proper DXF file generation
 use dxf::Drawing;
-use dxf::entities::{Entity, EntityType, Line, Solid, Text, Wipeout};
+use dxf::entities::{Entity, EntityType, Line, Text, Wipeout};
 use dxf::enums::{HorizontalTextJustification, VerticalTextJustification};
 use dxf::{Color, Point};
 
@@ -212,21 +212,6 @@ fn add_dimension_as_lines(
     // 中央にテキスト（寸法線の上にマージン、ボトムアラインメント）
     let mid_x = (x1 + x2) / 2.0;
     let text_y = y + 50.0;
-
-    // 白背景マスク（テキストの下にSOLID矩形）
-    let width = estimate_text_width(text, text_height);
-    let mask_x = mid_x - width / 2.0;  // Center alignment
-    let mut solid = Solid::default();
-    // VerticalAlign::Bottom なので、テキストはyから上に伸びる
-    solid.first_corner = Point::new(mask_x, text_y, 0.0);
-    solid.second_corner = Point::new(mask_x + width, text_y, 0.0);
-    solid.third_corner = Point::new(mask_x, text_y + text_height, 0.0);
-    solid.fourth_corner = Point::new(mask_x + width, text_y + text_height, 0.0);
-
-    let mut entity = Entity::new(EntityType::Solid(solid));
-    entity.common.layer = layer.to_string();
-    entity.common.color = Color::from_index(7);  // 白
-    drawing.add_entity(entity);
 
     add_text_rotated(drawing, mid_x, text_y, text, text_height, color, layer,
         TextAlign::Center, VerticalAlign::Bottom, 0.0);
