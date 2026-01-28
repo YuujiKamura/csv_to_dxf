@@ -104,6 +104,8 @@ pub struct SectionStyle {
     pub dim_tick_up: f64,           // 上方ティック
     pub dim_tick_down: f64,         // 下方ティック
     pub dim_text_offset: f64,       // テキストY位置オフセット
+    pub dim_offset: f64,            // 寸法線の高さオフセット
+    pub dim_arrow_size: f64,        // 矢印のサイズ
 }
 
 impl Default for SectionStyle {
@@ -129,6 +131,8 @@ impl Default for SectionStyle {
             dim_tick_up: 50.0,
             dim_tick_down: 500.0,
             dim_text_offset: 50.0,
+            dim_offset: 100.0,
+            dim_arrow_size: 50.0,
         }
     }
 }
@@ -157,6 +161,8 @@ impl SectionStyle {
             dim_tick_up: self.dim_tick_up,  // 寸法線ティックはスケールしない
             dim_tick_down: self.dim_tick_down,  // 寸法線ティックはスケールしない
             dim_text_offset: self.dim_text_offset,  // 寸法線テキストはスケールしない
+            dim_offset: self.dim_offset * scale_multiplier,
+            dim_arrow_size: self.dim_arrow_size * scale_multiplier,
         }
     }
 }
