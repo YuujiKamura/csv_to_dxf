@@ -58,6 +58,7 @@ pub struct CrossSectionApp {
     pub(crate) date: String,                // 作成日
     pub(crate) drawing_number: String,      // 図面番号
     pub(crate) show_debug_guides: bool,     // デバッグガイド表示
+    pub(crate) hide_project_name: bool,     // 工事名を非表示
     pub(crate) v_scale_ratio: f64,          // 縦方向スケール倍率（1.0〜5.0）
     pub(crate) dekigata_scale: f64,         // 出来形管理図のスケール（30〜100）
     // ページ分割
@@ -98,6 +99,7 @@ impl Default for CrossSectionApp {
             date: String::new(),
             drawing_number: String::new(),
             show_debug_guides: true,  // デフォルトでON
+            hide_project_name: false, // デフォルトで表示
             v_scale_ratio: 2.0,       // デフォルト縦スケール2倍
             dekigata_scale: 50.0,     // デフォルト出来形スケール1:50
             // ページ分割
@@ -311,8 +313,9 @@ impl CrossSectionApp {
                     } else {
                         self.drawing_number.clone()
                     };
+                    let display_project_name = if self.hide_project_name { "" } else { &self.project_name };
                     let info = TitleBlockInfo::new()
-                        .with_project_name(&self.project_name)
+                        .with_project_name(display_project_name)
                         .with_drawing_type(&self.drawing_type)
                         .with_route_name(&self.route_name)
                         .with_author(&self.author)
@@ -341,14 +344,15 @@ impl CrossSectionApp {
                     let display_idx = self.selected_index
                         .map(|idx| idx.min(dekigata_sections.len() - 1))
                         .unwrap_or(0);
+                    let display_project_name = if self.hide_project_name { "" } else { &self.project_name };
                     let info = TitleBlockInfo::new()
-                        .with_project_name(&self.project_name)
+                        .with_project_name(display_project_name)
                         .with_drawing_type("出来形管理用紙")
                         .with_route_name(&self.route_name)
                         .with_author(&self.author)
                         .with_date(&self.date)
                         .with_top_title("出来形管理用紙")
-                        .with_scale("1:50 (A3)")
+                        .with_scale(&format!("1:{} (A3)", self.dekigata_scale as u32))
                         .with_debug_markers(self.show_debug_guides);
                     // プレビュー用: 選択された測点を表示
                     generate_dekigata_drawing(&dekigata_sections[display_idx], &info, self.v_scale_ratio, self.dekigata_scale)

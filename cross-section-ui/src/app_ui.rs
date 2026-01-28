@@ -350,6 +350,12 @@ impl eframe::App for CrossSectionApp {
                                     self.update_dxf_preview();
                                 }
                             }
+                            // 工事名非表示
+                            if self.plot_scale.is_some() || self.view_mode == ViewMode::Dekigata {
+                                if ui.checkbox(&mut self.hide_project_name, "工事名非表示").changed() {
+                                    self.update_dxf_preview();
+                                }
+                            }
                         });
                         // ページナビゲーション（複数ページある場合のみ）
                         if self.total_pages > 1 && self.plot_scale.is_some() {
@@ -383,8 +389,9 @@ impl eframe::App for CrossSectionApp {
                                 if ui.button("DXF").clicked() {
                                     let (dxf_content, filename) = if let Some(scale) = self.plot_scale {
                                         // 全ページを1つのDXFに垂直配置
+                                        let display_project_name = if self.hide_project_name { "" } else { &self.project_name };
                                         let info = TitleBlockInfo::new()
-                                            .with_project_name(&self.project_name)
+                                            .with_project_name(display_project_name)
                                             .with_drawing_type(&self.drawing_type)
                                             .with_route_name(&self.route_name)
                                             .with_author(&self.author)
@@ -416,14 +423,15 @@ impl eframe::App for CrossSectionApp {
                                 let dekigata_sections: Vec<CrossSectionData> = self.dekigata_filtered_sections()
                                     .into_iter().cloned().collect();
                                 if !dekigata_sections.is_empty() && ui.button("DXF").clicked() {
+                                    let display_project_name = if self.hide_project_name { "" } else { &self.project_name };
                                     let info = TitleBlockInfo::new()
-                                        .with_project_name(&self.project_name)
+                                        .with_project_name(display_project_name)
                                         .with_drawing_type("出来形管理用紙")
                                         .with_route_name(&self.route_name)
                                         .with_author(&self.author)
                                         .with_date(&self.date)
                                         .with_top_title("出来形管理用紙")
-                                        .with_scale("1:50 (A3)")
+                                        .with_scale(&format!("1:{} (A3)", self.dekigata_scale as u32))
                                         .with_debug_markers(false);
                                     let dxf_content = generate_all_dekigata_dxf_bytes(&dekigata_sections, &info, &self.drawing_number, self.v_scale_ratio, self.dekigata_scale);
                                     download_file("dekigata.dxf", &dxf_content);
@@ -653,6 +661,12 @@ impl eframe::App for CrossSectionApp {
                                 self.update_dxf_preview();
                             }
                         }
+                        // 工事名非表示
+                        if self.plot_scale.is_some() || self.view_mode == ViewMode::Dekigata {
+                            if ui.checkbox(&mut self.hide_project_name, "工事名非表示").changed() {
+                                self.update_dxf_preview();
+                            }
+                        }
                         // ページナビゲーション（複数ページある場合のみ）
                         if self.total_pages > 1 && self.plot_scale.is_some() {
                             ui.separator();
@@ -697,8 +711,9 @@ impl eframe::App for CrossSectionApp {
                         if ui.button("Download All DXF").clicked() {
                             let (dxf_content, filename) = if let Some(scale) = self.plot_scale {
                                 // 全ページを1つのDXFに垂直配置
+                                let display_project_name = if self.hide_project_name { "" } else { &self.project_name };
                                 let info = TitleBlockInfo::new()
-                                    .with_project_name(&self.project_name)
+                                    .with_project_name(display_project_name)
                                     .with_drawing_type(&self.drawing_type)
                                     .with_route_name(&self.route_name)
                                     .with_author(&self.author)
@@ -730,14 +745,15 @@ impl eframe::App for CrossSectionApp {
                         let dekigata_sections: Vec<CrossSectionData> = self.dekigata_filtered_sections()
                             .into_iter().cloned().collect();
                         if !dekigata_sections.is_empty() && ui.button("Download 出来形 DXF").clicked() {
+                            let display_project_name = if self.hide_project_name { "" } else { &self.project_name };
                             let info = TitleBlockInfo::new()
-                                .with_project_name(&self.project_name)
+                                .with_project_name(display_project_name)
                                 .with_drawing_type("出来形管理用紙")
                                 .with_route_name(&self.route_name)
                                 .with_author(&self.author)
                                 .with_date(&self.date)
                                 .with_top_title("出来形管理用紙")
-                                .with_scale("1:50 (A3)")
+                                .with_scale(&format!("1:{} (A3)", self.dekigata_scale as u32))
                                 .with_debug_markers(false);
                             let dxf_content = generate_all_dekigata_dxf_bytes(&dekigata_sections, &info, &self.drawing_number, self.v_scale_ratio, self.dekigata_scale);
                             download_file("dekigata.dxf", &dxf_content);
