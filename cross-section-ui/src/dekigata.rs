@@ -39,6 +39,7 @@ const DEKIGATA_TABLE_TEXT_SIZE_MM: f64 = 10.0;  // さらに拡大
 /// * `origin_y` - 原点Y座標（DXF単位）
 /// * `frame_scale` - 図枠スケール（1:50なら50.0）
 /// * `v_scale_ratio` - 縦方向スケール倍率
+/// * `has_project_name` - 工事名が表示されるかどうか
 fn draw_dekigata_page(
     drawing: &mut Drawing,
     section: &CrossSectionData,
@@ -46,6 +47,7 @@ fn draw_dekigata_page(
     origin_y: f64,
     frame_scale: f64,
     v_scale_ratio: f64,
+    has_project_name: bool,
 ) {
     let data = &section.survey_data;
     if data.len() < 2 { return; }
@@ -56,8 +58,9 @@ fn draw_dekigata_page(
     let table_bottom_margin_mm = 15.0;  // タイトル枠なしのため縮小
 
     // 横断図の描画領域（上部）
+    // 工事名がある場合は上端を下げて被らないようにする
     let cross_section_bottom_mm = table_bottom_margin_mm + table_height_mm + 25.0;  // 表との間隔を広げる
-    let cross_section_top_mm = 248.0;  // 工事名の下（大きいテキスト用に余裕）
+    let cross_section_top_mm = if has_project_name { 235.0 } else { 255.0 };  // 工事名の有無で調整
     let cross_section_height_mm = cross_section_top_mm - cross_section_bottom_mm;
 
     // 横断図の描画
@@ -231,7 +234,7 @@ pub fn generate_dekigata_drawing(section: &CrossSectionData, title_info: &TitleB
     add_text(&mut drawing, center_x, name_y, &title_info.project_name, text_size, 7, "TITLEBLOCK", HAlign::Center);
 
     // 出来形管理用紙の内容を描画
-    draw_dekigata_page(&mut drawing, section, 0.0, 0.0, frame_scale, v_scale_ratio);
+    draw_dekigata_page(&mut drawing, section, 0.0, 0.0, frame_scale, v_scale_ratio, title_info.has_project_name());
 
     drawing
 }
@@ -324,7 +327,7 @@ pub fn generate_all_dekigata_pages(
         // draw_title_block は呼ばない（出来形管理用紙では不要）
 
         // 出来形管理用紙の内容を描画
-        draw_dekigata_page(&mut drawing, section, 0.0, page_offset_y, frame_scale, v_scale_ratio);
+        draw_dekigata_page(&mut drawing, section, 0.0, page_offset_y, frame_scale, v_scale_ratio, info.has_project_name());
     }
 
     drawing

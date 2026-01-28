@@ -233,6 +233,11 @@ impl TitleBlockInfo {
         self.show_debug_markers = show;
         self
     }
+
+    /// 工事名が設定されているかどうか
+    pub fn has_project_name(&self) -> bool {
+        !self.project_name.is_empty()
+    }
 }
 
 /// LINE追加ヘルパー（座標変換付き）
