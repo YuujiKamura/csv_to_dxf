@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 
 mod font_metrics;
 mod title_block;
+mod ui_chars;
 
 use font_metrics::cap_height_to_text_height;
 
@@ -3669,6 +3670,19 @@ impl CrossSectionApp {
                 let dekigata_sections: Vec<CrossSectionData> = self.dekigata_filtered_sections()
                     .into_iter().cloned().collect();
                 if !dekigata_sections.is_empty() {
+                    // selected_index を dekigata_sections 内のインデックスにマッピング
+                    let display_idx = self.selected_index
+                        .and_then(|sel_idx| {
+                            // 全セクションの中から選択されたセクションを取得
+                            self.cross_sections.get(sel_idx)
+                                .and_then(|selected| {
+                                    // dekigata_sections 内での位置を探す
+                                    dekigata_sections.iter().position(|s|
+                                        s.survey_point_name == selected.survey_point_name
+                                    )
+                                })
+                        })
+                        .unwrap_or(0);
                     let info = TitleBlockInfo::new()
                         .with_project_name(&self.project_name)
                         .with_drawing_type("出来形管理用紙")
@@ -3678,8 +3692,8 @@ impl CrossSectionApp {
                         .with_top_title("出来形管理用紙")
                         .with_scale("1:50 (A3)")
                         .with_debug_markers(self.show_debug_guides);
-                    // プレビュー用: 最初のページのみ表示
-                    generate_dekigata_drawing(&dekigata_sections[0], &info)
+                    // プレビュー用: 選択された測点を表示
+                    generate_dekigata_drawing(&dekigata_sections[display_idx], &info)
                 } else {
                     return;
                 }
@@ -3845,7 +3859,10 @@ impl eframe::App for CrossSectionApp {
                             });
                         if let Some(idx) = response.inner.flatten() {
                             self.selected_index = Some(idx);
-                            self.view_mode = ViewMode::Single;  // 単一モードに切り替え
+                            // 出来形モード時はモード維持
+                            if self.view_mode != ViewMode::Dekigata {
+                                self.view_mode = ViewMode::Single;
+                            }
                             self.update_dxf_preview();
                         }
 
@@ -4419,7 +4436,10 @@ impl eframe::App for CrossSectionApp {
                 });
                 if let Some(idx) = new_selection {
                     self.selected_index = Some(idx);
-                    self.view_mode = ViewMode::Single;  // 単一モードに切り替え
+                    // 出来形モード時はモード維持
+                    if self.view_mode != ViewMode::Dekigata {
+                        self.view_mode = ViewMode::Single;
+                    }
                     self.update_dxf_preview();
                 }
 
