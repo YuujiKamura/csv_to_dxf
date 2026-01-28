@@ -4368,8 +4368,14 @@ impl eframe::App for CrossSectionApp {
 
                 // 測点リスト（全モードで表示、選択時は単一モードに切替）
                 // 借用の問題を避けるため、表示に必要なデータを先にコピー
-                let filtered_names: Vec<String> = self.filtered_sections()
-                    .iter().map(|s| s.survey_point_name.clone()).collect();
+                // 出来形モードでは整数測点のみ表示
+                let filtered_names: Vec<String> = if self.view_mode == ViewMode::Dekigata {
+                    self.dekigata_filtered_sections()
+                        .iter().map(|s| s.survey_point_name.clone()).collect()
+                } else {
+                    self.filtered_sections()
+                        .iter().map(|s| s.survey_point_name.clone()).collect()
+                };
                 let filtered_count = filtered_names.len();
 
                 // モード別の情報表示
