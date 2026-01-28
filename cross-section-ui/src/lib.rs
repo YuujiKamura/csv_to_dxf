@@ -551,7 +551,7 @@ mod tests {
         let scale = 1000.0;  // 1m = 1000 DXF units
         let style = SectionStyle::default();
 
-        let content = build_section_content(&section, offset_x, offset_y, scale, &style);
+        let content = build_section_content(&section, offset_x, offset_y, scale, &style, 2.0);
 
         // Check that primitives.len() > 0
         assert!(content.primitives.len() > 0, "DrawingContent should have primitives");
@@ -568,7 +568,7 @@ mod tests {
     fn test_build_section_content_has_lines() {
         // Verify the content includes ground, plan, and cutting lines
         let section = make_test_section_for_content();
-        let content = build_section_content(&section, 0.0, 0.0, 1000.0, &SectionStyle::default());
+        let content = build_section_content(&section, 0.0, 0.0, 1000.0, &SectionStyle::default(), 2.0);
 
         // Count Line primitives
         let line_count = content.primitives.iter()
@@ -598,7 +598,7 @@ mod tests {
     fn test_build_section_content_has_labels() {
         // Verify the content includes text labels
         let section = make_test_section_for_content();
-        let content = build_section_content(&section, 0.0, 0.0, 1000.0, &SectionStyle::default());
+        let content = build_section_content(&section, 0.0, 0.0, 1000.0, &SectionStyle::default(), 2.0);
 
         // Count Text primitives
         let text_count = content.primitives.iter()
@@ -617,7 +617,7 @@ mod tests {
             .collect();
 
         // Verify survey point name exists in the labels
-        let has_survey_point_name = texts.iter().any(|&t| t.contains("No.1"));
+        let has_survey_point_name = texts.iter().any(|t| t.contains("No.1"));
         assert!(has_survey_point_name,
             "Expected survey point name 'No.1' in text labels. Found texts: {:?}", texts);
     }

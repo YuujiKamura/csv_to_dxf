@@ -17,6 +17,76 @@ use crate::title_block::available_area;
 // Multi-Section Grid Layout
 // ============================================================================
 
+/// 旗揚げ用マージン（メートル単位）
+const FLAG_MARGIN: f64 = 0.5;
+
+/// グリッドレイアウトのパラメータと計算ロジック
+///
+/// セル高さの計算を一元管理し、v_scale_ratioと行間隔の関係を正しく処理する。
+/// - セクション描画高さ: v_scale_ratio適用
+/// - 行間隔: 固定（v_scale_ratioに依存しない）
+#[derive(Debug, Clone, Copy)]
+pub struct GridLayoutParams {
+    pub scale: f64,           // 基本スケール（通常1000.0 = 1m）
+    pub v_scale_ratio: f64,   // 縦方向スケール倍率（1.0〜5.0）
+    pub column_gap: f64,      // 列間隔（メートル）
+    pub row_gap: f64,         // 行間隔（メートル）
+}
+
+impl GridLayoutParams {
+    /// デフォルトパラメータ（scale=1000, v_scale=2.0）
+    pub fn new(column_gap: f64, row_gap: f64) -> Self {
+        Self {
+            scale: 1000.0,
+            v_scale_ratio: 2.0,
+            column_gap,
+            row_gap,
+        }
+    }
+
+    /// v_scale_ratioを指定
+    pub fn with_v_scale(mut self, v_scale_ratio: f64) -> Self {
+        self.v_scale_ratio = v_scale_ratio;
+        self
+    }
+
+    /// セクションの描画高さを計算（メートル単位、旗揚げ含む）
+    pub fn section_content_height(&self, section: &CrossSectionData) -> f64 {
+        let data = &section.survey_data;
+        if data.len() < 2 { return 0.0; }
+        let max_elev = data.iter()
+            .map(|d| d.elevation.max(d.planned_height))
+            .fold(f64::MIN, f64::max);
+        max_elev - section.dl + FLAG_MARGIN
+    }
+
+    /// 複数セクションの最大描画高さ（メートル単位）
+    pub fn max_section_height(&self, sections: &[CrossSectionData]) -> f64 {
+        sections.iter()
+            .map(|s| self.section_content_height(s))
+            .fold(0.0_f64, f64::max)
+    }
+
+    /// セル高さをDXF単位で計算
+    ///
+    /// - セクション高さ: v_scale_ratio適用（縦に伸縮）
+    /// - 行間隔: 固定（v_scale_ratioに依存しない）
+    pub fn cell_height_dxf(&self, max_section_height_m: f64) -> f64 {
+        max_section_height_m * self.scale * self.v_scale_ratio + self.row_gap * self.scale
+    }
+
+    /// 複数セクションからセル高さを直接計算
+    pub fn cell_height_for_sections(&self, sections: &[CrossSectionData]) -> f64 {
+        let max_height = self.max_section_height(sections);
+        self.cell_height_dxf(max_height)
+    }
+
+    /// Y方向スケール（DXF単位変換用）
+    pub fn y_scale(&self) -> f64 {
+        self.scale * self.v_scale_ratio
+    }
+}
+
 /// グリッド配置のバウンディングボックス（DXF単位）
 #[derive(Debug, Clone)]
 pub struct GridBounds {
@@ -82,13 +152,12 @@ pub fn calc_grid_bounds_with_v_scale(
     let columns = available_area::COLUMN_COUNT.min(columns.max(1).min(sections.len()));
     let rows_per_column = (sections.len() + columns - 1) / columns;
 
-    // 列ごとの最大幅と全体の最大高さを計算（generate_multi_drawing_internalと同じロジック）
+    // GridLayoutParamsで計算を共通化
+    let params = GridLayoutParams::new(column_gap, row_gap).with_v_scale(v_scale_ratio);
+
+    // 列ごとの最大幅を計算
     let mut col_max_left: Vec<f64> = vec![0.0; columns];
     let mut col_max_right: Vec<f64> = vec![0.0; columns];
-    let mut max_height: f64 = 0.0;
-
-    // 旗揚げ用の固定マージン（0.5m）
-    const FLAG_MARGIN: f64 = 0.5;
 
     for (idx, section) in sections.iter().enumerate() {
         if section.survey_data.len() < 2 { continue; }
@@ -99,13 +168,10 @@ pub fn calc_grid_bounds_with_v_scale(
         let max_dist = data.last().unwrap().cumulative_distance;
         col_max_left[col] = col_max_left[col].max(min_dist.abs());
         col_max_right[col] = col_max_right[col].max(max_dist);
-        // 全体の最大高さ（旗揚げマージン込み）
-        let max_elev = data.iter().map(|d| d.elevation.max(d.planned_height)).fold(f64::MIN, f64::max);
-        max_height = max_height.max(max_elev - section.dl + row_gap + FLAG_MARGIN);
     }
 
-    // セル高さ（全セクション共通、行間隔を含む）
-    let cell_height = (max_height + row_gap) * y_scale;
+    // セル高さ（GridLayoutParamsで計算）
+    let cell_height = params.cell_height_for_sections(sections);
 
     // 列ごとのCL位置を計算
     let mut col_x_offsets: Vec<f64> = Vec::with_capacity(columns);
@@ -365,16 +431,15 @@ fn generate_multi_drawing_internal(
         columns
     };
 
-    // 旗揚げ用の固定マージン（0.5m）
-    const FLAG_MARGIN: f64 = 0.5;
+    // GridLayoutParamsで計算を共通化
+    let params = GridLayoutParams::new(column_gap, row_gap).with_v_scale(v_scale_ratio);
 
     // 道路工事の配置: 左下起点、列ごとに下から上
     let rows_per_column = (sections.len() + columns - 1) / columns;  // ceil division
 
-    // 列ごとの最大幅と全体の最大高さを計算
+    // 列ごとの最大幅を計算
     let mut col_max_left: Vec<f64> = vec![0.0; columns];
     let mut col_max_right: Vec<f64> = vec![0.0; columns];
-    let mut max_height: f64 = 0.0;
 
     for (idx, section) in sections.iter().enumerate() {
         if section.survey_data.len() < 2 { continue; }
@@ -384,11 +449,10 @@ fn generate_multi_drawing_internal(
         let max_dist = data.last().unwrap().cumulative_distance;
         col_max_left[col] = col_max_left[col].max(min_dist.abs());
         col_max_right[col] = col_max_right[col].max(max_dist);
-        let max_elev = data.iter().map(|d| d.elevation.max(d.planned_height)).fold(f64::MIN, f64::max);
-        max_height = max_height.max(max_elev - section.dl + row_gap + FLAG_MARGIN);
     }
 
-    let cell_height = (max_height + row_gap) * scale * v_scale_ratio;  // 行間隔を含む（縦スケール倍率適用）
+    // セル高さ（GridLayoutParamsで計算）
+    let cell_height = params.cell_height_for_sections(sections);
 
     // 図枠付きの場合: 4列均等分割の中心線を使用
     // 図枠なしの場合: 従来の動的計算
@@ -638,21 +702,13 @@ fn draw_page_content(
 
     if sections.is_empty() { return; }
 
-    // 旗揚げ用の固定マージン（0.5m）
-    const FLAG_MARGIN: f64 = 0.5;
+    // GridLayoutParamsで計算を共通化
+    let params = GridLayoutParams::new(column_gap, row_gap).with_v_scale(v_scale_ratio);
 
     let rows_per_column = (sections.len() + columns - 1) / columns;
 
-    // 全体の最大高さを計算
-    let mut max_height: f64 = 0.0;
-    for section in sections.iter() {
-        if section.survey_data.len() < 2 { continue; }
-        let data = &section.survey_data;
-        let max_elev = data.iter().map(|d| d.elevation.max(d.planned_height)).fold(f64::MIN, f64::max);
-        max_height = max_height.max(max_elev - section.dl + row_gap + FLAG_MARGIN);
-    }
-
-    let cell_height = (max_height + row_gap) * scale * v_scale_ratio;
+    // セル高さ（GridLayoutParamsで計算）
+    let cell_height = params.cell_height_for_sections(sections);
 
     // 列ごとのCL位置（固定）
     let col_centers: Vec<f64> = (0..columns)
@@ -735,11 +791,9 @@ pub fn calc_section_bounds_in_grid_with_v_scale(
 ) -> Option<(f32, f32, f32, f32)> {
     if sections.is_empty() || target_idx >= sections.len() { return None; }
 
-    let scale = 1000.0;
+    let params = GridLayoutParams::new(column_gap, row_gap).with_v_scale(v_scale_ratio);
+    let scale = params.scale;
     let rows_per_column = (sections.len() + columns - 1) / columns;
-
-    // 旗揚げ用の固定マージン（0.5m）
-    const FLAG_MARGIN: f64 = 0.5;
 
     // 列ごとの最大幅と全体の最大高さを計算（generate_multi_drawingと同じ）
     let mut col_max_left: Vec<f64> = vec![0.0; columns];
@@ -754,8 +808,7 @@ pub fn calc_section_bounds_in_grid_with_v_scale(
         let max_dist = data.last().unwrap().cumulative_distance;
         col_max_left[col] = col_max_left[col].max(min_dist.abs());
         col_max_right[col] = col_max_right[col].max(max_dist);
-        let max_elev = data.iter().map(|d| d.elevation.max(d.planned_height)).fold(f64::MIN, f64::max);
-        max_height = max_height.max(max_elev - section.dl + row_gap + FLAG_MARGIN);
+        max_height = max_height.max(params.section_content_height(section));
     }
 
     // 列ごとのCL位置を計算
@@ -769,7 +822,7 @@ pub fn calc_section_bounds_in_grid_with_v_scale(
         cumulative_x += cell_width;
     }
 
-    let cell_height = (max_height + row_gap) * scale * v_scale_ratio;
+    let cell_height = params.cell_height_dxf(max_height);
 
     // ターゲットセクションの位置を計算
     let target_section = &sections[target_idx];
@@ -783,7 +836,7 @@ pub fn calc_section_bounds_in_grid_with_v_scale(
     // セクションのバウンディングボックスを計算
     let data = &target_section.survey_data;
     let dl = round_dl(target_section.dl);
-    let y_scale = scale * v_scale_ratio;
+    let y_scale = params.y_scale();
 
     let min_dist = data.first().unwrap().cumulative_distance;
     let max_dist = data.last().unwrap().cumulative_distance;
@@ -799,7 +852,7 @@ pub fn calc_section_bounds_in_grid_with_v_scale(
 }
 
 /// 横断図の描画コンテンツを構築（中間表現）
-fn build_section_content(section: &CrossSectionData,
+pub fn build_section_content(section: &CrossSectionData,
                          offset_x: f64, offset_y: f64, scale: f64,
                          style: &SectionStyle, v_scale_ratio: f64) -> DrawingContent {
     let mut content = DrawingContent::new();
