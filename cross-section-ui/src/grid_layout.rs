@@ -63,10 +63,21 @@ pub fn calc_grid_bounds(
     column_gap: f64,
     row_gap: f64,
 ) -> Option<GridBounds> {
+    calc_grid_bounds_with_v_scale(sections, columns, column_gap, row_gap, 2.0)
+}
+
+/// 縦スケール倍率を指定してグリッド配置のバウンディングボックスを計算
+pub fn calc_grid_bounds_with_v_scale(
+    sections: &[CrossSectionData],
+    columns: usize,
+    column_gap: f64,
+    row_gap: f64,
+    v_scale_ratio: f64,
+) -> Option<GridBounds> {
     if sections.is_empty() { return None; }
 
     let scale = 1000.0;
-    let y_scale = scale * 2.0;
+    let y_scale = scale * v_scale_ratio;
     // 図枠計算時は4列固定を使用（引数は互換性のため残す）
     let columns = available_area::COLUMN_COUNT.min(columns.max(1).min(sections.len()));
     let rows_per_column = (sections.len() + columns - 1) / columns;
@@ -259,17 +270,17 @@ pub fn calc_sections_per_page(
 /// 複数横断図をグリッド配置したDrawingを生成
 /// 道路工事の配置ルール: 左下起点、列ごとに下から上へ、左から右へ
 pub fn generate_multi_drawing(sections: &[CrossSectionData], columns: usize, column_gap: f64, row_gap: f64) -> Drawing {
-    generate_multi_drawing_internal(sections, columns, column_gap, row_gap, None, None, 1.0, false)
+    generate_multi_drawing_internal(sections, columns, column_gap, row_gap, None, None, 1.0, false, 2.0)
 }
 
 /// スケール倍率指定で複数横断図をグリッド配置したDrawingを生成（コンボモード用）
 pub fn generate_multi_drawing_scaled(sections: &[CrossSectionData], columns: usize, column_gap: f64, row_gap: f64, scale_multiplier: f64) -> Drawing {
-    generate_multi_drawing_internal(sections, columns, column_gap, row_gap, None, None, scale_multiplier, false)
+    generate_multi_drawing_internal(sections, columns, column_gap, row_gap, None, None, scale_multiplier, false, 2.0)
 }
 
 /// スケール倍率指定で複数横断図をグリッド配置（補完点を勾配補間）
 pub fn generate_multi_drawing_scaled_interpolated(sections: &[CrossSectionData], columns: usize, column_gap: f64, row_gap: f64, scale_multiplier: f64) -> Drawing {
-    generate_multi_drawing_internal(sections, columns, column_gap, row_gap, None, None, scale_multiplier, true)
+    generate_multi_drawing_internal(sections, columns, column_gap, row_gap, None, None, scale_multiplier, true, 2.0)
 }
 
 /// 1:500図枠付きで複数横断図をグリッド配置したDrawingを生成
@@ -280,7 +291,7 @@ pub fn generate_multi_drawing_with_frame(
     row_gap: f64,
     title_info: &TitleBlockInfo,
 ) -> Drawing {
-    generate_multi_drawing_internal(sections, columns, column_gap, row_gap, Some(500.0), Some(title_info), 1.0, false)
+    generate_multi_drawing_internal(sections, columns, column_gap, row_gap, Some(500.0), Some(title_info), 1.0, false, 2.0)
 }
 
 /// 任意スケールの図枠付きで複数横断図をグリッド配置したDrawingを生成
@@ -292,13 +303,13 @@ pub fn generate_multi_drawing_with_frame_at_scale(
     title_info: &TitleBlockInfo,
     frame_scale: f64,
 ) -> Drawing {
-    generate_multi_drawing_internal(sections, columns, column_gap, row_gap, Some(frame_scale), Some(title_info), 1.0, false)
+    generate_multi_drawing_internal(sections, columns, column_gap, row_gap, Some(frame_scale), Some(title_info), 1.0, false, 2.0)
 }
 
 /// 複数横断図をグリッド配置したDrawingを生成（補完点を勾配補間）
 /// 中間測点の補完点（V2, V4等）を採用点間の勾配で線形補間する
-pub fn generate_multi_drawing_interpolated(sections: &[CrossSectionData], columns: usize, column_gap: f64, row_gap: f64) -> Drawing {
-    generate_multi_drawing_internal(sections, columns, column_gap, row_gap, None, None, 1.0, true)
+pub fn generate_multi_drawing_interpolated(sections: &[CrossSectionData], columns: usize, column_gap: f64, row_gap: f64, v_scale_ratio: f64) -> Drawing {
+    generate_multi_drawing_internal(sections, columns, column_gap, row_gap, None, None, 1.0, true, v_scale_ratio)
 }
 
 /// 任意スケールの図枠付きで複数横断図をグリッド配置（補完点を勾配補間）
@@ -309,14 +320,16 @@ pub fn generate_multi_drawing_with_frame_at_scale_interpolated(
     row_gap: f64,
     title_info: &TitleBlockInfo,
     frame_scale: f64,
+    v_scale_ratio: f64,
 ) -> Drawing {
-    generate_multi_drawing_internal(sections, columns, column_gap, row_gap, Some(frame_scale), Some(title_info), 1.0, true)
+    generate_multi_drawing_internal(sections, columns, column_gap, row_gap, Some(frame_scale), Some(title_info), 1.0, true, v_scale_ratio)
 }
 
 /// 複数横断図をグリッド配置（内部実装）
 /// frame_scale: None=図枠なし、Some(200.0)=1:200、Some(500.0)=1:500
 /// scale_multiplier: 横断図全体のスケール倍率（コンボモード用）
 /// interpolate_intermediate: 中間測点の補完点を勾配補間するか
+/// v_scale_ratio: 縦方向スケール倍率（1.0〜3.0、デフォルト2.0）
 fn generate_multi_drawing_internal(
     sections: &[CrossSectionData],
     columns: usize,
@@ -326,6 +339,7 @@ fn generate_multi_drawing_internal(
     title_info: Option<&TitleBlockInfo>,
     scale_multiplier: f64,
     interpolate_intermediate: bool,
+    v_scale_ratio: f64,
 ) -> Drawing {
     let scale = 1000.0 * scale_multiplier;
 
@@ -374,7 +388,7 @@ fn generate_multi_drawing_internal(
         max_height = max_height.max(max_elev - section.dl + row_gap + FLAG_MARGIN);
     }
 
-    let cell_height = (max_height + row_gap) * scale * 2.0;  // 行間隔を含む（縦スケール2倍）
+    let cell_height = (max_height + row_gap) * scale * v_scale_ratio;  // 行間隔を含む（縦スケール倍率適用）
 
     // 図枠付きの場合: 4列均等分割の中心線を使用
     // 図枠なしの場合: 従来の動的計算
@@ -455,9 +469,9 @@ fn generate_multi_drawing_internal(
         if interpolate_intermediate && !is_start_or_end {
             let mut section_to_draw = section.clone();
             section_to_draw.interpolate_planned_heights();
-            draw_section_at_offset(&mut drawing, &section_to_draw, offset_x, offset_y, scale, scale_multiplier);
+            draw_section_at_offset(&mut drawing, &section_to_draw, offset_x, offset_y, scale, scale_multiplier, v_scale_ratio);
         } else {
-            draw_section_at_offset(&mut drawing, section, offset_x, offset_y, scale, scale_multiplier);
+            draw_section_at_offset(&mut drawing, section, offset_x, offset_y, scale, scale_multiplier, v_scale_ratio);
         }
     }
 
@@ -513,9 +527,10 @@ pub fn generate_all_pages_drawing(
     frame_scale: f64,
     base_title_info: &TitleBlockInfo,
     drawing_number_base: &str,
+    v_scale_ratio: f64,
 ) -> Drawing {
     generate_all_pages_drawing_internal(
-        all_sections, columns, column_gap, row_gap, frame_scale, base_title_info, drawing_number_base, false
+        all_sections, columns, column_gap, row_gap, frame_scale, base_title_info, drawing_number_base, false, v_scale_ratio
     )
 }
 
@@ -528,9 +543,10 @@ pub fn generate_all_pages_drawing_interpolated(
     frame_scale: f64,
     base_title_info: &TitleBlockInfo,
     drawing_number_base: &str,
+    v_scale_ratio: f64,
 ) -> Drawing {
     generate_all_pages_drawing_internal(
-        all_sections, columns, column_gap, row_gap, frame_scale, base_title_info, drawing_number_base, true
+        all_sections, columns, column_gap, row_gap, frame_scale, base_title_info, drawing_number_base, true, v_scale_ratio
     )
 }
 
@@ -544,6 +560,7 @@ fn generate_all_pages_drawing_internal(
     base_title_info: &TitleBlockInfo,
     drawing_number_base: &str,
     interpolate_intermediate: bool,
+    v_scale_ratio: f64,
 ) -> Drawing {
     let mut drawing = new_drawing();
 
@@ -595,7 +612,7 @@ fn generate_all_pages_drawing_internal(
         // このページのセクションを描画
         draw_page_content(
             &mut drawing, page_sections, columns, column_gap, row_gap, frame_scale, &info, page_offset_y,
-            interpolate_intermediate
+            interpolate_intermediate, v_scale_ratio
         );
     }
 
@@ -614,6 +631,7 @@ fn draw_page_content(
     title_info: &TitleBlockInfo,
     page_offset_y: f64,
     interpolate_intermediate: bool,
+    v_scale_ratio: f64,
 ) {
     let scale = 1000.0;
     let columns = available_area::COLUMN_COUNT;  // 4列固定
@@ -634,7 +652,7 @@ fn draw_page_content(
         max_height = max_height.max(max_elev - section.dl + row_gap + FLAG_MARGIN);
     }
 
-    let cell_height = (max_height + row_gap) * scale * 2.0;
+    let cell_height = (max_height + row_gap) * scale * v_scale_ratio;
 
     // 列ごとのCL位置（固定）
     let col_centers: Vec<f64> = (0..columns)
@@ -673,9 +691,9 @@ fn draw_page_content(
         if interpolate_intermediate && !is_start_or_end {
             let mut section_to_draw = section.clone();
             section_to_draw.interpolate_planned_heights();
-            draw_section_at_offset(drawing, &section_to_draw, offset_x, offset_y, scale, 1.0);
+            draw_section_at_offset(drawing, &section_to_draw, offset_x, offset_y, scale, 1.0, v_scale_ratio);
         } else {
-            draw_section_at_offset(drawing, section, offset_x, offset_y, scale, 1.0);
+            draw_section_at_offset(drawing, section, offset_x, offset_y, scale, 1.0, v_scale_ratio);
         }
     }
 
@@ -693,9 +711,10 @@ pub fn generate_all_pages_dxf_bytes(
     frame_scale: f64,
     base_title_info: &TitleBlockInfo,
     drawing_number_base: &str,
+    v_scale_ratio: f64,
 ) -> Vec<u8> {
     let drawing = generate_all_pages_drawing_interpolated(
-        all_sections, columns, column_gap, row_gap, frame_scale, base_title_info, drawing_number_base
+        all_sections, columns, column_gap, row_gap, frame_scale, base_title_info, drawing_number_base, v_scale_ratio
     );
     let mut output: Vec<u8> = Vec::new();
     drawing.save(&mut output).expect("Failed to save DXF");
@@ -706,6 +725,13 @@ pub fn generate_all_pages_dxf_bytes(
 /// generate_multi_drawingと同じ配置ロジックを使用
 pub fn calc_section_bounds_in_grid(
     sections: &[CrossSectionData], target_idx: usize, columns: usize, column_gap: f64, row_gap: f64
+) -> Option<(f32, f32, f32, f32)> {
+    calc_section_bounds_in_grid_with_v_scale(sections, target_idx, columns, column_gap, row_gap, 2.0)
+}
+
+/// 縦スケール倍率を指定してグリッド配置内の特定セクションのバウンディングボックスを計算
+pub fn calc_section_bounds_in_grid_with_v_scale(
+    sections: &[CrossSectionData], target_idx: usize, columns: usize, column_gap: f64, row_gap: f64, v_scale_ratio: f64
 ) -> Option<(f32, f32, f32, f32)> {
     if sections.is_empty() || target_idx >= sections.len() { return None; }
 
@@ -743,7 +769,7 @@ pub fn calc_section_bounds_in_grid(
         cumulative_x += cell_width;
     }
 
-    let cell_height = (max_height + row_gap) * scale * 2.0;
+    let cell_height = (max_height + row_gap) * scale * v_scale_ratio;
 
     // ターゲットセクションの位置を計算
     let target_section = &sections[target_idx];
@@ -757,7 +783,7 @@ pub fn calc_section_bounds_in_grid(
     // セクションのバウンディングボックスを計算
     let data = &target_section.survey_data;
     let dl = round_dl(target_section.dl);
-    let y_scale = scale * 2.0;
+    let y_scale = scale * v_scale_ratio;
 
     let min_dist = data.first().unwrap().cumulative_distance;
     let max_dist = data.last().unwrap().cumulative_distance;
@@ -775,12 +801,12 @@ pub fn calc_section_bounds_in_grid(
 /// 横断図の描画コンテンツを構築（中間表現）
 fn build_section_content(section: &CrossSectionData,
                          offset_x: f64, offset_y: f64, scale: f64,
-                         style: &SectionStyle) -> DrawingContent {
+                         style: &SectionStyle, v_scale_ratio: f64) -> DrawingContent {
     let mut content = DrawingContent::new();
     let data = &section.survey_data;
     let dl = round_dl(section.dl);
     let to_dxf_x = |d: f64| offset_x + d * scale;
-    let y_scale = scale * 2.0;  // 縦方向スケールを2倍（縦断図と同様）
+    let y_scale = scale * v_scale_ratio;  // 縦方向スケール倍率適用
     let to_dxf_y = |h: f64| offset_y + (h - dl) * y_scale;
 
     let l_data = &data[0];
@@ -916,9 +942,9 @@ fn build_section_content(section: &CrossSectionData,
 
 /// 後方互換性のためのラッパー: DrawingContentをDXFに追加
 pub fn draw_section_at_offset(drawing: &mut Drawing, section: &CrossSectionData,
-                          offset_x: f64, offset_y: f64, scale: f64, scale_multiplier: f64) {
+                          offset_x: f64, offset_y: f64, scale: f64, scale_multiplier: f64, v_scale_ratio: f64) {
     let style = SectionStyle::default().scaled(scale_multiplier);
-    let content = build_section_content(section, offset_x, offset_y, scale, &style);
+    let content = build_section_content(section, offset_x, offset_y, scale, &style, v_scale_ratio);
     content.add_to_dxf(drawing);
 }
 
@@ -951,8 +977,9 @@ pub fn generate_multi_dxf_bytes_with_frame_at_scale(
     row_gap: f64,
     title_info: &TitleBlockInfo,
     frame_scale: f64,
+    v_scale_ratio: f64,
 ) -> Vec<u8> {
-    let drawing = generate_multi_drawing_with_frame_at_scale_interpolated(sections, columns, column_gap, row_gap, title_info, frame_scale);
+    let drawing = generate_multi_drawing_with_frame_at_scale_interpolated(sections, columns, column_gap, row_gap, title_info, frame_scale, v_scale_ratio);
     let mut output: Vec<u8> = Vec::new();
     drawing.save(&mut output).expect("Failed to save DXF");
     output

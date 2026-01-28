@@ -88,8 +88,8 @@ fn draw_dekigata_page(
     let offset_x = origin_x + (frame_center_x_mm * frame_scale) - (cl_offset * scale);
     let offset_y = origin_y + (cross_section_bottom_mm * frame_scale);
 
-    // 横断図を描画（共通関数を使用）
-    draw_section_at_offset(drawing, section, offset_x, offset_y, scale, 1.0);
+    // 横断図を描画（共通関数を使用）- 出来形管理用紙は縦スケール2.0固定
+    draw_section_at_offset(drawing, section, offset_x, offset_y, scale, 1.0, 2.0);
 
     // 出来形管理表を描画（センタリング）
     let num_points = data.len();
@@ -141,21 +141,14 @@ fn draw_dekigata_table(
     }
 
     // ヘッダーラベル（上から下へ: V1-Vn, 計画高(設計), 計画高(実施), 切削高(設計), 切削高(実施)）
-    // 実施行は赤色(1)
-    let row_labels = ["", "計画高\n設計", "計画高\n実施", "切削高\n設計", "切削高\n実施"];
+    // 実施行は赤色(1)、ラベルは1行で表示
+    let row_labels = ["", "計画高(設計)", "計画高(実施)", "切削高(設計)", "切削高(実施)"];
     let row_colors: [i16; 5] = [7, 7, 1, 7, 1];  // 実施行は赤
     for (i, label) in row_labels.iter().enumerate() {
         if !label.is_empty() {
             let y = table_y + total_height - row_height * (i as f64 + 0.5);
             let color = row_colors[i];
-            // 2行に分割されている場合は中央に1行目を表示
-            let lines: Vec<&str> = label.split('\n').collect();
-            if lines.len() == 2 {
-                add_text(drawing, table_x + header_width / 2.0, y + text_size * 0.6, lines[0], text_size, color, "DEKIGATA", HAlign::Center);
-                add_text(drawing, table_x + header_width / 2.0, y - text_size * 0.6, lines[1], text_size, color, "DEKIGATA", HAlign::Center);
-            } else {
-                add_text(drawing, table_x + header_width / 2.0, y, *label, text_size, color, "DEKIGATA", HAlign::Center);
-            }
+            add_text(drawing, table_x + header_width / 2.0, y, *label, text_size, color, "DEKIGATA", HAlign::Center);
         }
     }
 
