@@ -26,7 +26,7 @@ pub use title_block::{
 
 // dxf crate for proper DXF file generation
 use dxf::Drawing;
-use dxf::entities::{Entity, EntityType, Line, Solid, Text};
+use dxf::entities::{Entity, EntityType, Line, Solid, Text, Wipeout};
 use dxf::enums::{HorizontalTextJustification, VerticalTextJustification};
 use dxf::{Color, Point};
 
@@ -99,7 +99,7 @@ fn estimate_text_width(text: &str, height: f64) -> f64 {
     char_count * height
 }
 
-/// 白背景付きテキスト描画（マージンなし）
+/// テキスト描画（マスクなし、デフォルト）
 fn add_text_with_mask(
     drawing: &mut Drawing,
     x: f64, y: f64,
@@ -109,7 +109,46 @@ fn add_text_with_mask(
     layer: &str,
     align: TextAlign
 ) {
-    // マスクなしでテキストのみ描画（CADでの黒ボックス問題回避）
+    // マスクなしでテキストのみ描画
+    add_text(drawing, x, y, text, height, color, layer, align);
+}
+
+/// 白背景付きテキスト描画（WIPEOUTエンティティ使用）
+/// 線と重なるテキストを読みやすくしたい場合に使用
+#[allow(dead_code)]
+fn add_text_with_wipeout(
+    drawing: &mut Drawing,
+    x: f64, y: f64,
+    text: &str,
+    height: f64,
+    color: i16,
+    layer: &str,
+    align: TextAlign
+) {
+    let width = estimate_text_width(text, height);
+    let mask_x = match align {
+        TextAlign::Left => x,
+        TextAlign::Center => x - width / 2.0,
+        TextAlign::Right => x - width,
+    };
+
+    // WIPEOUT矩形（背景マスク）
+    let mut wipeout = Wipeout::default();
+    // クリッピング頂点で矩形を定義
+    wipeout.clipping_vertices = vec![
+        Point::new(mask_x, y - height / 2.0, 0.0),
+        Point::new(mask_x + width, y - height / 2.0, 0.0),
+        Point::new(mask_x + width, y + height / 2.0, 0.0),
+        Point::new(mask_x, y + height / 2.0, 0.0),
+    ];
+    wipeout.use_clipping = true;
+    wipeout.clipping_vertex_count = 4;
+
+    let mut entity = Entity::new(EntityType::Wipeout(wipeout));
+    entity.common.layer = layer.to_string();
+    drawing.add_entity(entity);
+
+    // テキスト本体
     add_text(drawing, x, y, text, height, color, layer, align);
 }
 
