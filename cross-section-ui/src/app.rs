@@ -349,7 +349,7 @@ impl CrossSectionApp {
                         .with_scale("1:50 (A3)")
                         .with_debug_markers(self.show_debug_guides);
                     // プレビュー用: 選択された測点を表示
-                    generate_dekigata_drawing(&dekigata_sections[display_idx], &info)
+                    generate_dekigata_drawing(&dekigata_sections[display_idx], &info, self.v_scale_ratio)
                 } else {
                     return;
                 }

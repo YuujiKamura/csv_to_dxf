@@ -242,7 +242,7 @@ impl eframe::App for CrossSectionApp {
                         }
                     });
 
-                    if self.view_mode == ViewMode::AllGrid || self.view_mode == ViewMode::Combo || self.view_mode == ViewMode::Single {
+                    if matches!(self.view_mode, ViewMode::AllGrid | ViewMode::Combo | ViewMode::Single | ViewMode::Dekigata) {
                         ui.horizontal_wrapped(|ui| {
                             // 図枠スケール選択
                             let scale_label = match self.plot_scale {
@@ -410,7 +410,7 @@ impl eframe::App for CrossSectionApp {
                                         .with_top_title("出来形管理用紙")
                                         .with_scale("1:50 (A3)")
                                         .with_debug_markers(false);
-                                    let dxf_content = generate_all_dekigata_dxf_bytes(&dekigata_sections, &info, &self.drawing_number);
+                                    let dxf_content = generate_all_dekigata_dxf_bytes(&dekigata_sections, &info, &self.drawing_number, self.v_scale_ratio);
                                     download_file("dekigata.dxf", &dxf_content);
                                 }
                             }
@@ -709,7 +709,7 @@ impl eframe::App for CrossSectionApp {
                                 .with_top_title("出来形管理用紙")
                                 .with_scale("1:50 (A3)")
                                 .with_debug_markers(false);
-                            let dxf_content = generate_all_dekigata_dxf_bytes(&dekigata_sections, &info, &self.drawing_number);
+                            let dxf_content = generate_all_dekigata_dxf_bytes(&dekigata_sections, &info, &self.drawing_number, self.v_scale_ratio);
                             download_file("dekigata.dxf", &dxf_content);
                         }
                     }

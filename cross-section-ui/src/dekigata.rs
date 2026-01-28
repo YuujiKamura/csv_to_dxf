@@ -41,12 +41,14 @@ const DEKIGATA_TABLE_TEXT_SIZE_MM: f64 = 10.0;  // さらに拡大
 /// * `origin_x` - 原点X座標（DXF単位）
 /// * `origin_y` - 原点Y座標（DXF単位）
 /// * `frame_scale` - 図枠スケール（1:50なら50.0）
+/// * `v_scale_ratio` - 縦方向スケール倍率
 fn draw_dekigata_page(
     drawing: &mut Drawing,
     section: &CrossSectionData,
     origin_x: f64,
     origin_y: f64,
     frame_scale: f64,
+    v_scale_ratio: f64,
 ) {
     let data = &section.survey_data;
     if data.len() < 2 { return; }
@@ -88,8 +90,8 @@ fn draw_dekigata_page(
     let offset_x = origin_x + (frame_center_x_mm * frame_scale) - (cl_offset * scale);
     let offset_y = origin_y + (cross_section_bottom_mm * frame_scale);
 
-    // 横断図を描画（共通関数を使用）- 出来形管理用紙は縦スケール2.0固定
-    draw_section_at_offset(drawing, section, offset_x, offset_y, scale, 1.0, 2.0);
+    // 横断図を描画（共通関数を使用）
+    draw_section_at_offset(drawing, section, offset_x, offset_y, scale, 1.0, v_scale_ratio);
 
     // 出来形管理表を描画（センタリング）
     let num_points = data.len();
@@ -181,7 +183,7 @@ fn draw_dekigata_table(
 }
 
 /// 単一測点の出来形管理用紙のDrawingを生成
-pub fn generate_dekigata_drawing(section: &CrossSectionData, title_info: &TitleBlockInfo) -> Drawing {
+pub fn generate_dekigata_drawing(section: &CrossSectionData, title_info: &TitleBlockInfo, v_scale_ratio: f64) -> Drawing {
     let mut drawing = new_drawing();
 
     // レイヤー作成
@@ -229,7 +231,7 @@ pub fn generate_dekigata_drawing(section: &CrossSectionData, title_info: &TitleB
     add_text(&mut drawing, center_x, name_y, &title_info.project_name, text_size, 7, "TITLEBLOCK", HAlign::Center);
 
     // 出来形管理用紙の内容を描画
-    draw_dekigata_page(&mut drawing, section, 0.0, 0.0, frame_scale);
+    draw_dekigata_page(&mut drawing, section, 0.0, 0.0, frame_scale, v_scale_ratio);
 
     drawing
 }
@@ -245,6 +247,7 @@ pub fn generate_all_dekigata_pages(
     all_sections: &[CrossSectionData],
     base_title_info: &TitleBlockInfo,
     drawing_number_base: &str,
+    v_scale_ratio: f64,
 ) -> Drawing {
     let mut drawing = new_drawing();
 
@@ -320,7 +323,7 @@ pub fn generate_all_dekigata_pages(
         // draw_title_block は呼ばない（出来形管理用紙では不要）
 
         // 出来形管理用紙の内容を描画
-        draw_dekigata_page(&mut drawing, section, 0.0, page_offset_y, frame_scale);
+        draw_dekigata_page(&mut drawing, section, 0.0, page_offset_y, frame_scale, v_scale_ratio);
     }
 
     drawing
@@ -331,8 +334,9 @@ pub fn generate_all_dekigata_dxf_bytes(
     all_sections: &[CrossSectionData],
     base_title_info: &TitleBlockInfo,
     drawing_number_base: &str,
+    v_scale_ratio: f64,
 ) -> Vec<u8> {
-    let drawing = generate_all_dekigata_pages(all_sections, base_title_info, drawing_number_base);
+    let drawing = generate_all_dekigata_pages(all_sections, base_title_info, drawing_number_base, v_scale_ratio);
     let mut output: Vec<u8> = Vec::new();
     drawing.save(&mut output).expect("Failed to save DXF");
     output
