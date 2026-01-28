@@ -3674,7 +3674,7 @@ impl CrossSectionApp {
                     let display_idx = self.selected_index
                         .and_then(|sel_idx| {
                             // 全セクションの中から選択されたセクションを取得
-                            self.cross_sections.get(sel_idx)
+                            self.sections.get(sel_idx)
                                 .and_then(|selected| {
                                     // dekigata_sections 内での位置を探す
                                     dekigata_sections.iter().position(|s|
