@@ -8,7 +8,7 @@ use dxf::Color;
 use crate::{
     CrossSectionData, TitleBlockInfo,
     new_drawing, add_line, round_dl,
-    draw_drawing_frame,
+    draw_drawing_frame, add_dimension_as_lines_to_content,
     DrawingContent, SectionStyle, HAlign, VAlign,
 };
 use crate::title_block::available_area;
@@ -957,40 +957,4 @@ pub fn generate_multi_dxf_bytes_with_frame_at_scale(
     drawing.save(&mut output).expect("Failed to save DXF");
     output
 }
-
-/// 寸法線を線とテキストで描画（DrawingContent版）
-fn add_dimension_as_lines_to_content(
-    content: &mut DrawingContent,
-    x1: f64,
-    x2: f64,
-    y: f64,
-    text: &str,
-    text_height: f64,
-    color: i16,
-    layer: &str,
-    style: &SectionStyle,
-) {
-    // 寸法線の高さオフセット
-    let dim_offset = style.dim_offset;
-    // 矢印のサイズ
-    let arrow_size = style.dim_arrow_size;
-
-    let dim_y = y + dim_offset;
-
-    // 両端の矢印（三角形）
-    // 左矢印
-    content.add_line(x1, dim_y, x1 + arrow_size, dim_y + arrow_size * 0.3, color, layer);
-    content.add_line(x1, dim_y, x1 + arrow_size, dim_y - arrow_size * 0.3, color, layer);
-
-    // 右矢印
-    content.add_line(x2, dim_y, x2 - arrow_size, dim_y + arrow_size * 0.3, color, layer);
-    content.add_line(x2, dim_y, x2 - arrow_size, dim_y - arrow_size * 0.3, color, layer);
-
-    // 寸法線（矢印の間）
-    content.add_line(x1, dim_y, x2, dim_y, color, layer);
-
-    // 寸法テキスト（中央上）
-    let mid_x = (x1 + x2) / 2.0;
-    let text_y = dim_y + text_height * 0.3;
-    content.add_text(mid_x, text_y, text, text_height, color, layer, HAlign::Center);
-}
+// add_dimension_as_lines_to_content is now provided by dxf_helpers.rs
