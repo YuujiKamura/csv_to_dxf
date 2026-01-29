@@ -8,6 +8,16 @@ mod ui_chars;
 mod drawing_ir;
 mod data_model;
 mod dxf_view;
+
+// grid_layout submodules (must be declared before grid_layout)
+mod grid_params;
+mod grid_bounds;
+mod section_render;
+mod multi_drawing;
+mod page_generation;
+mod multi_drawing_compat;
+mod page_generation_compat;
+
 mod grid_layout;
 mod dekigata;
 mod combo_drawing;
@@ -28,7 +38,13 @@ pub use dekigata::*;
 
 pub use data_model::*;
 
-pub use drawing_ir::{DrawingContent, DrawPrimitive, DrawLine, DrawText, HAlign, VAlign, ViewState as IrViewState, SectionStyle};
+pub use drawing_ir::{
+    DrawingContent, DrawPrimitive, DrawLine, DrawText, HAlign, VAlign, ViewState as IrViewState, SectionStyle,
+    // Font metrics abstraction
+    FontMetrics, DefaultFontMetrics, default_font_metrics, cap_height_to_dxf_height, scale_for_cap_height,
+    // Section data abstraction
+    SectionData, SectionPoint,
+};
 
 pub use grid_layout::*;
 

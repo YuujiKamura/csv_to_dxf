@@ -7,7 +7,7 @@ use dxf::entities::{Entity, EntityType, Line, Text};
 use dxf::enums::{HorizontalTextJustification, VerticalTextJustification};
 use dxf::{Color, Point};
 
-use crate::font_metrics::cap_height_to_text_height;
+use crate::drawing_ir::cap_height_to_dxf_height;
 use crate::drawing_ir::{DrawingContent, HAlign, VAlign};
 
 // DXF color constants (ACI)
@@ -297,7 +297,7 @@ fn add_text_scaled_named(
     let py = origin_y + y * scale;
     let mut t = Text::default();
     t.location = Point::new(px, py, 0.0);
-    t.text_height = cap_height_to_text_height(height * scale);
+    t.text_height = cap_height_to_dxf_height(height * scale);
     t.value = text.to_string();
     t.text_style_name = "NOTOSANSJP".to_string();
     t.relative_x_scale_factor = 1.0;

@@ -2,6 +2,12 @@
 //!
 //! This module provides a platform-agnostic representation of drawing elements
 //! that can be converted to both DXF format and rendered to egui.
+//!
+//! # Font Metrics
+//!
+//! DXF output requires font metrics conversion for proper text sizing.
+//! This module provides a configurable `FontMetrics` trait with a default
+//! implementation. Projects can provide custom implementations for specific fonts.
 
 use eframe::egui::{self, Color32, Painter, Pos2, Stroke, Rect, Vec2};
 use dxf::Drawing;
@@ -9,7 +15,132 @@ use dxf::entities::{Entity, EntityType, Line, Text};
 use dxf::enums::{HorizontalTextJustification, VerticalTextJustification};
 use dxf::{Color, Point};
 
-use crate::font_metrics::cap_height_to_text_height;
+// ============================================================================
+// Font Metrics Abstraction
+// ============================================================================
+
+/// Font metrics configuration for DXF text height conversion
+///
+/// DXF text height is based on cap height (height of capital letters),
+/// while egui uses em-square for font sizing. This trait provides
+/// the conversion factor between them.
+pub trait FontMetrics {
+    /// Convert logical cap height to DXF text_height
+    ///
+    /// Default implementation uses a scale factor of 1.364 (1000/733),
+    /// which matches Noto Sans JP metrics.
+    fn cap_height_to_text_height(&self, cap_height: f64) -> f64 {
+        cap_height * self.scale_for_cap_height()
+    }
+
+    /// Get the scale factor for cap height conversion
+    ///
+    /// Default: 1.364 (em-square 1000 / cap-height 733 for Noto Sans JP)
+    fn scale_for_cap_height(&self) -> f64 {
+        1000.0 / 733.0  // ≈ 1.364
+    }
+}
+
+/// Default font metrics implementation using Noto Sans JP values
+#[derive(Debug, Clone, Copy, Default)]
+pub struct DefaultFontMetrics;
+
+impl FontMetrics for DefaultFontMetrics {}
+
+/// Global font metrics instance (can be replaced for custom fonts)
+static DEFAULT_FONT_METRICS: DefaultFontMetrics = DefaultFontMetrics;
+
+/// Get the default font metrics
+pub fn default_font_metrics() -> &'static impl FontMetrics {
+    &DEFAULT_FONT_METRICS
+}
+
+/// Convert cap height to DXF text height using default font metrics
+///
+/// This is a convenience function that uses `DefaultFontMetrics`.
+/// For custom fonts, use `FontMetrics::cap_height_to_text_height` directly.
+#[inline]
+pub fn cap_height_to_dxf_height(cap_height: f64) -> f64 {
+    DEFAULT_FONT_METRICS.cap_height_to_text_height(cap_height)
+}
+
+/// Scale factor for cap height (inverse conversion from DXF to logical)
+#[inline]
+pub fn scale_for_cap_height() -> f64 {
+    DEFAULT_FONT_METRICS.scale_for_cap_height()
+}
+
+// ============================================================================
+// Section Data Abstraction
+// ============================================================================
+
+/// Data point within a section (survey point)
+///
+/// This trait abstracts the data needed to render a single point
+/// in a cross-section drawing.
+pub trait SectionPoint {
+    /// Elevation (ground height) at this point
+    fn elevation(&self) -> f64;
+
+    /// Planned height (design height) at this point
+    fn planned_height(&self) -> f64;
+
+    /// Cumulative distance from section start (can be negative for left side)
+    fn cumulative_distance(&self) -> f64;
+
+    /// Bottom of cutting layer
+    fn cutting_bottom(&self) -> f64;
+}
+
+/// Section data abstraction for grid layout calculations
+///
+/// This trait provides the minimal interface needed by `GridLayoutParams`
+/// to calculate layout dimensions without depending on specific data structures.
+pub trait SectionData {
+    /// Type of points in this section
+    type Point: SectionPoint;
+
+    /// Get the data points for this section
+    fn survey_points(&self) -> &[Self::Point];
+
+    /// Get the datum/baseline level (DL)
+    fn datum_level(&self) -> f64;
+
+    /// Get the center line index
+    fn cl_index(&self) -> usize;
+
+    /// Get the name of this section/survey point
+    fn name(&self) -> &str;
+
+    /// Calculate the body height (max elevation - datum level)
+    fn body_height(&self) -> f64 {
+        let points = self.survey_points();
+        if points.len() < 2 {
+            return 0.0;
+        }
+        let max_elev = points
+            .iter()
+            .map(|p| p.elevation().max(p.planned_height()))
+            .fold(f64::MIN, f64::max);
+        max_elev - self.datum_level()
+    }
+
+    /// Get leftmost distance (typically negative)
+    fn left_distance(&self) -> f64 {
+        self.survey_points()
+            .first()
+            .map(|p| p.cumulative_distance())
+            .unwrap_or(0.0)
+    }
+
+    /// Get rightmost distance
+    fn right_distance(&self) -> f64 {
+        self.survey_points()
+            .last()
+            .map(|p| p.cumulative_distance())
+            .unwrap_or(0.0)
+    }
+}
 
 // ============================================================================
 // ViewState - local definition to avoid circular dependency with lib.rs
@@ -473,7 +604,7 @@ impl DrawingContent {
                     // テキスト座標とサイズも変換
                     let transformed_x = origin_x + text.x * scale;
                     let transformed_y = origin_y + text.y * scale;
-                    let scaled_height = cap_height_to_text_height(text.height * scale);
+                    let scaled_height = cap_height_to_dxf_height(text.height * scale);
 
                     let mut t = Text::default();
                     t.location = Point::new(transformed_x, transformed_y, 0.0);
@@ -536,7 +667,7 @@ fn add_line_to_dxf(drawing: &mut Drawing, line: &DrawLine) {
 fn add_text_to_dxf(drawing: &mut Drawing, text: &DrawText) {
     let mut t = Text::default();
     t.location = Point::new(text.x, text.y, 0.0);
-    t.text_height = cap_height_to_text_height(text.height);
+    t.text_height = cap_height_to_dxf_height(text.height);
     t.value = text.text.clone();
     t.rotation = text.rotation;
     t.text_style_name = "NOTOSANSJP".to_string();
@@ -675,7 +806,7 @@ impl DrawingContent {
     /// Converts Line, Text, and RotatedDimension entities to primitives
     pub fn from_drawing(drawing: &Drawing) -> Self {
         use dxf::entities::EntityType;
-        use crate::font_metrics::SCALE_FOR_CAP_HEIGHT;
+        let scale_factor = scale_for_cap_height();
 
         let mut content = DrawingContent::new();
 
@@ -698,8 +829,8 @@ impl DrawingContent {
                     );
                 }
                 EntityType::Text(text) => {
-                    // DXF text_height is scaled for CAD (x SCALE_FOR_CAP_HEIGHT), reverse it for IR
-                    let logical_height = text.text_height / SCALE_FOR_CAP_HEIGHT;
+                    // DXF text_height is scaled for CAD (x scale_factor), reverse it for IR
+                    let logical_height = text.text_height / scale_factor;
 
                     let h_align = match text.horizontal_text_justification {
                         HorizontalTextJustification::Left => HAlign::Left,
@@ -1078,8 +1209,6 @@ mod tests {
 
     #[test]
     fn test_drawing_content_text_properties() {
-        use crate::font_metrics::SCALE_FOR_CAP_HEIGHT;
-
         // Create DrawingContent with rotated text and full alignment
         let mut content = DrawingContent::new();
         content.add_text_rotated(
@@ -1102,8 +1231,8 @@ mod tests {
                 // Verify text value
                 assert_eq!(text.value, "TestText", "Text value should match");
 
-                // Verify height (scaled by SCALE_FOR_CAP_HEIGHT)
-                let expected_height = 15.0 * SCALE_FOR_CAP_HEIGHT;
+                // Verify height (scaled by scale_for_cap_height)
+                let expected_height = 15.0 * scale_for_cap_height();
                 assert!(
                     (text.text_height - expected_height).abs() < 0.01,
                     "Text height should be {} (got {})", expected_height, text.text_height

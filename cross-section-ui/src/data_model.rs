@@ -4,6 +4,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::drawing_ir::{SectionData, SectionPoint};
+
 // ============================================================================
 // Data Structures
 // ============================================================================
@@ -20,6 +22,25 @@ pub struct SurveyRow {
 impl SurveyRow {
     pub fn cutting_depth(&self) -> f64 { self.elevation - self.cutting_bottom }
     pub fn pavement_thickness(&self) -> f64 { self.planned_height - self.cutting_bottom }
+}
+
+// Implement SectionPoint trait for SurveyRow
+impl SectionPoint for SurveyRow {
+    fn elevation(&self) -> f64 {
+        self.elevation
+    }
+
+    fn planned_height(&self) -> f64 {
+        self.planned_height
+    }
+
+    fn cumulative_distance(&self) -> f64 {
+        self.cumulative_distance
+    }
+
+    fn cutting_bottom(&self) -> f64 {
+        self.cutting_bottom
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -265,6 +286,30 @@ pub struct SectionsData {
     #[serde(default)]
     pub title_block: Option<TitleBlockJson>,
     pub sections: Vec<CrossSectionData>,
+}
+
+// ============================================================================
+// SectionData Trait Implementation
+// ============================================================================
+
+impl SectionData for CrossSectionData {
+    type Point = SurveyRow;
+
+    fn survey_points(&self) -> &[Self::Point] {
+        &self.survey_data
+    }
+
+    fn datum_level(&self) -> f64 {
+        self.dl
+    }
+
+    fn cl_index(&self) -> usize {
+        self.cl_index
+    }
+
+    fn name(&self) -> &str {
+        &self.survey_point_name
+    }
 }
 
 // ============================================================================
