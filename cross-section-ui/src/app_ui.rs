@@ -493,7 +493,10 @@ impl eframe::App for CrossSectionApp {
             });
         } else {
             // デスクトップ: サイドパネル
-            egui::SidePanel::left("side_panel").min_width(180.0).show(ctx, |ui| {
+            egui::SidePanel::left("side_panel")
+                .resizable(false)
+                .default_width(180.0)
+                .show(ctx, |ui| {
                 ui.heading("Cross Section");
                 ui.separator();
 
@@ -536,8 +539,8 @@ impl eframe::App for CrossSectionApp {
                 }
 
                 // 表示モード切替
-                ui.horizontal(|ui| {
-                    ui.label("表示:");
+                ui.label("表示:");
+                ui.horizontal_wrapped(|ui| {
                     if ui.selectable_label(self.view_mode == ViewMode::Combo, "コンボ").clicked() {
                         self.view_mode = ViewMode::Combo;
                         self.update_dxf_preview();
@@ -554,7 +557,7 @@ impl eframe::App for CrossSectionApp {
                         self.view_mode = ViewMode::Longitudinal;
                         self.update_dxf_preview();
                     }
-                    if ui.selectable_label(self.view_mode == ViewMode::AreaExpansion, "展開図").clicked() {
+                    if ui.selectable_label(self.view_mode == ViewMode::AreaExpansion, "展開").clicked() {
                         self.view_mode = ViewMode::AreaExpansion;
                         self.update_dxf_preview();
                     }
@@ -615,8 +618,8 @@ impl eframe::App for CrossSectionApp {
                             self.update_dxf_preview();
                         }
                     });
+                    // 1行目: 列間隔 + 行間隔
                     ui.horizontal(|ui| {
-                        // 列間隔
                         ui.label(format!("列{:.1}m", self.column_gap));
                         if ui.small_button("+").clicked() && self.column_gap < 5.0 {
                             self.column_gap += 0.5;
@@ -629,7 +632,6 @@ impl eframe::App for CrossSectionApp {
                             self.update_dxf_preview();
                         }
                         ui.separator();
-                        // 行間隔
                         ui.label(format!("行{:.1}m", self.row_gap));
                         if ui.small_button("+").clicked() && self.row_gap < 3.0 {
                             self.row_gap += 0.5;
@@ -641,8 +643,9 @@ impl eframe::App for CrossSectionApp {
                             self.recalc_pages();
                             self.update_dxf_preview();
                         }
-                        ui.separator();
-                        // 縦スケール倍率
+                    });
+                    // 2行目: 縦倍率 + 出来形スケール
+                    ui.horizontal(|ui| {
                         ui.label("縦倍率");
                         let v_scale_options = [1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0];
                         egui::ComboBox::from_id_salt("v_scale_desktop")
@@ -655,7 +658,6 @@ impl eframe::App for CrossSectionApp {
                                     }
                                 }
                             });
-                        // 出来形スケール（出来形モード時のみ）
                         if self.view_mode == ViewMode::Dekigata {
                             ui.separator();
                             ui.label("図枠");
@@ -670,25 +672,24 @@ impl eframe::App for CrossSectionApp {
                                     }
                                 });
                         }
-                        // デバッグガイド表示切替
+                    });
+                    // 3行目: チェックボックス + ページナビゲーション
+                    ui.horizontal(|ui| {
                         if self.plot_scale.is_some() {
                             if ui.checkbox(&mut self.show_debug_guides, "ガイド").changed() {
                                 self.update_dxf_preview();
                             }
                         }
-                        // 工事名非表示
                         if self.plot_scale.is_some() || self.view_mode == ViewMode::Dekigata {
                             if ui.checkbox(&mut self.hide_project_name, "工事名非表示").changed() {
                                 self.update_dxf_preview();
                             }
                         }
-                        // 奇数測点のみ（出来形モード時）
                         if self.view_mode == ViewMode::Dekigata {
                             if ui.checkbox(&mut self.odd_points_only, "奇数測点のみ").changed() {
                                 self.update_dxf_preview();
                             }
                         }
-                        // ページナビゲーション（複数ページある場合のみ）
                         if self.total_pages > 1 && self.plot_scale.is_some() {
                             ui.separator();
                             if ui.small_button("<").clicked() && self.current_page > 0 {
@@ -908,6 +909,7 @@ impl eframe::App for CrossSectionApp {
 
             // 白背景
             painter.rect_filled(response.rect, 0.0, Color32::from_rgb(250, 250, 250));
+
             self.dxf_view_state.canvas_rect = response.rect;
 
             // canvas_rect更新後にfit_to_dxfを実行

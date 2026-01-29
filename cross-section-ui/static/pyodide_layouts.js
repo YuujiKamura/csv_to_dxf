@@ -124,24 +124,11 @@ page_count = param_pages
 
 print(f"[Python] scale={scale}, page_count={page_count}")
 
-# DXF読み込み（recoverモードでハンドル重複を修復）
+# DXF読み込み（recoverでバイナリストリームから読み込み、エンコーディングは元のまま）
 dxf_bytes = base64.b64decode(dxf_input_b64)
-stream = io.BytesIO(dxf_bytes)  # recoverはバイナリストリームが必要
-
-try:
-    doc, auditor = recover.read(stream)
-except Exception as e:
-    raise RuntimeError(f"DXF読み込みに失敗: {e}")
-
-# エラー詳細のログ出力
-if auditor.errors:
-    print(f"[Python] DXF version: {doc.dxfversion}, errors fixed: {len(auditor.errors)}")
-    for error in auditor.errors[:5]:  # 最初の5件のみ表示
-        print(f"[Python]   - {error}")
-    if len(auditor.errors) > 5:
-        print(f"[Python]   ... and {len(auditor.errors) - 5} more")
-else:
-    print(f"[Python] DXF version: {doc.dxfversion}, no errors")
+stream = io.BytesIO(dxf_bytes)
+doc, auditor = recover.read(stream)
+print(f"[Python] DXF version: {doc.dxfversion}, encoding: {doc.encoding}")
 
 
 # 計算
@@ -183,11 +170,11 @@ for i in range(page_count):
         doc.layouts.delete("Layout1")
         print("[Python] Layout1 deleted")
 
-# 出力
+# 出力（doc.encode()でバイト列に変換）
 out_buffer = io.StringIO()
 doc.write(out_buffer)
 dxf_out_str = out_buffer.getvalue()
-dxf_out_bytes = dxf_out_str.encode('utf-8')
+dxf_out_bytes = doc.encode(dxf_out_str)
 dxf_output_b64 = base64.b64encode(dxf_out_bytes).decode('ascii')
 
 # 最終レイアウト一覧
