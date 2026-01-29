@@ -555,8 +555,8 @@ impl eframe::App for CrossSectionApp {
                     }
                 });
 
-                // AllGrid/Comboモード時の列数・間隔調整
-                if self.view_mode == ViewMode::AllGrid || self.view_mode == ViewMode::Combo {
+                // AllGrid/Combo/Single/Dekigataモード時の列数・間隔調整
+                if matches!(self.view_mode, ViewMode::AllGrid | ViewMode::Combo | ViewMode::Single | ViewMode::Dekigata) {
                     ui.horizontal(|ui| {
                         // 図枠スケール選択
                         let scale_label = match self.plot_scale {
