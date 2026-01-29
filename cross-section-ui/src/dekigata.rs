@@ -30,6 +30,12 @@ const DEKIGATA_TABLE_DATA_WIDTH_MM: f64 = 45.0;  // 2.5倍に拡大
 /// 出来形管理表のテキストサイズ（mm）
 const DEKIGATA_TABLE_TEXT_SIZE_MM: f64 = 10.0;  // さらに拡大
 
+/// 幅員表のヘッダー列幅（mm）
+const FUKUIN_TABLE_HEADER_WIDTH_MM: f64 = 60.0;
+
+/// 幅員表のデータ列幅（mm）
+const FUKUIN_TABLE_DATA_WIDTH_MM: f64 = 50.0;
+
 /// 単一測点の出来形管理用紙を描画
 ///
 /// # Arguments
@@ -53,13 +59,16 @@ fn draw_dekigata_page(
     if data.len() < 2 { return; }
 
     // A3用紙の有効領域（mm単位）
-    // 上部: 横断図、下部: 出来形管理表
-    let table_height_mm = DEKIGATA_TABLE_ROW_HEIGHT_MM * 5.0;  // 5行（ヘッダー + 4データ行）
+    // 上部: 横断図、中部: 基準高表、下部: 幅員表
+    let kijunko_table_height_mm = DEKIGATA_TABLE_ROW_HEIGHT_MM * 5.0;  // 基準高表: 5行
+    let fukuin_table_height_mm = DEKIGATA_TABLE_ROW_HEIGHT_MM * 3.0;   // 幅員表: 3行
+    let table_gap_mm = 5.0;  // 表間の間隔
     let table_bottom_margin_mm = 15.0;  // タイトル枠なしのため縮小
+    let total_tables_height_mm = fukuin_table_height_mm + table_gap_mm + kijunko_table_height_mm;
 
     // 横断図の描画領域（上部）
     // 工事名がある場合は上端を下げて被らないようにする
-    let cross_section_bottom_mm = table_bottom_margin_mm + table_height_mm + 25.0;  // 表との間隔を広げる
+    let cross_section_bottom_mm = table_bottom_margin_mm + total_tables_height_mm + 25.0;  // 表との間隔を広げる
     let cross_section_top_mm = if has_project_name { 235.0 } else { 255.0 };  // 工事名の有無で調整
     let cross_section_height_mm = cross_section_top_mm - cross_section_bottom_mm;
 
@@ -96,11 +105,95 @@ fn draw_dekigata_page(
     // 出来形管理表を描画（センタリング、スケールに応じたサイズ）
     let num_points = data.len();
     let table_scale = (frame_scale / 50.0).sqrt().clamp(0.7, 1.3);
-    let table_width_mm = (DEKIGATA_TABLE_HEADER_WIDTH_MM + DEKIGATA_TABLE_DATA_WIDTH_MM * num_points as f64) * table_scale;
+    let kijunko_table_width_mm = (DEKIGATA_TABLE_HEADER_WIDTH_MM + DEKIGATA_TABLE_DATA_WIDTH_MM * num_points as f64) * table_scale;
     let page_width_mm = 420.0;  // A3横幅
-    let table_x = origin_x + ((page_width_mm - table_width_mm) / 2.0) * frame_scale;  // センタリング
-    let table_y = origin_y + table_bottom_margin_mm * frame_scale;
-    draw_dekigata_table(drawing, section, table_x, table_y, frame_scale);
+
+    // 幅員表を下部に描画（3行×2列）
+    let fukuin_table_width_mm = (FUKUIN_TABLE_HEADER_WIDTH_MM + FUKUIN_TABLE_DATA_WIDTH_MM * 2.0) * table_scale;
+    let fukuin_table_x = origin_x + ((page_width_mm - fukuin_table_width_mm) / 2.0) * frame_scale;
+    let fukuin_table_y = origin_y + table_bottom_margin_mm * frame_scale;
+    draw_fukuin_table(drawing, section, fukuin_table_x, fukuin_table_y, frame_scale);
+
+    // 基準高表を幅員表の上に描画
+    let kijunko_table_x = origin_x + ((page_width_mm - kijunko_table_width_mm) / 2.0) * frame_scale;
+    let kijunko_table_y = fukuin_table_y + (fukuin_table_height_mm + table_gap_mm) * frame_scale * table_scale;
+    draw_dekigata_table(drawing, section, kijunko_table_x, kijunko_table_y, frame_scale);
+}
+
+/// 幅員表を描画（3行×2列: 左幅員・右幅員）
+fn draw_fukuin_table(
+    drawing: &mut Drawing,
+    section: &CrossSectionData,
+    table_x: f64,
+    table_y: f64,
+    frame_scale: f64,
+) {
+    let data = &section.survey_data;
+    if data.len() < 2 { return; }
+
+    // スケールに応じてテーブルサイズを可変
+    let table_scale = (frame_scale / 50.0).sqrt().clamp(0.7, 1.3);
+    let row_height = DEKIGATA_TABLE_ROW_HEIGHT_MM * frame_scale * table_scale;
+    let header_width = FUKUIN_TABLE_HEADER_WIDTH_MM * frame_scale * table_scale;
+    let data_width = FUKUIN_TABLE_DATA_WIDTH_MM * frame_scale * table_scale;
+    let text_size = DEKIGATA_TABLE_TEXT_SIZE_MM * frame_scale * table_scale;
+
+    let total_width = header_width + data_width * 2.0;  // 2列（左幅員・右幅員）
+    let total_height = row_height * 3.0;  // 3行
+
+    // 外枠を描画
+    add_line(drawing, table_x, table_y, table_x + total_width, table_y, 7, "DEKIGATA");
+    add_line(drawing, table_x, table_y + total_height, table_x + total_width, table_y + total_height, 7, "DEKIGATA");
+    add_line(drawing, table_x, table_y, table_x, table_y + total_height, 7, "DEKIGATA");
+    add_line(drawing, table_x + total_width, table_y, table_x + total_width, table_y + total_height, 7, "DEKIGATA");
+
+    // 横線（行の区切り）
+    for i in 1..3 {
+        let y = table_y + row_height * i as f64;
+        add_line(drawing, table_x, y, table_x + total_width, y, 7, "DEKIGATA");
+    }
+
+    // ヘッダー列の縦線
+    add_line(drawing, table_x + header_width, table_y, table_x + header_width, table_y + total_height, 7, "DEKIGATA");
+
+    // データ列の縦線（左幅員と右幅員の境界）
+    let mid_x = table_x + header_width + data_width;
+    add_line(drawing, mid_x, table_y, mid_x, table_y + total_height, 7, "DEKIGATA");
+
+    // ヘッダーラベル（上から: ヘッダー, 設計, 実測）
+    let row_labels = ["", "設計", "実測"];
+    let row_colors: [i16; 3] = [7, 7, 1];  // 実測行は赤
+    for (i, label) in row_labels.iter().enumerate() {
+        if !label.is_empty() {
+            let y = table_y + total_height - row_height * (i as f64 + 0.5);
+            let color = row_colors[i];
+            add_text(drawing, table_x + header_width / 2.0, y, *label, text_size, color, "DEKIGATA", HAlign::Center);
+        }
+    }
+
+    // 幅員の計算
+    let cl_data = &data[section.cl_index.min(data.len() - 1)];
+    let l_data = &data[0];
+    let r_data = &data[data.len() - 1];
+
+    let left_width = (cl_data.cumulative_distance - l_data.cumulative_distance).abs();
+    let right_width = (r_data.cumulative_distance - cl_data.cumulative_distance).abs();
+
+    // 列ヘッダー（左幅員・右幅員）
+    let left_col_x = table_x + header_width + data_width * 0.5;
+    let right_col_x = table_x + header_width + data_width * 1.5;
+    let header_y = table_y + total_height - row_height * 0.5;
+
+    add_text(drawing, left_col_x, header_y, "左幅員", text_size, 7, "DEKIGATA", HAlign::Center);
+    add_text(drawing, right_col_x, header_y, "右幅員", text_size, 7, "DEKIGATA", HAlign::Center);
+
+    // 設計値
+    let design_y = table_y + total_height - row_height * 1.5;
+    add_text(drawing, left_col_x, design_y, &format!("{:.2}", left_width), text_size, 7, "DEKIGATA", HAlign::Center);
+    add_text(drawing, right_col_x, design_y, &format!("{:.2}", right_width), text_size, 7, "DEKIGATA", HAlign::Center);
+
+    // 実測値は空欄（手書き用）
+    // let actual_y = table_y + total_height - row_height * 2.5;
 }
 
 /// 出来形管理表を描画
