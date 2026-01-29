@@ -77,8 +77,15 @@ async function addLayoutsToDxf(dxfBytes, scale, pageCount) {
 
     const pyodide = window.pyodideLayouts.pyodide;
 
-    // DXFデータをPython側に渡す
-    const dxfBase64 = btoa(String.fromCharCode(...dxfBytes));
+    // DXFデータをPython側に渡す（大きなファイル対応）
+    // チャンクに分けてBase64変換（スタックオーバーフロー回避）
+    const CHUNK_SIZE = 32768;
+    let binaryString = '';
+    for (let i = 0; i < dxfBytes.length; i += CHUNK_SIZE) {
+        const chunk = dxfBytes.subarray(i, Math.min(i + CHUNK_SIZE, dxfBytes.length));
+        binaryString += String.fromCharCode.apply(null, chunk);
+    }
+    const dxfBase64 = btoa(binaryString);
     pyodide.globals.set('dxf_input_b64', dxfBase64);
     pyodide.globals.set('param_scale', scale);
     pyodide.globals.set('param_pages', pageCount);
