@@ -252,8 +252,8 @@ fn generate_multi_drawing_internal(
     // Calculate column widths
     let (col_max_left, col_max_right) = calc_column_widths(sections, columns, rows_per_column);
 
-    // Cell height from GridLayoutParams
-    let cell_height = params.cell_height_for_sections(sections);
+    // Cell height from GridLayoutParams (scaled by scale_multiplier for combo drawings)
+    let cell_height = params.cell_height_for_sections(sections) * scale_multiplier;
 
     // Calculate X and Y offsets based on frame mode
     let (col_x_offsets, col_y_offsets, grid_bounds) = if let Some(fs) = frame_scale {
@@ -319,7 +319,7 @@ fn generate_multi_drawing_internal(
         } else {
             col_y_offsets.last().copied().unwrap_or(0.0)
         };
-        let offset_y = row_in_col as f64 * cell_height + col_y_offset + DEFAULT_BOTTOM_MARGIN_DXF;
+        let offset_y = row_in_col as f64 * cell_height + col_y_offset + DEFAULT_BOTTOM_MARGIN_DXF * scale_multiplier;
 
         // Interpolate intermediate sections (not route start/end)
         let is_start_or_end = section.is_route_start || section.is_route_end;
