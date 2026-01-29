@@ -7,6 +7,7 @@
     <link data-trunk rel="css" href="static/styles.css"/>
     <link data-trunk rel="copy-file" href="../data/sections.json"/>
     <link data-trunk rel="copy-file" href="static/pyodide_layouts.js"/>
+    <link data-trunk rel="copy-file" href="static/pyodide_worker.js"/>
     <style>
         html, body {
             margin: 0;
@@ -24,16 +25,7 @@
 <body>
     <canvas id="canvas"></canvas>
     <script src="pyodide_layouts.js"></script>
-    <script>
-        // アプリ起動後にPyodide初期化を開始（バックグラウンド）
-        window.addEventListener('TrunkApplicationStarted', () => {
-            setTimeout(() => {
-                if (typeof initPyodideLayouts === 'function') {
-                    initPyodideLayouts();
-                }
-            }, 2000); // 2秒後に開始（アプリ描画を優先）
-        });
-    </script>
+    <!-- Pyodideはダウンロード時に遅延初期化（モバイル対応） -->
     <link data-trunk rel="rust" data-wasm-opt="0"/>
 </body>
 </html>

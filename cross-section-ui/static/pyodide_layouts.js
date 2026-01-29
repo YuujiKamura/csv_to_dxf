@@ -1,228 +1,131 @@
 /**
- * Pyodide + ezdxf でDXFにペーパースペースレイアウトを追加するモジュール
+ * Pyodide + ezdxf WebWorker版
+ * UIをブロックせずにレイアウト追加を実行
  */
 
 // グローバル状態
 window.pyodideLayouts = {
-    pyodide: null,
-    ezdxfReady: false,
+    worker: null,
+    ready: false,
     loading: false,
-    error: null,
-    initPromise: null  // 競合状態防止用
+    pendingRequests: new Map(),
+    requestId: 0
 };
 
 /**
- * Pyodideとezdxfを初期化（バックグラウンドで呼び出し）
+ * WebWorkerを初期化
  */
-async function initPyodideLayouts() {
-    // 競合状態防止: 既に初期化中または完了なら同じPromiseを返す
-    if (window.pyodideLayouts.initPromise) {
-        return window.pyodideLayouts.initPromise;
-    }
-    if (window.pyodideLayouts.ezdxfReady) {
-        return Promise.resolve();
-    }
+function initPyodideLayouts() {
+    if (window.pyodideLayouts.worker) return;
 
-    window.pyodideLayouts.initPromise = doInitPyodideLayouts();
-    return window.pyodideLayouts.initPromise;
-}
-
-async function doInitPyodideLayouts() {
+    console.log('[PyodideLayouts] WebWorker初期化...');
     window.pyodideLayouts.loading = true;
-    console.log('[PyodideLayouts] 初期化開始...');
 
-    try {
-        // Pyodide読み込み
-        const script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js';
+    const worker = new Worker('pyodide_worker.js');
+    window.pyodideLayouts.worker = worker;
 
-        await new Promise((resolve, reject) => {
-            script.onload = resolve;
-            script.onerror = reject;
-            document.head.appendChild(script);
-        });
+    worker.onmessage = (e) => {
+        const { type, id, result, error } = e.data;
 
-        console.log('[PyodideLayouts] Pyodideスクリプト読み込み完了');
+        if (type === 'ready') {
+            window.pyodideLayouts.ready = true;
+            window.pyodideLayouts.loading = false;
+            console.log('[PyodideLayouts] WebWorker準備完了');
+        } else if (type === 'result') {
+            const pending = window.pyodideLayouts.pendingRequests.get(id);
+            if (pending) {
+                pending.resolve(result);
+                window.pyodideLayouts.pendingRequests.delete(id);
+            }
+        } else if (type === 'error') {
+            const pending = window.pyodideLayouts.pendingRequests.get(id);
+            if (pending) {
+                pending.reject(new Error(error));
+                window.pyodideLayouts.pendingRequests.delete(id);
+            }
+        }
+    };
 
-        window.pyodideLayouts.pyodide = await loadPyodide();
-        console.log('[PyodideLayouts] Pyodide初期化完了');
-
-        // micropipとezdxfインストール
-        await window.pyodideLayouts.pyodide.loadPackage('micropip');
-
-        await window.pyodideLayouts.pyodide.runPythonAsync(`
-import os
-os.environ['EZDXF_DISABLE_C_EXT'] = '1'
-import micropip
-await micropip.install('ezdxf')
-import ezdxf
-print('ezdxf ready')
-        `);
-
-        window.pyodideLayouts.ezdxfReady = true;
-        console.log('[PyodideLayouts] ezdxf準備完了');
-
-    } catch (e) {
-        window.pyodideLayouts.error = e.toString();
-        window.pyodideLayouts.initPromise = null;  // リトライ可能にする
-        console.error('[PyodideLayouts] エラー:', e);
-        throw e;
-    } finally {
+    worker.onerror = (e) => {
+        console.error('[PyodideLayouts] Worker error:', e);
         window.pyodideLayouts.loading = false;
-    }
+    };
+
+    // 初期化開始
+    worker.postMessage({ type: 'init' });
 }
 
 /**
  * DXFにレイアウトを追加
- * @param {Uint8Array} dxfBytes - 元のDXFバイナリ
- * @param {number} scale - スケール（例: 50 = 1:50）
- * @param {number} pageCount - ページ数
- * @returns {Promise<Uint8Array>} - レイアウト追加後のDXFバイナリ
  */
 async function addLayoutsToDxf(dxfBytes, scale, pageCount) {
-    // 引数検証
     if (pageCount <= 0) {
         console.warn('[PyodideLayouts] pageCountが0以下、元のDXFを返します');
         return dxfBytes;
     }
 
-    if (!window.pyodideLayouts.ezdxfReady) {
-        console.warn('[PyodideLayouts] ezdxf未準備、元のDXFを返します');
-        return dxfBytes;
+    // Workerがなければ初期化して待機
+    if (!window.pyodideLayouts.worker) {
+        initPyodideLayouts();
+    }
+
+    // 準備完了を待つ
+    if (!window.pyodideLayouts.ready) {
+        console.log('[PyodideLayouts] Worker準備待ち...');
+        await new Promise((resolve) => {
+            const check = () => {
+                if (window.pyodideLayouts.ready) {
+                    resolve();
+                } else {
+                    setTimeout(check, 100);
+                }
+            };
+            check();
+        });
     }
 
     console.log(`[PyodideLayouts] レイアウト追加: scale=${scale}, pages=${pageCount}`);
 
-    const pyodide = window.pyodideLayouts.pyodide;
-
-    try {
-        // DXFデータをPython側に渡す（大きなファイル対応）
-        // チャンクに分けてBase64変換（スタックオーバーフロー回避）
-        const CHUNK_SIZE = 32768;
-        const chunks = [];
-        for (let i = 0; i < dxfBytes.length; i += CHUNK_SIZE) {
-            const chunk = dxfBytes.subarray(i, Math.min(i + CHUNK_SIZE, dxfBytes.length));
-            chunks.push(String.fromCharCode.apply(null, chunk));
-        }
-        const dxfBase64 = btoa(chunks.join(''));
-        pyodide.globals.set('dxf_input_b64', dxfBase64);
-        pyodide.globals.set('param_scale', scale);
-        pyodide.globals.set('param_pages', pageCount);
-
-        await pyodide.runPythonAsync(`
-import ezdxf
-from ezdxf import recover
-import io
-import base64
-
-A3_WIDTH = 420
-A3_HEIGHT = 297
-PAGE_GAP_MM = 10.0
-
-scale = param_scale
-page_count = param_pages
-
-print(f"[Python] scale={scale}, page_count={page_count}")
-
-# DXF読み込み（recoverでバイナリストリームから読み込み、エンコーディングは元のまま）
-dxf_bytes = base64.b64decode(dxf_input_b64)
-stream = io.BytesIO(dxf_bytes)
-doc, auditor = recover.read(stream)
-print(f"[Python] DXF version: {doc.dxfversion}, encoding: {doc.encoding}")
-
-
-# 計算
-page_height_dxf = A3_HEIGHT * scale
-page_gap_dxf = PAGE_GAP_MM * scale
-frame_width_dxf = A3_WIDTH * scale
-
-print(f"[Python] page_height_dxf={page_height_dxf}, frame_width_dxf={frame_width_dxf}")
-
-# レイアウト追加
-layouts_created = []
-for i in range(page_count):
-    layout_name = f"Page_{i+1}"
-    if layout_name in doc.layouts:
-        print(f"[Python] {layout_name} already exists, skip")
-        continue
-
-    y = i * (page_height_dxf + page_gap_dxf)
-    layout = doc.layouts.new(layout_name)
-    layout.page_setup(size=(A3_WIDTH, A3_HEIGHT), margins=(0,0,0,0), units="mm")
-
-    vp_center = (A3_WIDTH/2, A3_HEIGHT/2)
-    vp_size = (A3_WIDTH, A3_HEIGHT)
-    view_center = (frame_width_dxf/2, y + page_height_dxf/2)
-    view_height = page_height_dxf
-
-    print(f"[Python] {layout_name}: y={y}, view_center={view_center}, view_height={view_height}")
-
-    layout.add_viewport(
-        center=vp_center,
-        size=vp_size,
-        view_center_point=(view_center[0], view_center[1], 0),
-        view_height=view_height
-    )
-    layouts_created.append(layout_name)
-
-    # 最初のレイアウト追加後にLayout1を削除
-    if i == 0 and "Layout1" in doc.layouts:
-        doc.layouts.delete("Layout1")
-        print("[Python] Layout1 deleted")
-
-# 出力（doc.encode()でバイト列に変換）
-out_buffer = io.StringIO()
-doc.write(out_buffer)
-dxf_out_str = out_buffer.getvalue()
-dxf_out_bytes = doc.encode(dxf_out_str)
-dxf_output_b64 = base64.b64encode(dxf_out_bytes).decode('ascii')
-
-# 最終レイアウト一覧
-final_layouts = [l.name for l in doc.layouts]
-print(f"[Python] Created layouts: {layouts_created}")
-print(f"[Python] Final layouts in DXF: {final_layouts}")
-        `);
-
-        // 結果を取得
-        const resultBase64 = await pyodide.runPythonAsync('dxf_output_b64');
-        const binaryString = atob(resultBase64);
-        const resultBytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-            resultBytes[i] = binaryString.charCodeAt(i);
-        }
-
-        console.log('[PyodideLayouts] レイアウト追加完了');
-        return resultBytes;
-
-    } catch (e) {
-        console.error('[PyodideLayouts] レイアウト追加エラー:', e);
-        throw e;  // Rust側に伝播させる
-
-    } finally {
-        // Pythonグローバル変数のクリーンアップ（メモリリーク防止）
-        try {
-            pyodide.globals.delete('dxf_input_b64');
-            pyodide.globals.delete('param_scale');
-            pyodide.globals.delete('param_pages');
-            pyodide.globals.delete('dxf_output_b64');
-        } catch (cleanupError) {
-            // クリーンアップ失敗は無視
-        }
+    // Base64エンコード
+    const CHUNK_SIZE = 32768;
+    const chunks = [];
+    for (let i = 0; i < dxfBytes.length; i += CHUNK_SIZE) {
+        const chunk = dxfBytes.subarray(i, Math.min(i + CHUNK_SIZE, dxfBytes.length));
+        chunks.push(String.fromCharCode.apply(null, chunk));
     }
+    const dxfBase64 = btoa(chunks.join(''));
+
+    // リクエスト送信
+    const id = ++window.pyodideLayouts.requestId;
+    return new Promise((resolve, reject) => {
+        window.pyodideLayouts.pendingRequests.set(id, {
+            resolve: (resultBase64) => {
+                // Base64デコード
+                const binaryString = atob(resultBase64);
+                const resultBytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    resultBytes[i] = binaryString.charCodeAt(i);
+                }
+                console.log('[PyodideLayouts] レイアウト追加完了');
+                resolve(resultBytes);
+            },
+            reject
+        });
+
+        window.pyodideLayouts.worker.postMessage({
+            type: 'addLayouts',
+            id,
+            dxfBase64,
+            scale,
+            pageCount
+        });
+    });
 }
 
-/**
- * ezdxfの準備状態を確認
- * @returns {boolean}
- */
 function isEzdxfReady() {
-    return window.pyodideLayouts.ezdxfReady;
+    return window.pyodideLayouts.ready;
 }
 
-/**
- * 読み込み中かどうか
- * @returns {boolean}
- */
 function isEzdxfLoading() {
     return window.pyodideLayouts.loading;
 }
