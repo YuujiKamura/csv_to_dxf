@@ -1,6 +1,7 @@
 //! 横断図・切削計算システム - egui版
 //!
 //! PDF横断図に準拠した横断図表示と切削計算
+//! hook test
 
 mod font_metrics;
 mod title_block;
