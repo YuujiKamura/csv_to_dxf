@@ -111,6 +111,7 @@ async function addLayoutsToDxf(dxfBytes, scale, pageCount) {
 
         await pyodide.runPythonAsync(`
 import ezdxf
+from ezdxf import recover
 import io
 import base64
 
@@ -128,10 +129,20 @@ dxf_bytes = base64.b64decode(dxf_input_b64)
 dxf_str = dxf_bytes.decode('utf-8')
 stream = io.StringIO(dxf_str)
 
-# recoverモードで読み込み（ハンドル重複を自動修復）
-from ezdxf import recover
-doc, auditor = recover.read(stream)
-print(f"[Python] DXF version: {doc.dxfversion}, errors fixed: {len(auditor.errors)}")
+try:
+    doc, auditor = recover.read(stream)
+except Exception as e:
+    raise RuntimeError(f"DXF読み込みに失敗: {e}")
+
+# エラー詳細のログ出力
+if auditor.errors:
+    print(f"[Python] DXF version: {doc.dxfversion}, errors fixed: {len(auditor.errors)}")
+    for error in auditor.errors[:5]:  # 最初の5件のみ表示
+        print(f"[Python]   - {error}")
+    if len(auditor.errors) > 5:
+        print(f"[Python]   ... and {len(auditor.errors) - 5} more")
+else:
+    print(f"[Python] DXF version: {doc.dxfversion}, no errors")
 
 
 # 計算
