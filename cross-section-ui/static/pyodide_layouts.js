@@ -126,8 +126,7 @@ print(f"[Python] scale={scale}, page_count={page_count}")
 
 # DXF読み込み（recoverモードでハンドル重複を修復）
 dxf_bytes = base64.b64decode(dxf_input_b64)
-dxf_str = dxf_bytes.decode('utf-8')
-stream = io.StringIO(dxf_str)
+stream = io.BytesIO(dxf_bytes)  # recoverはバイナリストリームが必要
 
 try:
     doc, auditor = recover.read(stream)
