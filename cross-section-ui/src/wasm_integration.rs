@@ -408,3 +408,75 @@ pub fn start() -> Result<(), JsValue> {
 
     Ok(())
 }
+
+// ============================================================================
+// Pyodide Layout Integration
+// ============================================================================
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_name = isEzdxfReady)]
+    fn js_is_ezdxf_ready() -> bool;
+
+    #[wasm_bindgen(js_name = isEzdxfLoading)]
+    fn js_is_ezdxf_loading() -> bool;
+
+    #[wasm_bindgen(js_name = addLayoutsToDxf, catch)]
+    async fn js_add_layouts_to_dxf(
+        dxf_bytes: js_sys::Uint8Array,
+        scale: f64,
+        page_count: u32,
+    ) -> Result<JsValue, JsValue>;
+}
+
+/// ezdxfの準備状態を確認
+#[cfg(target_arch = "wasm32")]
+pub fn is_ezdxf_ready() -> bool {
+    js_is_ezdxf_ready()
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn is_ezdxf_ready() -> bool {
+    false
+}
+
+/// ezdxf読み込み中かどうか
+#[cfg(target_arch = "wasm32")]
+pub fn is_ezdxf_loading() -> bool {
+    js_is_ezdxf_loading()
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn is_ezdxf_loading() -> bool {
+    false
+}
+
+/// DXFにペーパースペースレイアウトを追加（非同期）
+#[cfg(target_arch = "wasm32")]
+pub fn add_layouts_to_dxf_async(dxf_bytes: Vec<u8>, scale: f64, page_count: u32) {
+    use wasm_bindgen_futures::spawn_local;
+
+    spawn_local(async move {
+        let uint8_array = js_sys::Uint8Array::from(&dxf_bytes[..]);
+
+        match js_add_layouts_to_dxf(uint8_array, scale, page_count).await {
+            Ok(result) => {
+                // 結果をUint8Arrayとして取得
+                if let Ok(result_array) = result.dyn_into::<js_sys::Uint8Array>() {
+                    let result_bytes = result_array.to_vec();
+                    // ダウンロード
+                    crate::download_file("dekigata_with_layouts.dxf", &result_bytes);
+                }
+            }
+            Err(e) => {
+                log::error!("Failed to add layouts: {:?}", e);
+            }
+        }
+    });
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn add_layouts_to_dxf_async(_dxf_bytes: Vec<u8>, _scale: f64, _page_count: u32) {
+    // ネイティブでは何もしない
+}

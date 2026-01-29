@@ -29,6 +29,7 @@ use crate::{
 use crate::wasm_integration::{
     take_pending_csv, take_pending_json, take_pending_xlsx, take_pending_error,
     start_json_fetch, start_gemini_parse,
+    is_ezdxf_ready, add_layouts_to_dxf_async,
 };
 #[cfg(target_arch = "wasm32")]
 use crate::wasm_integration::trigger_csv_dialog;
@@ -424,19 +425,31 @@ impl eframe::App for CrossSectionApp {
                                 // 整数測点のみフィルタ（中間測点は除外）
                                 let dekigata_sections: Vec<CrossSectionData> = self.dekigata_filtered_sections()
                                     .into_iter().cloned().collect();
-                                if !dekigata_sections.is_empty() && ui.button("DXF").clicked() {
-                                    let display_project_name = if self.hide_project_name { "" } else { &self.project_name };
-                                    let info = TitleBlockInfo::new()
-                                        .with_project_name(display_project_name)
-                                        .with_drawing_type("出来形管理用紙")
-                                        .with_route_name(&self.route_name)
-                                        .with_author(&self.author)
-                                        .with_date(&self.date)
-                                        .with_top_title("出来形管理用紙")
-                                        .with_scale(&format!("1:{} (A3)", self.dekigata_scale as u32))
-                                        .with_debug_markers(false);
-                                    let dxf_content = generate_all_dekigata_dxf_bytes(&dekigata_sections, &info, &self.drawing_number, self.v_scale_ratio, self.dekigata_scale);
-                                    download_file("dekigata.dxf", &dxf_content);
+                                if !dekigata_sections.is_empty() {
+                                    // ezdxf準備状態でボタンテキスト変更
+                                    let btn_text = if is_ezdxf_ready() { "DXF+Layout" } else { "DXF" };
+                                    if ui.button(btn_text).clicked() {
+                                        let display_project_name = if self.hide_project_name { "" } else { &self.project_name };
+                                        let info = TitleBlockInfo::new()
+                                            .with_project_name(display_project_name)
+                                            .with_drawing_type("出来形管理用紙")
+                                            .with_route_name(&self.route_name)
+                                            .with_author(&self.author)
+                                            .with_date(&self.date)
+                                            .with_top_title("出来形管理用紙")
+                                            .with_scale(&format!("1:{} (A3)", self.dekigata_scale as u32))
+                                            .with_debug_markers(false);
+                                        let dxf_content = generate_all_dekigata_dxf_bytes(&dekigata_sections, &info, &self.drawing_number, self.v_scale_ratio, self.dekigata_scale);
+
+                                        if is_ezdxf_ready() {
+                                            // レイアウト追加してダウンロード
+                                            let page_count = dekigata_sections.len() as u32;
+                                            add_layouts_to_dxf_async(dxf_content, self.dekigata_scale, page_count);
+                                        } else {
+                                            // 通常ダウンロード
+                                            download_file("dekigata.dxf", &dxf_content);
+                                        }
+                                    }
                                 }
                             }
                             ViewMode::Single => {
@@ -752,19 +765,28 @@ impl eframe::App for CrossSectionApp {
                         // 整数測点のみフィルタ（中間測点は除外）
                         let dekigata_sections: Vec<CrossSectionData> = self.dekigata_filtered_sections()
                             .into_iter().cloned().collect();
-                        if !dekigata_sections.is_empty() && ui.button("Download 出来形 DXF").clicked() {
-                            let display_project_name = if self.hide_project_name { "" } else { &self.project_name };
-                            let info = TitleBlockInfo::new()
-                                .with_project_name(display_project_name)
-                                .with_drawing_type("出来形管理用紙")
-                                .with_route_name(&self.route_name)
-                                .with_author(&self.author)
-                                .with_date(&self.date)
-                                .with_top_title("出来形管理用紙")
-                                .with_scale(&format!("1:{} (A3)", self.dekigata_scale as u32))
-                                .with_debug_markers(false);
-                            let dxf_content = generate_all_dekigata_dxf_bytes(&dekigata_sections, &info, &self.drawing_number, self.v_scale_ratio, self.dekigata_scale);
-                            download_file("dekigata.dxf", &dxf_content);
+                        if !dekigata_sections.is_empty() {
+                            let btn_text = if is_ezdxf_ready() { "Download 出来形 DXF+Layout" } else { "Download 出来形 DXF" };
+                            if ui.button(btn_text).clicked() {
+                                let display_project_name = if self.hide_project_name { "" } else { &self.project_name };
+                                let info = TitleBlockInfo::new()
+                                    .with_project_name(display_project_name)
+                                    .with_drawing_type("出来形管理用紙")
+                                    .with_route_name(&self.route_name)
+                                    .with_author(&self.author)
+                                    .with_date(&self.date)
+                                    .with_top_title("出来形管理用紙")
+                                    .with_scale(&format!("1:{} (A3)", self.dekigata_scale as u32))
+                                    .with_debug_markers(false);
+                                let dxf_content = generate_all_dekigata_dxf_bytes(&dekigata_sections, &info, &self.drawing_number, self.v_scale_ratio, self.dekigata_scale);
+
+                                if is_ezdxf_ready() {
+                                    let page_count = dekigata_sections.len() as u32;
+                                    add_layouts_to_dxf_async(dxf_content, self.dekigata_scale, page_count);
+                                } else {
+                                    download_file("dekigata.dxf", &dxf_content);
+                                }
+                            }
                         }
                     }
                     ViewMode::Single => {

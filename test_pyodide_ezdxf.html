@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Pyodide + ezdxf テスト</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        #output { white-space: pre-wrap; background: #f0f0f0; padding: 10px; min-height: 200px; }
+        button { padding: 10px 20px; font-size: 16px; margin: 5px; }
+        button:disabled { opacity: 0.5; }
+    </style>
+</head>
+<body>
+    <h1>Pyodide + ezdxf テスト</h1>
+
+    <button id="btn1" disabled>1. Pyodide読み込み中...</button>
+    <button id="btn2" disabled>2. ezdxfインストール</button>
+    <button id="btn3" disabled>3. DXF生成＆ダウンロード</button>
+
+    <div id="output"></div>
+
+    <script>
+        let pyodide = null;
+        const output = document.getElementById('output');
+        const btn1 = document.getElementById('btn1');
+        const btn2 = document.getElementById('btn2');
+        const btn3 = document.getElementById('btn3');
+
+        function log(msg) {
+            output.textContent += msg + '\n';
+            output.scrollTop = output.scrollHeight;
+            console.log(msg);
+        }
+
+        // Step 1: Load Pyodide
+        async function loadPyodideStep() {
+            log('Pyodide読み込み中...');
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js';
+
+            return new Promise((resolve, reject) => {
+                script.onload = async () => {
+                    try {
+                        pyodide = await loadPyodide();
+                        log('✓ Pyodide読み込み完了');
+                        resolve();
+                    } catch (e) {
+                        reject(e);
+                    }
+                };
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        }
+
+        // Step 2: Install ezdxf
+        async function installEzdxf() {
+            btn2.textContent = '2. インストール中...';
+            btn2.disabled = true;
+            log('\nezdxfインストール中（1-2分かかります）...');
+
+            try {
+                await pyodide.loadPackage('micropip');
+                log('  micropip読み込み完了');
+
+                await pyodide.runPythonAsync(`
+import os
+os.environ['EZDXF_DISABLE_C_EXT'] = '1'
+
+import micropip
+await micropip.install('ezdxf')
+print('ezdxf installed')
+                `);
+
+                log('✓ ezdxfインストール完了');
+                btn2.textContent = '2. ezdxfインストール完了';
+                btn3.disabled = false;
+            } catch (e) {
+                log('✗ エラー: ' + e);
+                btn2.textContent = '2. エラー';
+            }
+        }
+
+        // Step 3: Generate DXF
+        async function generateDxf() {
+            btn3.textContent = '3. 生成中...';
+            btn3.disabled = true;
+            log('\nDXF生成中...');
+
+            try {
+                await pyodide.runPythonAsync(`
+import ezdxf
+import io
+import base64
+
+A3_WIDTH = 420
+A3_HEIGHT = 297
+SCALE = 100
+FRAME_WIDTH = A3_WIDTH * SCALE
+FRAME_HEIGHT = A3_HEIGHT * SCALE
+GAP = 10 * SCALE
+
+doc = ezdxf.new("R2000")
+msp = doc.modelspace()
+
+# 2ページ分の図枠
+for i in range(2):
+    y = i * (FRAME_HEIGHT + GAP)
+    msp.add_line((0, y), (FRAME_WIDTH, y))
+    msp.add_line((FRAME_WIDTH, y), (FRAME_WIDTH, y + FRAME_HEIGHT))
+    msp.add_line((FRAME_WIDTH, y + FRAME_HEIGHT), (0, y + FRAME_HEIGHT))
+    msp.add_line((0, y + FRAME_HEIGHT), (0, y))
+    msp.add_text(f"Page {i+1}", height=3000, dxfattribs={"insert": (FRAME_WIDTH/2, y + FRAME_HEIGHT/2)})
+
+# レイアウト追加（先に1つ作ってからLayout1を削除）
+for i in range(2):
+    y = i * (FRAME_HEIGHT + GAP)
+    layout = doc.layouts.new(f"Page_{i+1}")
+    layout.page_setup(size=(A3_WIDTH, A3_HEIGHT), margins=(0,0,0,0), units="mm")
+    layout.add_viewport(
+        center=(A3_WIDTH/2, A3_HEIGHT/2),
+        size=(A3_WIDTH, A3_HEIGHT),
+        view_center_point=(FRAME_WIDTH/2, y + FRAME_HEIGHT/2, 0),
+        view_height=FRAME_HEIGHT
+    )
+    # 最初のレイアウト作成後にLayout1を削除
+    if i == 0 and "Layout1" in doc.layouts:
+        doc.layouts.delete("Layout1")
+
+buffer = io.StringIO()
+doc.write(buffer)
+dxf_str = buffer.getvalue()
+dxf_bytes = dxf_str.encode('utf-8')
+dxf_b64 = base64.b64encode(dxf_bytes).decode('ascii')
+print(f"DXF size: {len(dxf_bytes)} bytes, Layouts: {len(list(doc.layouts))}")
+                `);
+
+                const b64 = await pyodide.runPythonAsync('dxf_b64');
+                log('✓ DXF生成完了');
+
+                // Download
+                const binary = atob(b64);
+                const bytes = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) {
+                    bytes[i] = binary.charCodeAt(i);
+                }
+                const blob = new Blob([bytes], {type: 'application/octet-stream'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'pyodide_test.dxf';
+                a.click();
+
+                log('✓ ダウンロード開始');
+                btn3.textContent = '3. 完了！';
+
+            } catch (e) {
+                log('✗ エラー: ' + e);
+                console.error(e);
+                btn3.textContent = '3. エラー';
+            }
+        }
+
+        // Initialize
+        (async () => {
+            try {
+                await loadPyodideStep();
+                btn1.textContent = '1. Pyodide読み込み完了';
+                btn2.disabled = false;
+                btn2.onclick = installEzdxf;
+                btn3.onclick = generateDxf;
+            } catch (e) {
+                log('✗ Pyodide読み込みエラー: ' + e);
+                btn1.textContent = '1. エラー';
+            }
+        })();
+    </script>
+</body>
+</html>
