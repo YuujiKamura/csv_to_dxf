@@ -1,0 +1,7 @@
+[build]
+# GitHub Pages: https://yuujikamura.github.io/csv_to_dxf/
+public_url = "/csv_to_dxf/"
+
+[[copy]]
+src = "sections.json"
+dest = "sections.json"
