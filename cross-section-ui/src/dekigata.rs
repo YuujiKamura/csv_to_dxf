@@ -58,41 +58,32 @@ fn draw_dekigata_page(
     let data = &section.survey_data;
     if data.len() < 2 { return; }
 
-    // A3用紙の有効領域（mm単位）
+    // テーブルスケール（frame_scaleに応じて調整）
+    let table_scale = (frame_scale / 50.0).sqrt().clamp(0.7, 1.3);
+
+    // A3用紙の有効領域（mm単位、table_scale適用後）
     // 上部: 横断図、中部: 基準高表、下部: 幅員表
-    let kijunko_table_height_mm = DEKIGATA_TABLE_ROW_HEIGHT_MM * 5.0;  // 基準高表: 5行
-    let fukuin_table_height_mm = DEKIGATA_TABLE_ROW_HEIGHT_MM * 3.0;   // 幅員表: 3行
-    let table_gap_mm = 5.0;  // 表間の間隔
-    let table_bottom_margin_mm = 15.0;  // タイトル枠なしのため縮小
+    let kijunko_table_height_mm = DEKIGATA_TABLE_ROW_HEIGHT_MM * 5.0 * table_scale;  // 基準高表: 5行
+    let fukuin_table_height_mm = DEKIGATA_TABLE_ROW_HEIGHT_MM * 3.0 * table_scale;   // 幅員表: 3行
+    let table_gap_mm = 5.0;  // 表間の間隔（固定）
+    let table_bottom_margin_mm = 15.0;  // 下端マージン
+    let table_to_diagram_gap_mm = 15.0;  // 表と横断図の間隔
     let total_tables_height_mm = fukuin_table_height_mm + table_gap_mm + kijunko_table_height_mm;
 
     // 横断図の描画領域（上部）
     // 工事名がある場合は上端を下げて被らないようにする
-    let cross_section_bottom_mm = table_bottom_margin_mm + total_tables_height_mm + 25.0;  // 表との間隔を広げる
+    let cross_section_bottom_mm = table_bottom_margin_mm + total_tables_height_mm + table_to_diagram_gap_mm;
     let cross_section_top_mm = if has_project_name { 235.0 } else { 255.0 };  // 工事名の有無で調整
-    let cross_section_height_mm = cross_section_top_mm - cross_section_bottom_mm;
+    let _cross_section_height_mm = cross_section_top_mm - cross_section_bottom_mm;
 
     // 横断図の描画
     let scale = 1000.0;  // 1m = 1000 DXF単位
-    let y_scale = scale * 2.0;  // 縦方向は2倍
 
     // 横断図のサイズを計算
-    let l_data = &data[0];
-    let r_data = &data[data.len() - 1];
     let cl_data = &data[section.cl_index.min(data.len() - 1)];
-    let total_width_m = (r_data.cumulative_distance - l_data.cumulative_distance).abs();
-    let max_elev = data.iter().map(|d| d.elevation.max(d.planned_height)).fold(f64::MIN, f64::max);
-    let _min_elev = data.iter().map(|d| d.elevation.min(d.planned_height).min(d.cutting_bottom)).fold(f64::MAX, f64::min);
-    let dl = round_dl(section.dl);
-    let height_range_m = max_elev - dl + 2.0;  // 旗揚げ分のマージン
-
-    // 横断図のDXF単位でのサイズ
-    let _cross_section_width_dxf = total_width_m * scale;
-    let _cross_section_height_dxf = height_range_m * y_scale;
 
     // 横断図を配置する中心位置（図枠内の中央上部）
     let frame_center_x_mm = 210.0;  // A3幅の中央
-    let _cross_section_center_y_mm = cross_section_bottom_mm + cross_section_height_mm / 2.0;
 
     // 横断図のCLを中心に配置
     let cl_offset = cl_data.cumulative_distance;
@@ -102,9 +93,8 @@ fn draw_dekigata_page(
     // 横断図を描画（共通関数を使用）
     draw_section_at_offset(drawing, section, offset_x, offset_y, scale, 1.0, v_scale_ratio);
 
-    // 出来形管理表を描画（センタリング、スケールに応じたサイズ）
+    // 出来形管理表を描画（センタリング）
     let num_points = data.len();
-    let table_scale = (frame_scale / 50.0).sqrt().clamp(0.7, 1.3);
     let kijunko_table_width_mm = (DEKIGATA_TABLE_HEADER_WIDTH_MM + DEKIGATA_TABLE_DATA_WIDTH_MM * num_points as f64) * table_scale;
     let page_width_mm = 420.0;  // A3横幅
 
@@ -115,8 +105,9 @@ fn draw_dekigata_page(
     draw_fukuin_table(drawing, section, fukuin_table_x, fukuin_table_y, frame_scale);
 
     // 基準高表を幅員表の上に描画
+    // 幅員表の実際の高さ(DXF単位) = fukuin_table_height_mm * frame_scale
     let kijunko_table_x = origin_x + ((page_width_mm - kijunko_table_width_mm) / 2.0) * frame_scale;
-    let kijunko_table_y = fukuin_table_y + (fukuin_table_height_mm + table_gap_mm) * frame_scale * table_scale;
+    let kijunko_table_y = fukuin_table_y + (fukuin_table_height_mm + table_gap_mm) * frame_scale;
     draw_dekigata_table(drawing, section, kijunko_table_x, kijunko_table_y, frame_scale);
 }
 
