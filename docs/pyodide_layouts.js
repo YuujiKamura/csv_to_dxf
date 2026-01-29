@@ -123,17 +123,15 @@ page_count = param_pages
 
 print(f"[Python] scale={scale}, page_count={page_count}")
 
-# DXF読み込み
+# DXF読み込み（recoverモードでハンドル重複を修復）
 dxf_bytes = base64.b64decode(dxf_input_b64)
 dxf_str = dxf_bytes.decode('utf-8')
 stream = io.StringIO(dxf_str)
-doc = ezdxf.read(stream)
 
-# DXFバージョンを確認・アップグレード（レイアウト対応のため）
-print(f"[Python] Original DXF version: {doc.dxfversion}")
-if doc.dxfversion < 'AC1015':  # R2000未満
-    doc.saveas = lambda *args, **kwargs: None  # 一旦無効化
-    print("[Python] Warning: DXF version too old for layouts")
+# recoverモードで読み込み（ハンドル重複を自動修復）
+from ezdxf import recover
+doc, auditor = recover.read(stream)
+print(f"[Python] DXF version: {doc.dxfversion}, errors fixed: {len(auditor.errors)}")
 
 
 # 計算
