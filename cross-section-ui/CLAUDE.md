@@ -30,14 +30,15 @@ cargo test test_name
 - **lib.rs** - Public exports, ViewMode enum, test utilities
 - **app.rs** - `CrossSectionApp` struct with all UI state (view mode, scale, filters)
 - **app_ui.rs** - `eframe::App` implementation, mobile/desktop responsive UI
-- **data_model.rs** - `CrossSectionData`, `SurveyRow` structs, CSV parsing
-- **drawing_ir.rs** - `DrawingContent` IR for DXF/GUI rendering, `SectionStyle` for label positioning
-- **dxf_helpers.rs** - Low-level DXF primitives (`add_line`, `add_text`, `add_text_rotated`)
+- **data_model.rs** - `CrossSectionData`, `SurveyRow` structs, CSV parsing, `SectionData` trait impl
+- **drawing_ir.rs** - `DrawingContent` IR for DXF/GUI rendering, `SectionStyle`, font metrics abstraction, `SectionData`/`SectionPoint` traits
+- **dxf_helpers.rs** - Low-level DXF primitives (`add_line`, `add_text`, `round_baseline_with_margin`)
 - **dxf_view.rs** - `DxfViewState` for pan/zoom, GUI rendering of DXF content
-- **grid_layout.rs** - Multi-section grid layout, `GridLayoutParams`, `build_section_content()`
+- **grid_layout.rs** - Multi-section grid layout, `GridLayoutParams` with configurable margins, `build_section_content()`
 - **title_block.rs** - A3 title block generation, `TitleBlockInfo`, `available_area` constants
 - **dekigata.rs** - 出来形管理用紙 (construction quality control sheet) generation
 - **combo_drawing.rs** - Combined longitudinal + cross-section view
+- **font_metrics.rs** - Font metrics constants (Noto Sans JP specific, legacy)
 - **wasm_integration.rs** - WASM-specific code (file dialogs, downloads)
 - **ui_chars.rs** - Japanese characters list for font subsetting
 
@@ -51,21 +52,40 @@ cargo test test_name
 
 4. **Mobile/Desktop Detection**: `is_mobile = screen_width < 600.0` drives responsive layout.
 
+### Abstraction Layers
+
+**Font Metrics (drawing_ir.rs)**:
+- `FontMetrics` trait for cap height → DXF text height conversion
+- `cap_height_to_dxf_height()` uses default Noto Sans JP metrics (1000/733 scale)
+- Override via custom `FontMetrics` impl for other fonts
+
+**Section Data Abstraction (drawing_ir.rs)**:
+- `SectionPoint` trait: `elevation()`, `planned_height()`, `cumulative_distance()`, `cutting_bottom()`
+- `SectionData` trait: `survey_points()`, `datum_level()`, `cl_index()`, `body_height()`
+- `CrossSectionData` implements `SectionData`, `SurveyRow` implements `SectionPoint`
+- Enables `GridLayoutParams` to work with any section data type
+
 ### GridLayoutParams (grid_layout.rs)
 
-Centralized cell height calculation for multi-section grids. Critical for avoiding overlap:
+Centralized cell height calculation for multi-section grids with configurable margins:
 
+```rust
+GridLayoutParams::new(column_gap, row_gap)
+    .with_v_scale(2.0)           // Optional: vertical scale (default 2.0)
+    .with_margins(top, bottom)   // Optional: custom margins
+```
+
+Cell height formula:
 ```
 cell_height = body_height * scale * v_scale_ratio  // Section body (scaled)
-            + TOP_MARGIN_DXF (3350)                // Flag labels (fixed)
-            + BOTTOM_MARGIN_DXF (700)              // Cutting labels (fixed)
+            + top_margin (default 3350)            // Flag labels (fixed DXF units)
+            + bottom_margin (default 700)          // Cutting labels (fixed)
             + row_gap * scale                      // Row gap (fixed)
 ```
 
-- **v_scale_ratio**: Vertical scale multiplier (1.0-5.0), only affects section body
-- **TOP_MARGIN_DXF**: Space for 旗揚げ (flag labels: No.xxx, GH=, FH=)
-- **BOTTOM_MARGIN_DXF**: Space for 切削厚 labels below DL line
-- **offset_y**: Must add `BOTTOM_MARGIN_DXF` to prevent cutting labels extending below cell
+Key constants:
+- `DEFAULT_TOP_MARGIN_DXF = 3350` - Space for 旗揚げ (flag labels: No.xxx, GH=, FH=)
+- `DEFAULT_BOTTOM_MARGIN_DXF = 700` - Space for 切削厚 labels below DL line
 
 ### SectionStyle (drawing_ir.rs)
 
@@ -95,3 +115,8 @@ Requires: `pip install fonttools`
 ## WASM Conditional Compilation
 
 Use `#[cfg(target_arch = "wasm32")]` for browser-specific code. Desktop-only features use `#[cfg(not(target_arch = "wasm32"))]`.
+
+## Deprecated APIs
+
+- `round_dl()` → use `round_baseline_with_margin()` instead
+- `font_metrics::cap_height_to_text_height()` → use `drawing_ir::cap_height_to_dxf_height()`

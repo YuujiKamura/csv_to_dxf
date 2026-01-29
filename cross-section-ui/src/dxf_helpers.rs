@@ -5,8 +5,7 @@ use dxf::entities::{Entity, EntityType, Line, Text, Wipeout};
 use dxf::enums::{HorizontalTextJustification, VerticalTextJustification};
 use dxf::{Color, Point};
 
-use crate::font_metrics::cap_height_to_text_height;
-use crate::drawing_ir::{DrawingContent, HAlign, VAlign, SectionStyle};
+use crate::drawing_ir::{DrawingContent, HAlign, VAlign, SectionStyle, cap_height_to_dxf_height};
 
 // 後方互換性のためのエイリアス
 type TextAlign = HAlign;
@@ -41,7 +40,7 @@ pub fn new_drawing() -> Drawing {
 pub fn add_text(drawing: &mut Drawing, x: f64, y: f64, text: &str, height: f64, color: i16, layer: &str, align: HAlign) {
     let mut t = Text::default();
     t.location = Point::new(x, y, 0.0);
-    t.text_height = cap_height_to_text_height(height);  // フォントメトリクス補正
+    t.text_height = cap_height_to_dxf_height(height);  // フォントメトリクス補正
     t.value = text.to_string();
     t.text_style_name = "NOTOSANSJP".to_string();
     t.relative_x_scale_factor = 1.0;  // 幅が引き伸ばされるのを防止
@@ -128,7 +127,7 @@ pub fn add_text_rotated(
 ) {
     let mut t = Text::default();
     t.location = Point::new(x, y, 0.0);
-    t.text_height = cap_height_to_text_height(height);  // フォントメトリクス補正
+    t.text_height = cap_height_to_dxf_height(height);  // フォントメトリクス補正
     t.value = text.to_string();
     t.rotation = rotation;
     t.text_style_name = "NOTOSANSJP".to_string();
@@ -203,14 +202,51 @@ pub fn add_dimension_as_lines_to_content(
         HAlign::Center, VAlign::Bottom, 0.0);
 }
 
-/// DL値を1m刻みに丸める（最小標高との差が0.2以下なら1m下げる）
-pub fn round_dl(dl: f64) -> f64 {
-    let min_elevation = dl + 1.0;  // 元の最小標高（DL = min - 1.0 で計算されている）
-    let rounded = dl.ceil();
-    let diff = min_elevation - rounded;
-    if diff < 0.2 {
+/// Round a baseline value to integer grid with margin adjustment
+///
+/// Rounds up to the nearest integer, but if the difference to the reference
+/// value (baseline + 1.0) is less than the margin threshold, steps down by 1.
+///
+/// This is useful for datum/baseline calculations where you want clean integer
+/// values but need to maintain adequate margin from the minimum value.
+///
+/// # Arguments
+/// * `baseline` - The baseline value to round (e.g., minimum elevation - 1.0)
+///
+/// # Returns
+/// Rounded baseline value, adjusted to ensure margin
+///
+/// # Example
+/// ```ignore
+/// let min_elev = 10.1;
+/// let baseline = min_elev - 1.0;  // 9.1
+/// let rounded = round_baseline_with_margin(baseline);  // 10.0
+/// ```
+pub fn round_baseline_with_margin(baseline: f64) -> f64 {
+    round_baseline_with_margin_threshold(baseline, 0.2)
+}
+
+/// Round a baseline value to integer grid with configurable margin threshold
+///
+/// # Arguments
+/// * `baseline` - The baseline value to round
+/// * `margin_threshold` - If difference to reference is less than this, step down by 1
+pub fn round_baseline_with_margin_threshold(baseline: f64, margin_threshold: f64) -> f64 {
+    let reference = baseline + 1.0;  // Original reference value (baseline = ref - 1.0)
+    let rounded = baseline.ceil();
+    let diff = reference - rounded;
+    if diff < margin_threshold {
         rounded - 1.0
     } else {
         rounded
     }
+}
+
+/// DL値を1m刻みに丸める（最小標高との差が0.2以下なら1m下げる）
+///
+/// Deprecated: Use `round_baseline_with_margin` for new code
+#[deprecated(since = "0.2.0", note = "Use round_baseline_with_margin instead")]
+#[inline]
+pub fn round_dl(dl: f64) -> f64 {
+    round_baseline_with_margin(dl)
 }
