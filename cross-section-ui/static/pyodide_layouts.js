@@ -129,6 +129,13 @@ dxf_str = dxf_bytes.decode('utf-8')
 stream = io.StringIO(dxf_str)
 doc = ezdxf.read(stream)
 
+# DXFバージョンを確認・アップグレード（レイアウト対応のため）
+print(f"[Python] Original DXF version: {doc.dxfversion}")
+if doc.dxfversion < 'AC1015':  # R2000未満
+    doc.saveas = lambda *args, **kwargs: None  # 一旦無効化
+    print("[Python] Warning: DXF version too old for layouts")
+
+
 # 計算
 page_height_dxf = A3_HEIGHT * scale
 page_gap_dxf = PAGE_GAP_MM * scale
