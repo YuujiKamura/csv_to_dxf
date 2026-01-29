@@ -37,9 +37,12 @@ pub fn trigger_csv_dialog() {
         std::rc::Rc::new(std::cell::RefCell::new(None));
     let on_load: std::rc::Rc<std::cell::RefCell<Option<Closure<dyn FnMut(Event)>>>> =
         std::rc::Rc::new(std::cell::RefCell::new(None));
+    let on_error: std::rc::Rc<std::cell::RefCell<Option<Closure<dyn FnMut(Event)>>>> =
+        std::rc::Rc::new(std::cell::RefCell::new(None));
 
     let on_change_handle = on_change.clone();
     let on_load_handle = on_load.clone();
+    let on_error_handle = on_error.clone();
 
     *on_change.borrow_mut() = Some(Closure::<dyn FnMut(Event)>::new(move |event: Event| {
         let Some(target) = event.target() else { return; };
@@ -49,7 +52,9 @@ pub fn trigger_csv_dialog() {
 
         let Ok(reader) = FileReader::new() else { return; };
         let reader_clone = reader.clone();
+        let reader_clone2 = reader.clone();
         let on_load_handle_clone = on_load_handle.clone();
+        let on_error_handle_clone = on_error_handle.clone();
         let on_change_handle = on_change_handle.clone();
 
         *on_load_handle.borrow_mut() = Some(Closure::<dyn FnMut(Event)>::new(move |_event: Event| {
@@ -62,11 +67,25 @@ pub fn trigger_csv_dialog() {
                 }
             }
             reader_clone.set_onload(None);
+            reader_clone.set_onerror(None);
             on_load_handle_clone.borrow_mut().take();
+        }));
+
+        let on_error_handle_clone2 = on_error_handle.clone();
+        *on_error_handle.borrow_mut() = Some(Closure::<dyn FnMut(Event)>::new(move |_event: Event| {
+            PENDING_ERROR.with(|cell| {
+                *cell.borrow_mut() = Some("CSVファイルの読み込みに失敗しました".to_string());
+            });
+            reader_clone2.set_onload(None);
+            reader_clone2.set_onerror(None);
+            on_error_handle_clone2.borrow_mut().take();
         }));
 
         if let Some(handler) = on_load_handle.borrow().as_ref() {
             reader.set_onload(Some(handler.as_ref().unchecked_ref()));
+        }
+        if let Some(handler) = on_error_handle.borrow().as_ref() {
+            reader.set_onerror(Some(handler.as_ref().unchecked_ref()));
         }
 
         let _ = reader.read_as_text(&file);
@@ -94,9 +113,12 @@ pub fn trigger_xlsx_dialog() {
         std::rc::Rc::new(std::cell::RefCell::new(None));
     let on_load: std::rc::Rc<std::cell::RefCell<Option<Closure<dyn FnMut(Event)>>>> =
         std::rc::Rc::new(std::cell::RefCell::new(None));
+    let on_error: std::rc::Rc<std::cell::RefCell<Option<Closure<dyn FnMut(Event)>>>> =
+        std::rc::Rc::new(std::cell::RefCell::new(None));
 
     let on_change_handle = on_change.clone();
     let on_load_handle = on_load.clone();
+    let on_error_handle = on_error.clone();
 
     *on_change.borrow_mut() = Some(Closure::<dyn FnMut(Event)>::new(move |event: Event| {
         let Some(target) = event.target() else { return; };
@@ -106,7 +128,9 @@ pub fn trigger_xlsx_dialog() {
 
         let Ok(reader) = FileReader::new() else { return; };
         let reader_clone = reader.clone();
+        let reader_clone2 = reader.clone();
         let on_load_handle_clone = on_load_handle.clone();
+        let on_error_handle_clone = on_error_handle.clone();
         let on_change_handle = on_change_handle.clone();
 
         *on_load_handle.borrow_mut() = Some(Closure::<dyn FnMut(Event)>::new(move |_event: Event| {
@@ -122,11 +146,25 @@ pub fn trigger_xlsx_dialog() {
                 }
             }
             reader_clone.set_onload(None);
+            reader_clone.set_onerror(None);
             on_load_handle_clone.borrow_mut().take();
+        }));
+
+        let on_error_handle_clone2 = on_error_handle.clone();
+        *on_error_handle.borrow_mut() = Some(Closure::<dyn FnMut(Event)>::new(move |_event: Event| {
+            PENDING_ERROR.with(|cell| {
+                *cell.borrow_mut() = Some("XLSXファイルの読み込みに失敗しました".to_string());
+            });
+            reader_clone2.set_onload(None);
+            reader_clone2.set_onerror(None);
+            on_error_handle_clone2.borrow_mut().take();
         }));
 
         if let Some(handler) = on_load_handle.borrow().as_ref() {
             reader.set_onload(Some(handler.as_ref().unchecked_ref()));
+        }
+        if let Some(handler) = on_error_handle.borrow().as_ref() {
+            reader.set_onerror(Some(handler.as_ref().unchecked_ref()));
         }
 
         let _ = reader.read_as_array_buffer(&file);
