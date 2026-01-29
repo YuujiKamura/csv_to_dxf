@@ -36,6 +36,148 @@ const FUKUIN_TABLE_HEADER_WIDTH_MM: f64 = 60.0;
 /// 幅員表のデータ列幅（mm）
 const FUKUIN_TABLE_DATA_WIDTH_MM: f64 = 50.0;
 
+/// A3用紙の高さ（mm）
+const A3_HEIGHT_MM: f64 = 297.0;
+
+/// 内枠マージン（mm）
+const FRAME_MARGIN_MM: f64 = 10.0;
+
+/// 工事名の上マージン（mm）
+const PROJECT_NAME_TOP_MARGIN_MM: f64 = 15.0;
+
+/// 工事名のテキスト高さ（mm）
+const PROJECT_NAME_TEXT_HEIGHT_MM: f64 = 12.0;
+
+/// 横断図の旗揚げ高さ（DXF単位、SectionStyleのデフォルト値から計算）
+/// flag_base_offset(1600) + label_title_offset(1300) + text_height*title_scale(450) = 3350
+const CROSS_SECTION_FLAG_HEIGHT_DXF: f64 = 3350.0;
+
+/// 横断図の下部マージン（DXF単位、切削厚ラベル分）
+const CROSS_SECTION_BOTTOM_MARGIN_DXF: f64 = 700.0;
+
+/// 横断図の高さを計算（mm単位）
+fn calc_cross_section_height_mm(
+    section: &CrossSectionData,
+    frame_scale: f64,
+    v_scale_ratio: f64,
+) -> f64 {
+    let data = &section.survey_data;
+    if data.len() < 2 { return 0.0; }
+
+    let dl = round_dl(section.dl);
+    let max_elev = data.iter()
+        .map(|d| d.elevation.max(d.planned_height))
+        .fold(f64::MIN, f64::max);
+
+    let scale = 1000.0;  // 1m = 1000 DXF単位
+    let y_scale = scale * v_scale_ratio;
+
+    // 横断図の本体高さ（地盤高〜最高点）
+    let body_height_dxf = (max_elev - dl) * y_scale;
+
+    // 旗揚げ高さを加算
+    let total_height_dxf = body_height_dxf + CROSS_SECTION_FLAG_HEIGHT_DXF + CROSS_SECTION_BOTTOM_MARGIN_DXF;
+
+    // mm単位に変換
+    total_height_dxf / frame_scale
+}
+
+/// レイアウトパラメータを計算（重なり判定付き）
+struct DekigataLayout {
+    table_scale: f64,
+    cross_section_bottom_mm: f64,
+    project_name_bottom_mm: f64,
+}
+
+fn calc_dekigata_layout(
+    section: &CrossSectionData,
+    frame_scale: f64,
+    v_scale_ratio: f64,
+    has_project_name: bool,
+) -> DekigataLayout {
+    // 利用可能な高さ（mm）
+    let usable_top_mm = A3_HEIGHT_MM - FRAME_MARGIN_MM;
+    let usable_bottom_mm = FRAME_MARGIN_MM;
+
+    // 工事名の位置（上端から）
+    let project_name_y_mm = if has_project_name {
+        usable_top_mm - PROJECT_NAME_TOP_MARGIN_MM
+    } else {
+        usable_top_mm
+    };
+    // 工事名の下端（テキスト高さを考慮）
+    let project_name_bottom_mm = if has_project_name {
+        project_name_y_mm - PROJECT_NAME_TEXT_HEIGHT_MM - 5.0  // 5mmマージン
+    } else {
+        usable_top_mm
+    };
+
+    // 初期テーブルスケール
+    let mut table_scale = (frame_scale / 50.0).sqrt().clamp(0.7, 1.3);
+
+    // 反復して適切なスケールを見つける
+    for _ in 0..10 {
+        // テーブルの合計高さ
+        let kijunko_table_height_mm = DEKIGATA_TABLE_ROW_HEIGHT_MM * 5.0 * table_scale;
+        let fukuin_table_height_mm = DEKIGATA_TABLE_ROW_HEIGHT_MM * 3.0 * table_scale;
+        let table_gap_mm = 5.0;
+        let table_bottom_margin_mm = 15.0;
+        let table_to_diagram_gap_mm = 15.0;
+        let total_tables_height_mm = fukuin_table_height_mm + table_gap_mm + kijunko_table_height_mm;
+
+        // 横断図の配置
+        let cross_section_bottom_mm = usable_bottom_mm + table_bottom_margin_mm + total_tables_height_mm + table_to_diagram_gap_mm;
+        let cross_section_height_mm = calc_cross_section_height_mm(section, frame_scale, v_scale_ratio);
+        let cross_section_top_mm = cross_section_bottom_mm + cross_section_height_mm;
+
+        // 重なり判定
+        let overlap = cross_section_top_mm - project_name_bottom_mm;
+
+        if overlap <= 0.0 {
+            // 重なりなし
+            return DekigataLayout {
+                table_scale,
+                cross_section_bottom_mm,
+                project_name_bottom_mm,
+            };
+        }
+
+        // 重なりあり：テーブルスケールを縮小
+        // 必要な縮小量を計算
+        let available_height = project_name_bottom_mm - usable_bottom_mm - table_bottom_margin_mm - table_to_diagram_gap_mm - cross_section_height_mm;
+        if available_height <= 0.0 {
+            // 横断図自体が大きすぎる場合は最小スケールを使用
+            table_scale = 0.5;
+            break;
+        }
+
+        // 新しいテーブルスケールを計算
+        let required_table_height = available_height - table_gap_mm;
+        let base_table_height = DEKIGATA_TABLE_ROW_HEIGHT_MM * 8.0;  // 5行 + 3行
+        let new_scale = (required_table_height / base_table_height).clamp(0.5, table_scale - 0.05);
+
+        if (new_scale - table_scale).abs() < 0.01 {
+            break;
+        }
+        table_scale = new_scale;
+    }
+
+    // 最終レイアウト計算
+    let kijunko_table_height_mm = DEKIGATA_TABLE_ROW_HEIGHT_MM * 5.0 * table_scale;
+    let fukuin_table_height_mm = DEKIGATA_TABLE_ROW_HEIGHT_MM * 3.0 * table_scale;
+    let table_gap_mm = 5.0;
+    let table_bottom_margin_mm = 15.0;
+    let table_to_diagram_gap_mm = 15.0;
+    let total_tables_height_mm = fukuin_table_height_mm + table_gap_mm + kijunko_table_height_mm;
+    let cross_section_bottom_mm = usable_bottom_mm + table_bottom_margin_mm + total_tables_height_mm + table_to_diagram_gap_mm;
+
+    DekigataLayout {
+        table_scale,
+        cross_section_bottom_mm,
+        project_name_bottom_mm,
+    }
+}
+
 /// 単一測点の出来形管理用紙を描画
 ///
 /// # Arguments
@@ -58,37 +200,25 @@ fn draw_dekigata_page(
     let data = &section.survey_data;
     if data.len() < 2 { return; }
 
-    // テーブルスケール（frame_scaleに応じて調整）
-    let table_scale = (frame_scale / 50.0).sqrt().clamp(0.7, 1.3);
+    // レイアウト計算（重なり判定付き）
+    let layout = calc_dekigata_layout(section, frame_scale, v_scale_ratio, has_project_name);
+    let table_scale = layout.table_scale;
 
-    // A3用紙の有効領域（mm単位、table_scale適用後）
-    // 上部: 横断図、中部: 基準高表、下部: 幅員表
-    let kijunko_table_height_mm = DEKIGATA_TABLE_ROW_HEIGHT_MM * 5.0 * table_scale;  // 基準高表: 5行
-    let fukuin_table_height_mm = DEKIGATA_TABLE_ROW_HEIGHT_MM * 3.0 * table_scale;   // 幅員表: 3行
-    let table_gap_mm = 5.0;  // 表間の間隔（固定）
-    let table_bottom_margin_mm = 15.0;  // 下端マージン
-    let table_to_diagram_gap_mm = 15.0;  // 表と横断図の間隔
-    let total_tables_height_mm = fukuin_table_height_mm + table_gap_mm + kijunko_table_height_mm;
-
-    // 横断図の描画領域（上部）
-    // 工事名がある場合は上端を下げて被らないようにする
-    let cross_section_bottom_mm = table_bottom_margin_mm + total_tables_height_mm + table_to_diagram_gap_mm;
-    let cross_section_top_mm = if has_project_name { 235.0 } else { 255.0 };  // 工事名の有無で調整
-    let _cross_section_height_mm = cross_section_top_mm - cross_section_bottom_mm;
+    // テーブル高さ（スケール適用後）
+    let kijunko_table_height_mm = DEKIGATA_TABLE_ROW_HEIGHT_MM * 5.0 * table_scale;
+    let fukuin_table_height_mm = DEKIGATA_TABLE_ROW_HEIGHT_MM * 3.0 * table_scale;
+    let table_gap_mm = 5.0;
+    let table_bottom_margin_mm = FRAME_MARGIN_MM + 5.0;  // 内枠マージン + 追加マージン
 
     // 横断図の描画
     let scale = 1000.0;  // 1m = 1000 DXF単位
-
-    // 横断図のサイズを計算
     let cl_data = &data[section.cl_index.min(data.len() - 1)];
-
-    // 横断図を配置する中心位置（図枠内の中央上部）
     let frame_center_x_mm = 210.0;  // A3幅の中央
 
     // 横断図のCLを中心に配置
     let cl_offset = cl_data.cumulative_distance;
     let offset_x = origin_x + (frame_center_x_mm * frame_scale) - (cl_offset * scale);
-    let offset_y = origin_y + (cross_section_bottom_mm * frame_scale);
+    let offset_y = origin_y + (layout.cross_section_bottom_mm * frame_scale);
 
     // 横断図を描画（共通関数を使用）
     draw_section_at_offset(drawing, section, offset_x, offset_y, scale, 1.0, v_scale_ratio);
@@ -102,13 +232,12 @@ fn draw_dekigata_page(
     let fukuin_table_width_mm = (FUKUIN_TABLE_HEADER_WIDTH_MM + FUKUIN_TABLE_DATA_WIDTH_MM * 2.0) * table_scale;
     let fukuin_table_x = origin_x + ((page_width_mm - fukuin_table_width_mm) / 2.0) * frame_scale;
     let fukuin_table_y = origin_y + table_bottom_margin_mm * frame_scale;
-    draw_fukuin_table(drawing, section, fukuin_table_x, fukuin_table_y, frame_scale);
+    draw_fukuin_table_with_scale(drawing, section, fukuin_table_x, fukuin_table_y, frame_scale, table_scale);
 
     // 基準高表を幅員表の上に描画
-    // 幅員表の実際の高さ(DXF単位) = fukuin_table_height_mm * frame_scale
     let kijunko_table_x = origin_x + ((page_width_mm - kijunko_table_width_mm) / 2.0) * frame_scale;
     let kijunko_table_y = fukuin_table_y + (fukuin_table_height_mm + table_gap_mm) * frame_scale;
-    draw_dekigata_table(drawing, section, kijunko_table_x, kijunko_table_y, frame_scale);
+    draw_dekigata_table_with_scale(drawing, section, kijunko_table_x, kijunko_table_y, frame_scale, table_scale);
 }
 
 /// 幅員表を描画（3行×2列: 左幅員・右幅員）
@@ -119,11 +248,22 @@ fn draw_fukuin_table(
     table_y: f64,
     frame_scale: f64,
 ) {
+    let table_scale = (frame_scale / 50.0).sqrt().clamp(0.7, 1.3);
+    draw_fukuin_table_with_scale(drawing, section, table_x, table_y, frame_scale, table_scale);
+}
+
+/// 幅員表を描画（スケール指定版）
+fn draw_fukuin_table_with_scale(
+    drawing: &mut Drawing,
+    section: &CrossSectionData,
+    table_x: f64,
+    table_y: f64,
+    frame_scale: f64,
+    table_scale: f64,
+) {
     let data = &section.survey_data;
     if data.len() < 2 { return; }
 
-    // スケールに応じてテーブルサイズを可変
-    let table_scale = (frame_scale / 50.0).sqrt().clamp(0.7, 1.3);
     let row_height = DEKIGATA_TABLE_ROW_HEIGHT_MM * frame_scale * table_scale;
     let header_width = FUKUIN_TABLE_HEADER_WIDTH_MM * frame_scale * table_scale;
     let data_width = FUKUIN_TABLE_DATA_WIDTH_MM * frame_scale * table_scale;
@@ -195,11 +335,22 @@ fn draw_dekigata_table(
     table_y: f64,
     frame_scale: f64,
 ) {
+    let table_scale = (frame_scale / 50.0).sqrt().clamp(0.7, 1.3);
+    draw_dekigata_table_with_scale(drawing, section, table_x, table_y, frame_scale, table_scale);
+}
+
+/// 出来形管理表を描画（スケール指定版）
+fn draw_dekigata_table_with_scale(
+    drawing: &mut Drawing,
+    section: &CrossSectionData,
+    table_x: f64,
+    table_y: f64,
+    frame_scale: f64,
+    table_scale: f64,
+) {
     let data = &section.survey_data;
     let num_points = data.len();
 
-    // スケールに応じてテーブルサイズを可変（1:50基準、1:30で小さく、1:100で大きく）
-    let table_scale = (frame_scale / 50.0).sqrt().clamp(0.7, 1.3);
     let row_height = DEKIGATA_TABLE_ROW_HEIGHT_MM * frame_scale * table_scale;
     let header_width = DEKIGATA_TABLE_HEADER_WIDTH_MM * frame_scale * table_scale;
     let data_width = DEKIGATA_TABLE_DATA_WIDTH_MM * frame_scale * table_scale;
