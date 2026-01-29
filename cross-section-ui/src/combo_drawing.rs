@@ -112,6 +112,12 @@ pub fn generate_combo_drawing(sections: &[CrossSectionData], columns: usize, col
     let frame_scale = if is_route_2 { 500.0 } else { 700.0 };
     let frame_text_size = 3.0;
 
+    // 縦断図のスケール比率（V:H = 5:1）
+    let longitudinal_v_ratio = 5.0;
+    // 横断図のスケール設定（scale_multiplier=5.0, v_scale_ratio=2.0）
+    let cross_scale_multiplier = 5.0;
+    let cross_v_scale_ratio = 2.0;
+
     // 図枠の内枠中心（A3: 420x297mm, マージン10mm）
     let frame_center_x = 210.0;
     let frame_center_y = 148.5;
@@ -120,11 +126,18 @@ pub fn generate_combo_drawing(sections: &[CrossSectionData], columns: usize, col
     let frame_origin_x = data_center_x - frame_center_x * frame_scale;
     let frame_origin_y = data_center_y - frame_center_y * frame_scale;
 
+    // スケール文字列を動的に生成
+    let scale_text = format!(
+        "H=1:{} V=1:{}",
+        frame_scale as u32,
+        (frame_scale / longitudinal_v_ratio) as u32
+    );
+
     // ルート2のときはタイトルに横断図も含める、路線名も変更
-    let (drawing_type, top_title, scale_text, route_name) = if is_route_2 {
-        ("縦断図　横断図", "縦断図　横断図", "H=1:500 V=1:100", "東側取付道路")
+    let (drawing_type, top_title, route_name) = if is_route_2 {
+        ("縦断図　横断図", "縦断図　横断図", "東側取付道路")
     } else {
-        ("縦断図", "縦断図", "H=1:700 V=1:140", "市道南千反畑第１号線　本線")
+        ("縦断図", "縦断図", "市道南千反畑第１号線　本線")
     };
 
     let frame_info = TitleBlockInfo::new()
@@ -132,7 +145,7 @@ pub fn generate_combo_drawing(sections: &[CrossSectionData], columns: usize, col
         .with_drawing_type(drawing_type)
         .with_route_name(route_name)
         .with_date("2026年1月")
-        .with_scale(scale_text)
+        .with_scale(&scale_text)
         .with_drawing_number("1/1")
         .with_author("有限会社　三雄建設")
         .with_top_title(top_title)
@@ -149,7 +162,11 @@ pub fn generate_combo_drawing(sections: &[CrossSectionData], columns: usize, col
         // 横断図の左下に縮尺表示（配置後の位置）
         let scale_label_x = long_max_x as f64 + spacing * 2.0;
         let scale_label_y = cs_min_y as f64 + cs_y_offset - frame_text_size * frame_scale;
-        add_text(&mut drawing, scale_label_x, scale_label_y, "横断図 Scale H=1:100 V=1:200",
+        // 横断図のスケール: H = frame_scale / scale_multiplier, V = H / v_scale_ratio
+        let cross_h_scale = (frame_scale / cross_scale_multiplier) as u32;
+        let cross_v_scale = (cross_h_scale as f64 / cross_v_scale_ratio) as u32;
+        let cross_scale_text = format!("横断図 Scale H=1:{} V=1:{}", cross_h_scale, cross_v_scale);
+        add_text(&mut drawing, scale_label_x, scale_label_y, &cross_scale_text,
             frame_text_size * frame_scale, 7, "TEXT", HAlign::Left);
     }
 
