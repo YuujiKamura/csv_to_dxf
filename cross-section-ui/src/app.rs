@@ -102,7 +102,7 @@ impl Default for CrossSectionApp {
             show_debug_guides: true,  // デフォルトでON
             hide_project_name: false, // デフォルトで表示
             v_scale_ratio: 1.0,       // デフォルト縦スケール1倍
-            dekigata_scale: 40.0,     // デフォルト出来形スケール1:40
+            dekigata_scale: 50.0,     // デフォルト出来形スケール1:50
             odd_points_only: true,    // デフォルトで奇数測点のみ
             // ページ分割
             current_page: 0,
