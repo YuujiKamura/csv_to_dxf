@@ -411,31 +411,21 @@ class DekigataPdfRenderer:
         page.draw_rect(border_rect, color=self.COLOR_BLACK, width=self.LINE_WIDTH)
 
         # -------------------------------------------------------------
-        # 2. 上部表題 & 工事名 (Title & Optional Project Name)
+        # 2. 上部表題 (Main Title: Huge Project Name)
         # -------------------------------------------------------------
-        if section.project_name:
-            p_text = section.project_name
-            p_size = 22.0  # 大きめに明記
-            p_w = self._get_text_width(p_text, p_size)
-            page.insert_text(fitz.Point(cl_x - p_w / 2.0, 50.0), p_text, fontname=self.font_name, fontsize=p_size, color=self.COLOR_BLACK)
-            title_y = 75.0
-            ul_y1, ul_y2 = 82.5, 85.2
-            st_y = 108.0
-        else:
-            title_y = 65.0
-            ul_y1, ul_y2 = 73.7, 76.6
-            st_y = 105.0
-
-        title_text = "出来形管理用紙"
-        title_font_size = 18.0
-        title_w = self._get_text_width(title_text, title_font_size)
+        # 「出来形管理用紙」の文言を削除し、工事名をバカでかくメインタイトルとして配置
+        title_text = section.project_name if section.project_name else "出来形管理用紙"
+        title_size = 32.0 if section.project_name else 24.0
+        title_w = self._get_text_width(title_text, title_size)
         title_x = cl_x - (title_w / 2.0)
-        page.insert_text(fitz.Point(title_x, title_y), title_text, fontname=self.font_name, fontsize=title_font_size, color=self.COLOR_BLACK)
+        title_y = 66.0
+        page.insert_text(fitz.Point(title_x, title_y), title_text, fontname=self.font_name, fontsize=title_size, color=self.COLOR_BLACK)
 
         # 二重下線 (Double Underline)
-        ul_w = title_w + 16.0
+        ul_w = title_w + 20.0
         ul_x0 = cl_x - (ul_w / 2.0)
         ul_x1 = cl_x + (ul_w / 2.0)
+        ul_y1, ul_y2 = 74.0, 76.8
         page.draw_line(fitz.Point(ul_x0, ul_y1), fitz.Point(ul_x1, ul_y1), color=self.COLOR_BLACK, width=self.LINE_WIDTH)
         page.draw_line(fitz.Point(ul_x0, ul_y2), fitz.Point(ul_x1, ul_y2), color=self.COLOR_BLACK, width=self.LINE_WIDTH)
 
@@ -446,6 +436,7 @@ class DekigataPdfRenderer:
         st_font_size = 24.3
         st_w = self._get_text_width(st_text, st_font_size)
         st_x = cl_x - (st_w / 2.0)
+        st_y = 105.0
         page.insert_text(fitz.Point(st_x, st_y), st_text, fontname=self.font_name, fontsize=st_font_size, color=self.COLOR_BLACK)
 
         # -------------------------------------------------------------
