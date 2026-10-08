@@ -415,19 +415,19 @@ class DekigataPdfRenderer:
         # -------------------------------------------------------------
         if section.project_name:
             p_text = section.project_name
-            p_size = 14.0
+            p_size = 22.0  # 大きめに明記
             p_w = self._get_text_width(p_text, p_size)
-            page.insert_text(fitz.Point(cl_x - p_w / 2.0, 48.0), p_text, fontname=self.font_name, fontsize=p_size, color=self.COLOR_BLACK)
-            title_y = 70.0
-            ul_y1, ul_y2 = 77.0, 79.9
-            st_y = 110.0
+            page.insert_text(fitz.Point(cl_x - p_w / 2.0, 50.0), p_text, fontname=self.font_name, fontsize=p_size, color=self.COLOR_BLACK)
+            title_y = 75.0
+            ul_y1, ul_y2 = 82.5, 85.2
+            st_y = 108.0
         else:
             title_y = 65.0
             ul_y1, ul_y2 = 73.7, 76.6
             st_y = 105.0
 
         title_text = "出来形管理用紙"
-        title_font_size = 16.2
+        title_font_size = 18.0
         title_w = self._get_text_width(title_text, title_font_size)
         title_x = cl_x - (title_w / 2.0)
         page.insert_text(fitz.Point(title_x, title_y), title_text, fontname=self.font_name, fontsize=title_font_size, color=self.COLOR_BLACK)
@@ -469,26 +469,26 @@ class DekigataPdfRenderer:
         cl_pt = cl_coord[0]
         cl_gh_str = f"GH={cl_pt.gh:.3f}"
         cl_fh_str = f"FH={cl_pt.fh:.3f}"
-        font_s = 16.2
+        font_s = 15.0
 
         w_gh = self._get_text_width(cl_gh_str, font_s)
         w_fh = self._get_text_width(cl_fh_str, font_s)
-        page.insert_text(fitz.Point(cl_x - w_gh / 2.0, 130.0), cl_gh_str, fontname=self.font_name, fontsize=font_s, color=self.COLOR_BLACK)
-        page.insert_text(fitz.Point(cl_x - w_fh / 2.0, 153.0), cl_fh_str, fontname=self.font_name, fontsize=font_s, color=self.COLOR_RED)
+        page.insert_text(fitz.Point(cl_x - w_gh / 2.0, 128.0), cl_gh_str, fontname=self.font_name, fontsize=font_s, color=self.COLOR_BLACK)
+        page.insert_text(fitz.Point(cl_x - w_fh / 2.0, 148.0), cl_fh_str, fontname=self.font_name, fontsize=font_s, color=self.COLOR_RED)
 
         # 水平寸法線 (旗揚げ基準線)
-        flag_line_y = 167.3
+        flag_line_y = 165.0
         page.draw_line(fitz.Point(l_coord[1], flag_line_y), fitz.Point(cl_x, flag_line_y), color=self.COLOR_BLACK, width=self.LINE_WIDTH)
         page.draw_line(fitz.Point(cl_x, flag_line_y), fitz.Point(r_coord[1], flag_line_y), color=self.COLOR_BLACK, width=self.LINE_WIDTH)
 
         # 垂直チック線 (左端, CL, 右端)
-        tick_top = 164.3
-        tick_bot = 195.6
+        tick_top = 162.0
+        tick_bot = 188.0
         page.draw_line(fitz.Point(l_coord[1], tick_top), fitz.Point(l_coord[1], tick_bot), color=self.COLOR_BLACK, width=self.LINE_WIDTH)
         page.draw_line(fitz.Point(cl_x, tick_top), fitz.Point(cl_x, tick_bot), color=self.COLOR_BLACK, width=self.LINE_WIDTH)
         page.draw_line(fitz.Point(r_coord[1], tick_top), fitz.Point(r_coord[1], tick_bot), color=self.COLOR_BLACK, width=self.LINE_WIDTH)
 
-        # 幅員テキスト
+        # 幅員テキスト (旗揚げラインの上)
         l_mid_x = (l_coord[1] + cl_x) / 2.0
         r_mid_x = (cl_x + r_coord[1]) / 2.0
 
@@ -496,34 +496,37 @@ class DekigataPdfRenderer:
         rw_str = f"{section.right_width:.2f}"
         w_lw = self._get_text_width(lw_str, font_s)
         w_rw = self._get_text_width(rw_str, font_s)
-        page.insert_text(fitz.Point(l_mid_x - w_lw / 2.0, 159.0), lw_str, fontname=self.font_name, fontsize=font_s, color=self.COLOR_BLACK)
-        page.insert_text(fitz.Point(r_mid_x - w_rw / 2.0, 159.0), rw_str, fontname=self.font_name, fontsize=font_s, color=self.COLOR_BLACK)
+        page.insert_text(fitz.Point(l_mid_x - w_lw / 2.0, 158.0), lw_str, fontname=self.font_name, fontsize=font_s, color=self.COLOR_BLACK)
+        page.insert_text(fitz.Point(r_mid_x - w_rw / 2.0, 158.0), rw_str, fontname=self.font_name, fontsize=font_s, color=self.COLOR_BLACK)
 
-        # 勾配テキスト & 矢印
+        # 勾配テキスト & 矢印 (幅員旗揚ラインの下)
         ls_str = f"{section.left_slope:.1f}%"
         rs_str = f"{section.right_slope:.1f}%"
-        w_ls = self._get_text_width(ls_str, font_s)
-        w_rs = self._get_text_width(rs_str, font_s)
-        page.insert_text(fitz.Point(l_mid_x - w_ls / 2.0, 130.0), ls_str, fontname=self.font_name, fontsize=font_s, color=self.COLOR_BLACK)
-        page.insert_text(fitz.Point(r_mid_x - w_rs / 2.0, 130.0), rs_str, fontname=self.font_name, fontsize=font_s, color=self.COLOR_BLACK)
+        slope_font_s = 13.5
+        w_ls = self._get_text_width(ls_str, slope_font_s)
+        w_rs = self._get_text_width(rs_str, slope_font_s)
+        slope_text_y = 179.0
+        slope_arrow_y = 187.0
+        page.insert_text(fitz.Point(l_mid_x - w_ls / 2.0, slope_text_y), ls_str, fontname=self.font_name, fontsize=slope_font_s, color=self.COLOR_BLACK)
+        page.insert_text(fitz.Point(r_mid_x - w_rs / 2.0, slope_text_y), rs_str, fontname=self.font_name, fontsize=slope_font_s, color=self.COLOR_BLACK)
 
-        self._draw_slope_arrow(page, l_mid_x, 138.0, section.left_slope, is_left_side=True)
-        self._draw_slope_arrow(page, r_mid_x, 138.0, section.right_slope, is_left_side=False)
+        self._draw_slope_arrow(page, l_mid_x, slope_arrow_y, section.left_slope, is_left_side=True)
+        self._draw_slope_arrow(page, r_mid_x, slope_arrow_y, section.right_slope, is_left_side=False)
 
         # -------------------------------------------------------------
-        # 6. 左右端点旗揚げ (Left & Right Flags)
+        # 6. 左右端点旗揚げ (Left & Right Flags) - 勾配と干渉しないよう配置
         # -------------------------------------------------------------
         l_gh_str = f"GH={l_coord[0].gh:.3f}"
         l_fh_str = f"FH={l_coord[0].fh:.3f}"
-        page.insert_text(fitz.Point(l_coord[1], 195.0), l_gh_str, fontname=self.font_name, fontsize=font_s, color=self.COLOR_BLACK)
-        page.insert_text(fitz.Point(l_coord[1], 218.0), l_fh_str, fontname=self.font_name, fontsize=font_s, color=self.COLOR_RED)
+        page.insert_text(fitz.Point(l_coord[1], 206.0), l_gh_str, fontname=self.font_name, fontsize=font_s, color=self.COLOR_BLACK)
+        page.insert_text(fitz.Point(l_coord[1], 226.0), l_fh_str, fontname=self.font_name, fontsize=font_s, color=self.COLOR_RED)
 
         r_gh_str = f"GH={r_coord[0].gh:.3f}"
         r_fh_str = f"FH={r_coord[0].fh:.3f}"
         w_rgh = self._get_text_width(r_gh_str, font_s)
         w_rfh = self._get_text_width(r_fh_str, font_s)
-        page.insert_text(fitz.Point(r_coord[1] - w_rgh, 195.0), r_gh_str, fontname=self.font_name, fontsize=font_s, color=self.COLOR_BLACK)
-        page.insert_text(fitz.Point(r_coord[1] - w_rfh, 218.0), r_fh_str, fontname=self.font_name, fontsize=font_s, color=self.COLOR_RED)
+        page.insert_text(fitz.Point(r_coord[1] - w_rgh, 206.0), r_gh_str, fontname=self.font_name, fontsize=font_s, color=self.COLOR_BLACK)
+        page.insert_text(fitz.Point(r_coord[1] - w_rfh, 226.0), r_fh_str, fontname=self.font_name, fontsize=font_s, color=self.COLOR_RED)
 
         # -------------------------------------------------------------
         # 7. 断面線 (Cross-section Lines: GH, FH, CH)
@@ -754,7 +757,8 @@ class DekigataPdfRenderer:
             indiv_dir = output_path.parent / "個別"
             indiv_dir.mkdir(parents=True, exist_ok=True)
             for sec in sections:
-                safe_name = sec.station_name.replace("+", "_").replace(".", "_")
+                # Use station_name directly, e.g. 出来形管理図_No.23.pdf
+                safe_name = sec.station_name.replace("+", "_")
                 indiv_path = indiv_dir / f"出来形管理図_{safe_name}.pdf"
                 indiv_doc = fitz.open()
                 indiv_page = indiv_doc.new_page(width=self.PAGE_WIDTH, height=self.PAGE_HEIGHT)
@@ -777,7 +781,7 @@ def main():
     parser.add_argument("--output", "-o", default=None, help="出力PDFパス")
     parser.add_argument("--sheet", default="計画まとめ", help="Excelシート名")
     parser.add_argument("--v-ratio", type=float, default=1.0, help="縦方向スケール倍率 (デフォルト: 1.0)")
-    parser.add_argument("--project-name", "-p", default="", help="工事名（指定時は上部に表示）")
+    parser.add_argument("--project-name", "-p", default="一般県道　熊本空港線（戸島西工区）舗装補修工事（２工区）", help="工事名（指定時は上部に表示）")
     parser.add_argument("--offsets", nargs="+", type=float, default=None, help="任意の内挿オフセットリストで全測点を再サンプリング (例: -3.0 -1.5 0.0 1.5 3.0)")
     parser.add_argument("--points-json", default=None, help="外部JSONから特定測点の測定点データを上書き")
     parser.add_argument("--individual", action="store_true", help="測点ごとの個別PDFも出力")
