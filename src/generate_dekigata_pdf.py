@@ -455,34 +455,48 @@ class DekigataPdfRenderer:
         cl_coord = min(pt_coords, key=lambda c: abs(c[0].offset))
 
         # -------------------------------------------------------------
-        # 5. 中央旗揚げ & 左右寸法・勾配 (CL Flag & Dimensions)
+        # 5. 車線名称 & 寸法・勾配 (道路センター旗揚げGH/FHは中央分離帯内のため削除)
         # -------------------------------------------------------------
-        cl_pt = cl_coord[0]
-        cl_gh_str = f"GH={cl_pt.gh:.3f}"
-        cl_fh_str = f"FH={cl_pt.fh:.3f}"
         font_s = 15.0
-
-        w_gh = self._get_text_width(cl_gh_str, font_s)
-        w_fh = self._get_text_width(cl_fh_str, font_s)
-        page.insert_text(fitz.Point(cl_x - w_gh / 2.0, 128.0), cl_gh_str, fontname=self.font_name, fontsize=font_s, color=self.COLOR_BLACK)
-        page.insert_text(fitz.Point(cl_x - w_fh / 2.0, 148.0), cl_fh_str, fontname=self.font_name, fontsize=font_s, color=self.COLOR_RED)
+        lane_font_s = 14.0
+        note_font_s = 11.0
 
         # 水平寸法線 (旗揚げ基準線)
         flag_line_y = 165.0
         page.draw_line(fitz.Point(l_coord[1], flag_line_y), fitz.Point(cl_x, flag_line_y), color=self.COLOR_BLACK, width=self.LINE_WIDTH)
         page.draw_line(fitz.Point(cl_x, flag_line_y), fitz.Point(r_coord[1], flag_line_y), color=self.COLOR_BLACK, width=self.LINE_WIDTH)
 
-        # 垂直チック線 (左端, CL, 右端)
+        # 垂直チック線 (左端, 車線境界, 右端)
         tick_top = 162.0
         tick_bot = 188.0
         page.draw_line(fitz.Point(l_coord[1], tick_top), fitz.Point(l_coord[1], tick_bot), color=self.COLOR_BLACK, width=self.LINE_WIDTH)
         page.draw_line(fitz.Point(cl_x, tick_top), fitz.Point(cl_x, tick_bot), color=self.COLOR_BLACK, width=self.LINE_WIDTH)
         page.draw_line(fitz.Point(r_coord[1], tick_top), fitz.Point(r_coord[1], tick_bot), color=self.COLOR_BLACK, width=self.LINE_WIDTH)
 
-        # 幅員テキスト (旗揚げラインの上)
+        # 各境界の注記ラベル (チック線の上側)
+        # 左端: 歩道側
+        w_hodo = self._get_text_width("歩道側", note_font_s)
+        page.insert_text(fitz.Point(l_coord[1] - w_hodo / 2.0, 150.0), "歩道側", fontname=self.font_name, fontsize=note_font_s, color=self.COLOR_BLACK)
+        # 中央: 車線境界
+        w_kyokai = self._get_text_width("車線境界", note_font_s)
+        page.insert_text(fitz.Point(cl_x - w_kyokai / 2.0, 150.0), "車線境界", fontname=self.font_name, fontsize=note_font_s, color=self.COLOR_BLACK)
+        # 右端: 中央分離帯側
+        w_bunri = self._get_text_width("中央分離帯側", note_font_s)
+        page.insert_text(fitz.Point(r_coord[1] - w_bunri / 2.0, 150.0), "中央分離帯側", fontname=self.font_name, fontsize=note_font_s, color=self.COLOR_BLACK)
+
+        # 車線名 & 幅員テキスト (寸法線の上側)
         l_mid_x = (l_coord[1] + cl_x) / 2.0
         r_mid_x = (cl_x + r_coord[1]) / 2.0
 
+        # 車線名称 (第1走行帯, 第2走行帯)
+        l_lane_str = "第1走行帯"
+        r_lane_str = "第2走行帯"
+        w_llane = self._get_text_width(l_lane_str, lane_font_s)
+        w_rlane = self._get_text_width(r_lane_str, lane_font_s)
+        page.insert_text(fitz.Point(l_mid_x - w_llane / 2.0, 136.0), l_lane_str, fontname=self.font_name, fontsize=lane_font_s, color=self.COLOR_BLACK)
+        page.insert_text(fitz.Point(r_mid_x - w_rlane / 2.0, 136.0), r_lane_str, fontname=self.font_name, fontsize=lane_font_s, color=self.COLOR_BLACK)
+
+        # 幅員数値
         lw_str = f"{section.left_width:.2f}"
         rw_str = f"{section.right_width:.2f}"
         w_lw = self._get_text_width(lw_str, font_s)
@@ -490,9 +504,9 @@ class DekigataPdfRenderer:
         page.insert_text(fitz.Point(l_mid_x - w_lw / 2.0, 158.0), lw_str, fontname=self.font_name, fontsize=font_s, color=self.COLOR_BLACK)
         page.insert_text(fitz.Point(r_mid_x - w_rw / 2.0, 158.0), rw_str, fontname=self.font_name, fontsize=font_s, color=self.COLOR_BLACK)
 
-        # 勾配テキスト & 矢印 (幅員旗揚ラインの下)
-        ls_str = f"{section.left_slope:.1f}%"
-        rs_str = f"{section.right_slope:.1f}%"
+        # 勾配テキスト & 矢印 (幅員旗揚ラインの下: 左右それぞれに描画)
+        ls_str = f"{abs(section.left_slope):.1f}%"
+        rs_str = f"{abs(section.right_slope):.1f}%"
         slope_font_s = 13.5
         w_ls = self._get_text_width(ls_str, slope_font_s)
         w_rs = self._get_text_width(rs_str, slope_font_s)
@@ -676,11 +690,13 @@ class DekigataPdfRenderer:
         col_l_cx = fuk_x0 + fuk_hdr_w + fuk_data_w * 0.5
         col_r_cx = fuk_x0 + fuk_hdr_w + fuk_data_w * 1.5
 
-        w_lf = self._get_text_width("左幅員", tbl_font_s)
-        w_rf = self._get_text_width("右幅員", tbl_font_s)
-        fuk_hdr_y = fuk_y0 + (fuk_row_h + tbl_font_s * 0.75) / 2.0 - 2.0
-        page.insert_text(fitz.Point(col_l_cx - w_lf / 2.0, fuk_hdr_y), "左幅員", fontname=self.font_name, fontsize=tbl_font_s, color=self.COLOR_BLACK)
-        page.insert_text(fitz.Point(col_r_cx - w_rf / 2.0, fuk_hdr_y), "右幅員", fontname=self.font_name, fontsize=tbl_font_s, color=self.COLOR_BLACK)
+        # 列ヘッダー: 「第1走行帯」「第2走行帯」
+        hdr_font_s = 21.0
+        w_lf = self._get_text_width("第1走行帯", hdr_font_s)
+        w_rf = self._get_text_width("第2走行帯", hdr_font_s)
+        fuk_hdr_y = fuk_y0 + (fuk_row_h + hdr_font_s * 0.75) / 2.0 - 2.0
+        page.insert_text(fitz.Point(col_l_cx - w_lf / 2.0, fuk_hdr_y), "第1走行帯", fontname=self.font_name, fontsize=hdr_font_s, color=self.COLOR_BLACK)
+        page.insert_text(fitz.Point(col_r_cx - w_rf / 2.0, fuk_hdr_y), "第2走行帯", fontname=self.font_name, fontsize=hdr_font_s, color=self.COLOR_BLACK)
 
         # 設計値
         fuk_des_y = fuk_y0 + fuk_row_h * 1 + (fuk_row_h + tbl_font_s * 0.75) / 2.0 - 2.0
