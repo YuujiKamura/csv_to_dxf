@@ -497,12 +497,20 @@ class DekigataPdfRenderer:
         self._draw_slope_arrow(page, r_mid_x, slope_arrow_y, section.right_slope, is_left_side=False)
 
         # -------------------------------------------------------------
-        # 6. 左右端点旗揚げ (Left & Right Flags) - 勾配と干渉しないよう配置
+        # 6. 端点・境界点旗揚げ (Left, V3 Center, Right Flags) - 左右と同じ高さで配置
         # -------------------------------------------------------------
         l_gh_str = f"GH={l_coord[0].gh:.3f}"
         l_fh_str = f"FH={l_coord[0].fh:.3f}"
         page.insert_text(fitz.Point(l_coord[1], 206.0), l_gh_str, fontname=self.font_name, fontsize=font_s, color=self.COLOR_BLACK)
         page.insert_text(fitz.Point(l_coord[1], 226.0), l_fh_str, fontname=self.font_name, fontsize=font_s, color=self.COLOR_RED)
+
+        # V3 (車線境界) - センター寄せ
+        c_gh_str = f"GH={cl_coord[0].gh:.3f}"
+        c_fh_str = f"FH={cl_coord[0].fh:.3f}"
+        w_cgh = self._get_text_width(c_gh_str, font_s)
+        w_cfh = self._get_text_width(c_fh_str, font_s)
+        page.insert_text(fitz.Point(cl_coord[1] - w_cgh / 2.0, 206.0), c_gh_str, fontname=self.font_name, fontsize=font_s, color=self.COLOR_BLACK)
+        page.insert_text(fitz.Point(cl_coord[1] - w_cfh / 2.0, 226.0), c_fh_str, fontname=self.font_name, fontsize=font_s, color=self.COLOR_RED)
 
         r_gh_str = f"GH={r_coord[0].gh:.3f}"
         r_fh_str = f"FH={r_coord[0].fh:.3f}"
