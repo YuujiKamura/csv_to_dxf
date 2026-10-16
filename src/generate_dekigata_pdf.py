@@ -430,17 +430,7 @@ class DekigataPdfRenderer:
         page.draw_line(fitz.Point(ul_x0, ul_y2), fitz.Point(ul_x1, ul_y2), color=self.COLOR_BLACK, width=self.LINE_WIDTH)
 
         # -------------------------------------------------------------
-        # 3. 測点名 (Station Name)
-        # -------------------------------------------------------------
-        st_text = section.station_name
-        st_font_size = 24.3
-        st_w = self._get_text_width(st_text, st_font_size)
-        st_x = cl_x - (st_w / 2.0)
-        st_y = 105.0
-        page.insert_text(fitz.Point(st_x, st_y), st_text, fontname=self.font_name, fontsize=st_font_size, color=self.COLOR_BLACK)
-
-        # -------------------------------------------------------------
-        # 4. 横断図データ準備 (Coordinates)
+        # 3. 横断図データ準備 (Coordinates)
         # -------------------------------------------------------------
         pt_coords: List[Tuple[DekigataPoint, float, float, float, float]] = []
         for pt in section.points:
@@ -453,6 +443,16 @@ class DekigataPdfRenderer:
         l_coord = pt_coords[0]
         r_coord = pt_coords[-1]
         cl_coord = min(pt_coords, key=lambda c: abs(c[0].offset))
+
+        # -------------------------------------------------------------
+        # 4. 測点名 (Station Name) - 中心線測量基準の中分側(V5)真上に配置
+        # -------------------------------------------------------------
+        st_text = section.station_name
+        st_font_size = 24.3
+        st_w = self._get_text_width(st_text, st_font_size)
+        st_x = r_coord[1] - (st_w / 2.0)
+        st_y = 105.0
+        page.insert_text(fitz.Point(st_x, st_y), st_text, fontname=self.font_name, fontsize=st_font_size, color=self.COLOR_BLACK)
 
         # -------------------------------------------------------------
         # 5. 寸法・勾配 (道路センター旗揚げGH/FHは削除、上部旗揚げは寸法数値のみ表示)
