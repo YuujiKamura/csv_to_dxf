@@ -676,21 +676,21 @@ class DekigataPdfRenderer:
         col_l_cx = fuk_x0 + fuk_hdr_w + fuk_data_w * 0.5
         col_r_cx = fuk_x0 + fuk_hdr_w + fuk_data_w * 1.5
 
-        # 列ヘッダー: 二段表記（1段目: 走行車線/追越車線、2段目: 第１通行帯/第２通行帯）
-        hdr_s1 = 16.0
-        hdr_s2 = 13.5
-        w_l1 = self._get_text_width("走行車線", hdr_s1)
-        w_l2 = self._get_text_width("第１通行帯", hdr_s2)
-        w_r1 = self._get_text_width("追越車線", hdr_s1)
-        w_r2 = self._get_text_width("第２通行帯", hdr_s2)
+        # 列ヘッダー: 二段表記（1段目: 第１車線/第２車線 [道路構造令], 2段目: 走行車線/追越車線 [通称]）
+        hdr_s1 = 17.0
+        hdr_s2 = 13.0
+        w_l1 = self._get_text_width("第１車線", hdr_s1)
+        w_l2 = self._get_text_width("走行車線", hdr_s2)
+        w_r1 = self._get_text_width("第２車線", hdr_s1)
+        w_r2 = self._get_text_width("追越車線", hdr_s2)
 
         y_tier1 = fuk_y0 + 20.5
         y_tier2 = fuk_y0 + 40.5
-        page.insert_text(fitz.Point(col_l_cx - w_l1 / 2.0, y_tier1), "走行車線", fontname=self.font_name, fontsize=hdr_s1, color=self.COLOR_BLACK)
-        page.insert_text(fitz.Point(col_l_cx - w_l2 / 2.0, y_tier2), "第１通行帯", fontname=self.font_name, fontsize=hdr_s2, color=self.COLOR_BLACK)
+        page.insert_text(fitz.Point(col_l_cx - w_l1 / 2.0, y_tier1), "第１車線", fontname=self.font_name, fontsize=hdr_s1, color=self.COLOR_BLACK)
+        page.insert_text(fitz.Point(col_l_cx - w_l2 / 2.0, y_tier2), "走行車線", fontname=self.font_name, fontsize=hdr_s2, color=self.COLOR_BLACK)
 
-        page.insert_text(fitz.Point(col_r_cx - w_r1 / 2.0, y_tier1), "追越車線", fontname=self.font_name, fontsize=hdr_s1, color=self.COLOR_BLACK)
-        page.insert_text(fitz.Point(col_r_cx - w_r2 / 2.0, y_tier2), "第２通行帯", fontname=self.font_name, fontsize=hdr_s2, color=self.COLOR_BLACK)
+        page.insert_text(fitz.Point(col_r_cx - w_r1 / 2.0, y_tier1), "第２車線", fontname=self.font_name, fontsize=hdr_s1, color=self.COLOR_BLACK)
+        page.insert_text(fitz.Point(col_r_cx - w_r2 / 2.0, y_tier2), "追越車線", fontname=self.font_name, fontsize=hdr_s2, color=self.COLOR_BLACK)
 
         # 設計値
         fuk_des_y = fuk_y0 + fuk_row_h * 1 + (fuk_row_h + tbl_font_s * 0.75) / 2.0 - 2.0
