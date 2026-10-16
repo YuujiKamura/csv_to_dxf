@@ -445,12 +445,12 @@ class DekigataPdfRenderer:
         cl_coord = min(pt_coords, key=lambda c: abs(c[0].offset))
 
         # -------------------------------------------------------------
-        # 4. 測点名 (Station Name) - 中心線測量基準の中分側(V5)真上に配置
+        # 4. 測点名 (Station Name) - 図面中央(cl_x)に配置
         # -------------------------------------------------------------
         st_text = section.station_name
         st_font_size = 24.3
         st_w = self._get_text_width(st_text, st_font_size)
-        st_x = r_coord[1] - (st_w / 2.0)
+        st_x = cl_x - (st_w / 2.0)
         st_y = 105.0
         page.insert_text(fitz.Point(st_x, st_y), st_text, fontname=self.font_name, fontsize=st_font_size, color=self.COLOR_BLACK)
 
